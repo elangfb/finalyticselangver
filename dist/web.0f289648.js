@@ -734,6 +734,64 @@ const uploadHistoryList = document.getElementById('upload-history-list');
 const noUploadsMsg = document.getElementById('no-uploads-msg');
 const userListError = document.getElementById('user-list-error');
 const createUserFeedback = document.getElementById('create-user-feedback');
+const DB_NAME = 'FinalyticsCacheDB';
+const STORE_NAME = 'compiledDataStore';
+// Function to save data and metadata to IndexedDB
+async function saveCompiledData(data, uploadCount) {
+    return new Promise((resolve, reject)=>{
+        // Find the most recent date in the entire dataset
+        const lastTransactionDate = data.reduce((latest, item)=>{
+            const itemDate = item['Sales Date In'];
+            return itemDate > latest ? itemDate : latest;
+        }, new Date(0)); // Start with a very old date
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = ()=>{
+            const db = request.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+        };
+        request.onsuccess = ()=>{
+            const db = request.result;
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            // Now storing the last transaction date along with the data
+            store.put({
+                data,
+                uploadCount,
+                timestamp: new Date(),
+                lastTransactionDate
+            }, 'compiledAnalysis');
+            transaction.oncomplete = ()=>{
+                console.log('Compiled data cached successfully with last transaction date.');
+                resolve();
+            };
+            transaction.onerror = ()=>reject(transaction.error);
+        };
+        request.onerror = ()=>reject(request.error);
+    });
+}
+// Function to get the cached data and its metadata from IndexedDB
+async function getCachedData() {
+    return new Promise((resolve, reject)=>{
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = ()=>{
+            const db = request.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+        };
+        request.onsuccess = ()=>{
+            const db = request.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                resolve(null);
+                return;
+            }
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const getRequest = store.get('compiledAnalysis');
+            getRequest.onsuccess = ()=>resolve(getRequest.result || null);
+            getRequest.onerror = ()=>reject(getRequest.error);
+        };
+        request.onerror = ()=>reject(request.error);
+    });
+}
 // --- App Initialization ---
 (0, _auth.onAuthStateChanged)(auth, async (user)=>{
     if (user) {
@@ -1414,16 +1472,27 @@ document.getElementById('upload-btn').addEventListener('click', async ()=>{
  * // Sets comparison period: 2023-12-15 to 2024-01-14
  */ function populateFilters(data) {
     if (data.length === 0) return;
-    const dates = data.map((d)=>d['Sales Date In']);
-    const minDate = new Date(Math.min(...dates));
-    const maxDate = new Date(Math.max(...dates));
-    // Set current period to the full range of the data
+    // OLD METHOD that causes the error with large arrays:
+    // const dates = data.map((d) => d['Sales Date In']);
+    // const minDate = new Date(Math.min(...dates));
+    // const maxDate = new Date(Math.max(...dates));
+    // NEW, SAFER METHOD: Use reduce to find min/max dates without exceeding the call stack.
+    const { minDate, maxDate } = data.reduce((acc, d)=>{
+        const currentDate = d['Sales Date In'];
+        if (currentDate < acc.minDate) acc.minDate = currentDate;
+        if (currentDate > acc.maxDate) acc.maxDate = currentDate;
+        return acc;
+    }, {
+        minDate: data[0]['Sales Date In'],
+        maxDate: data[0]['Sales Date In']
+    });
+    // The rest of the function remains the same
     document.getElementById('date-start').value = minDate.toISOString().split('T')[0];
     document.getElementById('date-end').value = maxDate.toISOString().split('T')[0];
-    // Set default comparison period to the month before the current period starts
     const lastPeriodEnd = new Date(minDate);
     lastPeriodEnd.setDate(lastPeriodEnd.getDate() - 1);
     const lastPeriodStart = new Date(lastPeriodEnd);
+    // A full month before the last period end date
     lastPeriodStart.setMonth(lastPeriodStart.getMonth() - 1);
     document.getElementById('last-period-start').value = lastPeriodStart.toISOString().split('T')[0];
     document.getElementById('last-period-end').value = lastPeriodEnd.toISOString().split('T')[0];
@@ -3326,54 +3395,93 @@ uploadHistoryList.addEventListener('click', async (e)=>{
  * @returns {void}
  */ document.getElementById('view-compiled-btn').addEventListener('click', async ()=>{
     if (!currentUser) return;
-    const startTime = performance.now(); // Start the timer
+    const startTime = performance.now();
+    showLoading({
+        message: 'Checking for data...',
+        value: 0
+    });
     try {
-        showLoading({
-            message: 'Preparing to fetch...',
-            value: 0
-        });
-        // Step 1: Get the total count of documents first for accurate progress calculation.
-        const baseQuery = (0, _firestore.query)((0, _firestore.collectionGroup)(db, 'bills'), (0, _firestore.where)('userId', '==', currentUser.uid));
-        const countSnapshot = await (0, _firestore.getCountFromServer)(baseQuery);
-        const totalBills = countSnapshot.data().count;
-        if (totalBills === 0) {
-            alert('No sales data has been uploaded yet.');
-            hideLoading();
-            return;
-        }
-        // Step 2: Fetch documents in pages to provide progress updates.
-        showLoading({
-            message: `Found ${totalBills} records. Starting download...`,
-            value: 5
-        });
-        const compiledData = [];
-        const PAGE_SIZE = 10000; // You can adjust this value
-        let lastVisible = null;
-        const paginatedQuery = (0, _firestore.query)(baseQuery, (0, _firestore.orderBy)('Sales Date In'));
-        while(compiledData.length < totalBills){
-            let pageQuery;
-            if (lastVisible) pageQuery = (0, _firestore.query)(paginatedQuery, (0, _firestore.startAfter)(lastVisible), (0, _firestore.limit)(PAGE_SIZE));
-            else pageQuery = (0, _firestore.query)(paginatedQuery, (0, _firestore.limit)(PAGE_SIZE));
-            const pageSnapshot = await (0, _firestore.getDocs)(pageQuery);
-            if (pageSnapshot.empty) break;
-            pageSnapshot.forEach((billDoc)=>{
-                const billData = billDoc.data();
-                if (billData['Sales Date In']?.toDate) billData['Sales Date In'] = billData['Sales Date In'].toDate();
-                compiledData.push(billData);
-            });
-            lastVisible = pageSnapshot.docs[pageSnapshot.docs.length - 1];
-            const fetchProgress = 5 + compiledData.length / totalBills * 65;
+        const uploadsCollectionRef = (0, _firestore.collection)(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
+        const uploadsCountSnapshot = await (0, _firestore.getCountFromServer)(uploadsCollectionRef);
+        const currentUploadCount = uploadsCountSnapshot.data().count;
+        const cachedResult = await getCachedData();
+        let finalData;
+        // Case 1: Cache is up-to-date. Load directly from device.
+        if (cachedResult && cachedResult.uploadCount === currentUploadCount) {
+            console.log('Cache is valid. Loading from IndexedDB.');
             showLoading({
-                message: `Fetching records... (${compiledData.length} / ${totalBills})`,
-                value: Math.round(fetchProgress)
+                message: 'Loading from device...',
+                value: 100
             });
+            finalData = cachedResult.data;
+        } else if (cachedResult && currentUploadCount > cachedResult.uploadCount && cachedResult.lastTransactionDate instanceof Date) {
+            console.log('Cache is outdated. Fetching only new records.');
+            const existingData = cachedResult.data;
+            const lastFetchDate = cachedResult.lastTransactionDate;
+            showLoading({
+                message: `Loading ${existingData.length} records from device...`,
+                value: 20
+            });
+            // Query for documents newer than the last one in the cache
+            const newDataQuery = (0, _firestore.query)((0, _firestore.collectionGroup)(db, 'bills'), (0, _firestore.where)('userId', '==', currentUser.uid), (0, _firestore.where)('Sales Date In', '>', lastFetchDate));
+            const newDataSnapshot = await (0, _firestore.getDocs)(newDataQuery);
+            const newData = [];
+            newDataSnapshot.forEach((doc)=>{
+                const billData = doc.data();
+                if (billData['Sales Date In']?.toDate) billData['Sales Date In'] = billData['Sales Date In'].toDate();
+                newData.push(billData);
+            });
+            console.log(`Fetched ${newData.length} new records.`);
+            showLoading({
+                message: `Found ${newData.length} new records. Combining...`,
+                value: 80
+            });
+            finalData = [
+                ...existingData,
+                ...newData
+            ];
+            await saveCompiledData(finalData, currentUploadCount); // Update the cache
+        } else {
+            console.log('No valid cache or cache is in old format. Performing full refresh.');
+            const baseQuery = (0, _firestore.query)((0, _firestore.collectionGroup)(db, 'bills'), (0, _firestore.where)('userId', '==', currentUser.uid));
+            const totalBills = currentUploadCount > 0 ? (await (0, _firestore.getCountFromServer)(baseQuery)).data().count : 0;
+            if (totalBills === 0) {
+                alert('No sales data has been uploaded yet.');
+                hideLoading();
+                return;
+            }
+            showLoading({
+                message: `Found ${totalBills} records. Starting download...`,
+                value: 5
+            });
+            const fetchedData = [];
+            const PAGE_SIZE = 10000;
+            let lastVisible = null;
+            const paginatedQuery = (0, _firestore.query)(baseQuery, (0, _firestore.orderBy)('Sales Date In'));
+            while(fetchedData.length < totalBills){
+                let pageQuery = lastVisible ? (0, _firestore.query)(paginatedQuery, (0, _firestore.startAfter)(lastVisible), (0, _firestore.limit)(PAGE_SIZE)) : (0, _firestore.query)(paginatedQuery, (0, _firestore.limit)(PAGE_SIZE));
+                const pageSnapshot = await (0, _firestore.getDocs)(pageQuery);
+                if (pageSnapshot.empty) break;
+                pageSnapshot.forEach((billDoc)=>{
+                    const billData = billDoc.data();
+                    if (billData['Sales Date In']?.toDate) billData['Sales Date In'] = billData['Sales Date In'].toDate();
+                    fetchedData.push(billData);
+                });
+                lastVisible = pageSnapshot.docs[pageSnapshot.docs.length - 1];
+                const fetchProgress = 5 + fetchedData.length / totalBills * 65;
+                showLoading({
+                    message: `Fetching records... (${fetchedData.length} / ${totalBills})`,
+                    value: Math.round(fetchProgress)
+                });
+            }
+            finalData = fetchedData;
+            await saveCompiledData(finalData, currentUploadCount);
         }
-        // Step 3: Now that data is loaded, proceed with the analysis.
-        allSalesData = compiledData;
+        // Now, run the analysis with the final combined data
+        allSalesData = finalData;
         aiAnalysisResults = {};
         document.getElementById('analysis-title').textContent = 'Compiled Analysis of All Uploads';
         populateFilters(allSalesData);
-        // Call runAnalysis and pass the timer's start time to it
         runAnalysis(startTime);
     } catch (error) {
         console.error("Failed to compile analysis:", error);
