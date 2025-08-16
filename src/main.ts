@@ -7839,3 +7839,4 @@ function showLoading({ value = 0, message = 'Loading...' }) {
 function hideLoading() {
   loadingOverlay.classList.add('hidden');
 }
+
