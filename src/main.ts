@@ -513,69 +513,6 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
   }
 })
 
-// Legacy saveAndChunkDataToFirestore function removed - now using Cloud Functions for processing
-
-/**
- * Process raw Excel JSON data into standardized format for analysis.
- *
- * @description
- * Transforms raw Excel data into a consistent, type-safe format by validating
- * required columns, converting dates to Date objects, parsing numeric values,
- * and mapping columns to standardized property names. Validates data integrity
- * and throws descriptive errors for missing columns or invalid dates.
- *
- * @param jsonData - Raw data array extracted from Excel file starting from row 12.
- * @returns Processed data array with proper types and standardized column mapping.
- *
- * @example
- * // Process raw Excel data
- * const rawData = [
- *   { "Bill Number": "001", "Sales Date In": "2024-01-01", "Nett Sales": "100000", Qty: "2" },
- *   { "Bill Number": "002", "Sales Date In": "2024-01-02", "Nett Sales": "150000", Qty: "1" }
- * ];
- * const processed = processData(rawData);
- * // Returns: [{ "Bill Number": "001", "Sales Date In": Date, Revenue: 100000, Quantity: 2, ... }]
- */
-function processData(jsonData: any[]): any[] {
-  const requiredColumns = ['Bill Number', 'Sales Date In', 'Branch', 'Visit Purpose', 'Menu Category', 'Menu', 'Qty', 'Price', 'Nett Sales']
-
-  const validJsonData = jsonData.filter((row) => row['Bill Number'] && row['Bill Number'] !== 'Bill Number')
-
-  if (validJsonData.length === 0) {
-    throw new Error('No valid data rows with a \'Bill Number\' found in the Excel file starting from row 12.')
-  }
-
-  const firstRow = validJsonData[0]
-  for (const col of requiredColumns) {
-    if (!firstRow.hasOwnProperty(col)) {
-      throw new Error(`Missing required column in Excel file: ${col}`)
-    }
-  }
-
-  const processedData = validJsonData.map((rawEntry) => {
-    const entry = {}
-    // Map all possible columns from the most detailed Excel file
-    const allColumns = ['Bill Number', 'Sales Date In', 'Branch', 'Brand', 'Visit Purpose', 'Payment Method', 'Menu Category', 'Menu', 'Custom Menu Name', 'Qty', 'Price', 'Discount', 'Tax', 'Nett Sales', 'Waiter', 'Bill Discount', 'Service Charge', 'Customer Name', 'Regular Member Name', 'Order Mode', 'Table Section', 'Table Name']
-    allColumns.forEach((col) => {
-      entry[col] = rawEntry[col]
-    })
-
-    entry['Sales Date In'] = new Date(rawEntry['Sales Date In'])
-    entry.Quantity = parseInt(rawEntry.Qty, 10) || 0
-    entry.Revenue = parseFloat(rawEntry['Nett Sales']) || 0
-    entry['Item Group'] = rawEntry['Menu Category']
-    entry['Item Name'] = rawEntry['Menu']
-
-    if (isNaN(entry['Sales Date In'].getTime())) {
-      throw new Error(`Invalid date format for row with Bill Number: ${entry['Bill Number']}. Original value was: "${rawEntry['Sales Date In']}"`)
-    }
-
-    return entry
-  })
-  uploadError.classList.add('hidden')
-  return processedData
-}
-
 // --- AI Analysis & Configuration ---
 /**
  * Load and merge Gemini AI configuration from localStorage with defaults.
@@ -2057,117 +1994,6 @@ function generateTcHarianJamChart(data: any[]): void {
     }],
   })
 }
-
-/**
- * Generate weekly Average Per Customer (APC) line chart showing spending trends.
- *
- * @description
- * Analyzes sales data to calculate weekly APC by grouping transactions by week
- * (starting from Sunday), computing total revenue and unique bill counts per week,
- * then calculating average spending per customer. Stores data for AI analysis and
- * creates a line chart visualization for PDF reports.
- *
- * @param data - Array of processed sales data rows with Revenue, Bill Number, and Sales Date In.
- * @returns This function does not return a value; it creates a Chart.js line chart and stores AI data.
- *
- * @example
- * // Generate weekly APC trend chart
- * const salesData = [
- *   { Revenue: 100000, "Bill Number": "001", "Sales Date In": new Date("2024-01-15") },
- *   { Revenue: 150000, "Bill Number": "002", "Sales Date In": new Date("2024-01-16") }
- * ];
- * generateApcMingguanChart(salesData);
- * // Creates line chart showing weekly APC trends and stores data in chartDataForAI['apcMingguan']
- */
-function generateApcMingguanChart(data: any[]): void {
-  const weeklyApc = {}
-  const weeklyBills = {}
-
-  data.forEach((d) => {
-    const firstDayOfWeek = new Date(d['Sales Date In'])
-    firstDayOfWeek.setDate(d['Sales Date In'].getDate() - d['Sales Date In'].getDay())
-    const weekLabel = firstDayOfWeek.toISOString().split('T')
-
-    if (!weeklyApc[weekLabel]) {
-      weeklyApc[weekLabel] = 0
-      weeklyBills[weekLabel] = new Set()
-    }
-    weeklyApc[weekLabel] += d.Revenue
-    weeklyBills[weekLabel].add(d['Bill Number'])
-  })
-
-  const sortedWeeks = Object.keys(weeklyApc).sort()
-  const apcData = sortedWeeks.map((week) => {
-    const totalRevenue = weeklyApc[week]
-    const totalBills = weeklyBills[week].size
-    return totalBills > 0 ? totalRevenue / totalBills : 0
-  })
-
-  chartDataForAI['apcMingguan'] = apcData
-
-  createChart('apc-mingguan-chart-pdf', 'line', {
-    labels: sortedWeeks,
-    datasets: [{
-      label: 'Rata-Rata APC per Minggu',
-      data: apcData,
-      borderColor: '#3B82F6',
-      tension: 0.1,
-    }],
-  })
-}
-
-/**
- * Generate weekly sales trend chart with AI data storage for PDF reports.
- *
- * @description
- * Analyzes sales data to create a line chart showing weekly revenue trends over time.
- * Groups revenue by week (starting Sunday) and sorts chronologically to display
- * sales progression. Stores trend data in global chartDataForAI for AI analysis
- * and insights generation. Helps identify weekly patterns, seasonal trends, and
- * business growth trajectories for strategic planning.
- *
- * @param data - Array of processed sales data rows with Revenue and Sales Date In.
- * @returns This function does not return a value; it creates a Chart.js line chart and stores AI data.
- *
- * @example
- * // Generate weekly sales trend with AI data
- * const salesData = [
- *   { Revenue: 500000, "Sales Date In": new Date("2024-01-15") }, // Week of Jan 14
- *   { Revenue: 600000, "Sales Date In": new Date("2024-01-22") }  // Week of Jan 21
- * ];
- * generateSalesTrendMingguanChart(salesData);
- * // Creates line chart and stores data in chartDataForAI['salesTrendMingguan']
- */
-function generateSalesTrendMingguanChart(data: any[]): void {
-  const weeklySales = {}
-
-  data.forEach((d) => {
-    const firstDayOfWeek = new Date(d['Sales Date In'])
-    firstDayOfWeek.setDate(d['Sales Date In'].getDate() - d['Sales Date In'].getDay())
-    const weekLabel = firstDayOfWeek.toISOString().split('T')
-
-    if (!weeklySales[weekLabel]) {
-      weeklySales[weekLabel] = 0
-    }
-    weeklySales[weekLabel] += d.Revenue
-  })
-
-  const sortedWeeks = Object.keys(weeklySales).sort()
-  const salesData = sortedWeeks.map((week) => weeklySales[week])
-
-  chartDataForAI['salesTrendMingguan'] = salesData
-
-  createChart('sales-trend-mingguan-chart-pdf', 'line', {
-    labels: sortedWeeks,
-    datasets: [{
-      label: 'Sales Trend per Minggu',
-      data: salesData,
-      borderColor: '#4F46E5',
-      tension: 0.1,
-    }],
-  })
-}
-
 
 /**
  * Generate comprehensive branch performance analysis with multiple visualizations.
@@ -6235,75 +6061,6 @@ function generateChannelInsights(data: any[]): void {
     });
 }
 
-// In main.ts, add these two new functions
-
-/**
- * Generate flexible multi-line trend chart for any metric grouped by sales channel.
- *
- * @description
- * Creates a customizable multi-line chart that can display APC, Total Check (TC), or Sales
- * trends across different sales channels, grouped by hour, day, or month. Each channel
- * gets its own trend line for easy comparison. Supports flexible time grouping and
- * metric selection for comprehensive channel performance analysis.
- *
- * @param data - Array of processed sales data rows with Revenue, Bill Number, Sales Date In, and Visit Purpose.
- * @param canvasId - HTML canvas element ID where the chart will be rendered.
- * @param groupBy - Time grouping method: 'hour' (0-23), 'day' (0-6, Sunday=0), or 'month' (YYYY-MM).
- * @param metric - Metric to display: 'APC' (Average Per Customer), 'TC' (Total Check), or 'Sales' (Revenue).
- * @returns This function does not return a value; it creates a Chart.js multi-line chart.
- *
- * @example
- * // Generate hourly APC trends by channel
- * const salesData = [
- *   { Revenue: 200000, "Bill Number": "001", "Sales Date In": new Date("2024-01-01 14:30"), "Visit Purpose": "Dine In" }
- * ];
- * generateChannelTrendChart(salesData, 'my-canvas', 'hour', 'APC');
- * // Creates multi-line chart showing hourly APC trends for each channel
- */
-function generateChannelTrendChart(data: any[], canvasId: string, groupBy: string, metric: string): void {
-  if (data.length === 0) return;
-
-  const getGroupKey = (d) => {
-    if (groupBy === 'hour') return d['Sales Date In'].getHours();
-    if (groupBy === 'day') return d['Sales Date In'].getDay(); // 0 = Sunday
-    if (groupBy === 'month') return d['Sales Date In'].toISOString().slice(0, 7);
-    return null;
-  };
-
-  const aggregated = data.reduce((acc, d) => {
-    const key = getGroupKey(d);
-    const channel = d['Visit Purpose'] || 'Unknown';
-    if (!acc[key]) acc[key] = {};
-    if (!acc[key][channel]) acc[key][channel] = { revenue: 0, bills: new Set() };
-    acc[key][channel].revenue += d.Revenue;
-    acc[key][channel].bills.add(d['Bill Number']);
-    return acc;
-  }, {});
-
-  const channels = [...new Set(data.map(d => d['Visit Purpose'] || 'Unknown'))];
-  const labels = [...new Set(data.map(getGroupKey))].sort((a,b) => a-b);
-  const datasets = channels.map(channel => {
-    const channelData = labels.map(label => {
-      const stats = aggregated[label]?.[channel];
-      if (!stats) return 0;
-
-      if (metric === 'APC') return stats.bills.size > 0 ? stats.revenue / stats.bills.size : 0;
-      if (metric === 'TC') return stats.bills.size;
-      if (metric === 'Sales') return stats.revenue;
-      return 0;
-    });
-    return { label: channel, data: channelData, tension: 0.2, fill: false };
-  });
-
-  const chartLabels = {
-      day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      hour: labels.map(l => l.toString().padStart(2, '0')),
-      month: labels,
-  };
-
-  createChart(canvasId, 'line', { labels: chartLabels[groupBy] || labels, datasets });
-}
-
 /**
  * Generate static insights for GoFood/GrabFood/Dine-In APC analysis page.
  *
@@ -6330,59 +6087,6 @@ function generateGoFoodInsights(data: any[]): void {
         hourlyAPCInsightDineIn: 'Sedangkan pada Dine in, tidak terjadi perubahan yang signifikan dari jam ke jam.',
         weeklyAPCInsight: 'Rata-rata nilai pembelian pada weekend meningkat pesat baik pada GoFood, GrabFood, dan Dine In, namun lonjakan terbesar terjadi pada pembelian Dine In.',
         monthlyAPCInsight: 'Pada akhir bulan, rata-rata nilai pembelian menurun di semua sales channel, namun yang paling terdampak adalah GoFood.',
-    });
-}
-
-/**
- * Generate Dine-In revenue month-over-month comparison with insights.
- *
- * @description
- * Analyzes Dine-In transaction data to compare revenue between current and previous
- * month, calculates percentage increase, and updates global store with insights.
- * Creates a comparative bar chart showing month-over-month Dine-In revenue performance
- * and generates formatted insight text for business reporting.
- *
- * @param data - Array of processed sales data rows with Visit Purpose, Sales Date In, and Revenue.
- * @returns This function does not return a value; it creates a Chart.js bar chart and updates store.
- *
- * @example
- * // Generate Dine-In revenue comparison with insights
- * const salesData = [
- *   { "Visit Purpose": "Dine In", "Sales Date In": new Date("2024-01-15"), Revenue: 3000000 },
- *   { "Visit Purpose": "Dine In", "Sales Date In": new Date("2024-02-15"), Revenue: 3500000 }
- * ];
- * generateDineInRevenueIncreaseChart(salesData);
- * // Creates bar chart and updates store with dineInIncreasePercentage and insight
- */
-function generateDineInRevenueIncreaseChart(data: any[]): void {
-    const endDate = new Date(document.getElementById('date-end').value);
-    const currentMonth = endDate.getMonth();
-    const currentYear = endDate.getFullYear();
-    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const prevMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-    const filterByMonth = (d, month, year) => d['Sales Date In'].getMonth() === month && d['Sales Date In'].getFullYear() === year;
-
-    const dineInData = data.filter(d => d['Visit Purpose'] === 'Dine In');
-    const currentMonthRevenue = dineInData.filter(d => filterByMonth(d, currentMonth, currentYear)).reduce((sum, d) => sum + d.Revenue, 0);
-    const prevMonthRevenue = dineInData.filter(d => filterByMonth(d, prevMonth, prevMonthYear)).reduce((sum, d) => sum + d.Revenue, 0);
-
-    const percentageIncrease = prevMonthRevenue > 0 ? ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : (currentMonthRevenue > 0 ? 100 : 0);
-
-    setStoreObj({
-        dineInIncreasePercentage: formatNumber(percentageIncrease, 0),
-        dineInIncreaseInsight: `Penjualan dine-in secara keseluruhan meningkat ${formatNumber(percentageIncrease,0)}%`
-    });
-
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    createChart('dinein-increase-chart-pdf', 'bar', {
-        labels: [monthNames[prevMonth], monthNames[currentMonth]],
-        datasets: [{
-            label: 'Dine In Revenue',
-            data: [prevMonthRevenue, currentMonthRevenue],
-            backgroundColor: ['#9CA3AF', '#4F46E5']
-        }]
     });
 }
 
@@ -7787,11 +7491,6 @@ function generateTopBranchApcAnalysis(data: any[]): void {
 
     // 2. Filter data for only the top branch
     const topBranchData = data.filter(d => d.Branch === topBranchName);
-
-    // 3. Reuse our existing chart and insight functions with the filtered data
-    generateChannelTrendChart(topBranchData, 'apc-trend-channel-hour-pdf', 'hour', 'APC');
-    generateChannelTrendChart(topBranchData, 'apc-trend-channel-week-pdf', 'day', 'APC');
-    generateChannelTrendChart(topBranchData, 'apc-trend-channel-month-pdf', 'month', 'APC');
 
     // The text insights are the same as the general page, so we can reuse this function
     generateGoFoodInsights(topBranchData);
