@@ -348,7 +348,7 @@
                             >
                                 Analisa YoY
                             </a>
-                            <a href="#" class="sidebar-link p-3 rounded-md" data-target="summaries">Monthly Summaries</a>
+                            <a href="#" class="sidebar-link p-3 rounded-md" data-target="recap">Monthly Recap</a>
                         </nav>
 
                         <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full">
@@ -948,23 +948,23 @@
                             </div>
                         </section>
                         <!-- Monthly Summaries -->
-                        <section id="summaries-section" class="analysis-section space-y-6">
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Monthly Summaries</h3>
-        <p class="text-gray-600 mb-6">This table shows the pre-aggregated summary data saved for each uploaded file. This is the compact data used to power the compiled analysis.</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Checks</th>
-                    </tr>
-                </thead>
-                <tbody id="summaries-tbody" class="bg-white divide-y divide-gray-200">
-                    </tbody>
-            </table>
+                        <section id="recap-section" class="analysis-section space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="md:col-span-1">
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h3 class="font-semibold text-gray-700 mb-3">Select a Recap</h3>
+                <div id="recap-list-container" class="space-y-2">
+                    <p class="text-sm text-gray-500">Loading recaps...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="md:col-span-3">
+            <div id="recap-detail-container" class="bg-white rounded-lg shadow-md p-6 hidden">
+                </div>
+            <div id="recap-prompt" class="text-center text-gray-500 p-10 bg-white rounded-lg shadow-md">
+                <p>Please select a monthly recap from the list on the left to see its detailed breakdown.</p>
+            </div>
         </div>
     </div>
 </section>

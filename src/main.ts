@@ -80,6 +80,7 @@ const storage = getStorage(app);
 let currentUser = null
 let currentUserRole = 'user'
 let allSalesData = []
+let allRecapsData = []
 let charts = {}
 const chartDataForAI = {}
 let aiAnalysisResults = {} // <-- New: To store AI analysis for PDF export
@@ -481,37 +482,173 @@ async function deleteUserRecord(userId: string): Promise<void> {
   }
 }
 
+function createMonthlySummary(data: any[], fileName: string): any {
+  if (data.length === 0) return null;
+
+  const monthDate = data[0]['Sales Date In'];
+  const monthKey = monthDate.toISOString().slice(0, 7); // e.g., "2025-06"
+
+  const summary = {
+    fileName: fileName,
+    month: monthKey,
+    totalRevenue: 0,
+    totalChecks: 0,
+    dailyMetrics: {},
+    hourlyDayOfWeekMetrics: {},
+    productMetrics: {},
+    branchMetrics: {},
+    channelMetrics: {},
+  };
+
+  const billNumbers = new Set<string>();
+
+  data.forEach(d => {
+    const dayOfMonth = d['Sales Date In'].getDate().toString();
+    const dayOfWeek = d['Sales Date In'].getDay(); // 0 for Sunday
+    const hour = d['Sales Date In'].getHours();
+    
+    const branch = d.Branch || 'Unknown';
+    const channel = d['Visit Purpose'] || 'Unknown';
+    const product = d.Menu || 'Unknown';
+    const category = d['Menu Category'] || 'Unknown';
+    const revenue = d.Revenue || 0;
+    const quantity = d.Quantity || 0;
+
+    // Overall totals
+    summary.totalRevenue += revenue;
+    billNumbers.add(d['Bill Number']);
+
+    // Daily aggregation
+    if (!summary.dailyMetrics[dayOfMonth]) {
+      summary.dailyMetrics[dayOfMonth] = { revenue: 0, bills: new Set() };
+    }
+    summary.dailyMetrics[dayOfMonth].revenue += revenue;
+    summary.dailyMetrics[dayOfMonth].bills.add(d['Bill Number']);
+
+    // Hourly aggregation
+    if (!summary.hourlyDayOfWeekMetrics[dayOfWeek]) {
+      summary.hourlyDayOfWeekMetrics[dayOfWeek] = Array(24).fill(0);
+    }
+    summary.hourlyDayOfWeekMetrics[dayOfWeek][hour] += revenue;
+    
+    // Branch aggregation
+    if (!summary.branchMetrics[branch]) {
+      summary.branchMetrics[branch] = { revenue: 0, bills: new Set() };
+    }
+    summary.branchMetrics[branch].revenue += revenue;
+    summary.branchMetrics[branch].bills.add(d['Bill Number']);
+
+    // Channel aggregation
+    if (!summary.channelMetrics[channel]) {
+      summary.channelMetrics[channel] = { revenue: 0, bills: new Set() };
+    }
+    summary.channelMetrics[channel].revenue += revenue;
+    summary.channelMetrics[channel].bills.add(d['Bill Number']);
+    
+    // Product aggregation
+    if (!summary.productMetrics[product]) {
+      summary.productMetrics[product] = { revenue: 0, quantity: 0, category: category };
+    }
+    summary.productMetrics[product].revenue += revenue;
+    summary.productMetrics[product].quantity += quantity;
+  });
+
+  summary.totalChecks = billNumbers.size;
+
+  // Convert Sets to counts for Firestore storage
+  Object.values(summary.dailyMetrics).forEach((day: any) => day.bills = day.bills.size);
+  Object.values(summary.branchMetrics).forEach((branch: any) => branch.bills = branch.bills.size);
+  Object.values(summary.channelMetrics).forEach((channel: any) => channel.bills = channel.bills.size);
+
+  return summary;
+}
+
+// Your upload button event listener should come after this function
+document.getElementById('upload-btn').addEventListener('click', async () => {
+    // ...
+});
+
+function convertExcelDate(serial: any): Date {
+  if (typeof serial !== 'number' || isNaN(serial)) {
+    // If the data is already a date string or object, try to parse it directly
+    const d = new Date(serial);
+    if (!isNaN(d.getTime())) {
+      return d;
+    }
+    // Return an invalid date that can be caught later
+    return new Date(NaN);
+  }
+  // The number 25569 is the number of days between the Excel epoch (1/1/1900)
+  // and the JavaScript epoch (1/1/1970), accounting for a leap year bug in Excel.
+  const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+  return new Date(excelEpoch.getTime() + serial * 86400000);
+}
+
 // --- Excel Processing & Data Storage ---
 document.getElementById('upload-btn').addEventListener('click', async () => {
-  const fileInput = document.getElementById('file-input');
+  const fileInput = document.getElementById('file-input') as HTMLInputElement;
   const file = fileInput.files[0];
-  if (!file) {
-    console.warn('Button upload click listener triggered without any file')
-    return;
-  }
+  if (!file || !currentUser) return;
 
-  const uploadButton = document.getElementById('upload-btn');
+  const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
   uploadButton.disabled = true;
-  // Show progress for the UPLOAD only
-  // You would need to add a listener for upload progress here
+  showLoading({ message: 'Reading file...', value: 10 });
 
   try {
-    // 1. Create a reference in Cloud Storage
-    const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // THIS IS THE LINE TO CHANGE: Add `cellDates: true`
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1, 
+          range: 11,
+          cellDates: true // <-- ADD THIS OPTION
+      });
 
-    // 2. Upload the file
-    await uploadBytes(storageRef, file, { customMetadata: { userId: currentUser.uid } });
+      const headers = jsonData.shift() as string[];
+      const rows = jsonData.map(rowArray => {
+          const rowObject = {};
+          headers.forEach((header, index) => {
+              if(header) {
+                rowObject[header] = rowArray[index];
+              }
+          });
+          return rowObject;
+      });
+      
+      showLoading({ message: 'Processing data...', value: 30 });
+      const processedData = processData(rows);
 
-    alert("File uploaded successfully! Processing will continue in the background.");
+      showLoading({ message: 'Creating monthly summary...', value: 70 });
+      const summary = createMonthlySummary(processedData, file.name);
 
+      if (summary) {
+        showLoading({ message: 'Saving summary to database...', value: 90 });
+        const summaryCollectionRef = collection(db, `users/${currentUser.uid}/monthlySummaries`);
+        await addDoc(summaryCollectionRef, summary);
+        
+        const historyCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
+        await addDoc(historyCollectionRef, { name: file.name, createdAt: new Date() });
+
+        alert('Monthly summary uploaded and saved successfully!');
+        await loadUploadHistory();
+      }
+      hideLoading();
+      uploadButton.disabled = false;
+      fileInput.value = '';
+    };
+    reader.readAsArrayBuffer(file);
   } catch (error) {
-    console.error("Upload failed:", error);
-    uploadError.textContent = `Upload failed: ${error.message}`;
-    uploadError.classList.remove('hidden');
-  } finally {
+    console.error("Upload and summarization failed:", error);
+    hideLoading();
     uploadButton.disabled = false;
+    alert(`An error occurred: ${error.message}`);
   }
-})
+});
 
 // Legacy saveAndChunkDataToFirestore function removed - now using Cloud Functions for processing
 
@@ -537,43 +674,36 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
  * // Returns: [{ "Bill Number": "001", "Sales Date In": Date, Revenue: 100000, Quantity: 2, ... }]
  */
 function processData(jsonData: any[]): any[] {
-  const requiredColumns = ['Bill Number', 'Sales Date In', 'Branch', 'Visit Purpose', 'Menu Category', 'Menu', 'Qty', 'Price', 'Nett Sales']
+  const requiredColumns = ['Sales Date In', 'Bill Number', 'Branch', 'Menu Category', 'Menu', 'Quantity', 'Revenue', 'Price', 'Visit Purpose'];
+  
+  // Filter out rows that are completely empty or don't have a Bill Number
+  const validJsonData = jsonData.filter(row => row && row['Bill Number'] != null);
 
-  const validJsonData = jsonData.filter((row) => row['Bill Number'] && row['Bill Number'] !== 'Bill Number')
+  const processedData = validJsonData.map((rawEntry, index) => {
+    const entry: any = {};
+    requiredColumns.forEach((col) => {
+      entry[col] = rawEntry[col];
+    });
 
-  if (validJsonData.length === 0) {
-    throw new Error('No valid data rows with a \'Bill Number\' found in the Excel file starting from row 12.')
-  }
+    // THIS IS THE CRUCIAL FIX:
+    // Use our reliable converter instead of the default new Date()
+    entry['Sales Date In'] = convertExcelDate(rawEntry['Sales Date In']);
 
-  const firstRow = validJsonData[0]
-  for (const col of requiredColumns) {
-    if (!firstRow.hasOwnProperty(col)) {
-      throw new Error(`Missing required column in Excel file: ${col}`)
-    }
-  }
-
-  const processedData = validJsonData.map((rawEntry) => {
-    const entry = {}
-    // Map all possible columns from the most detailed Excel file
-    const allColumns = ['Bill Number', 'Sales Date In', 'Branch', 'Brand', 'Visit Purpose', 'Payment Method', 'Menu Category', 'Menu', 'Custom Menu Name', 'Qty', 'Price', 'Discount', 'Tax', 'Nett Sales', 'Waiter', 'Bill Discount', 'Service Charge', 'Customer Name', 'Regular Member Name', 'Order Mode', 'Table Section', 'Table Name']
-    allColumns.forEach((col) => {
-      entry[col] = rawEntry[col]
-    })
-
-    entry['Sales Date In'] = new Date(rawEntry['Sales Date In'])
-    entry.Quantity = parseInt(rawEntry.Qty, 10) || 0
-    entry.Revenue = parseFloat(rawEntry['Nett Sales']) || 0
-    entry['Item Group'] = rawEntry['Menu Category']
-    entry['Item Name'] = rawEntry['Menu']
-
+    // Error check for invalid dates
     if (isNaN(entry['Sales Date In'].getTime())) {
-      throw new Error(`Invalid date format for row with Bill Number: ${entry['Bill Number']}. Original value was: "${rawEntry['Sales Date In']}"`)
+      console.warn(`Skipping row ${index + 13} due to invalid date format. Bill Number: ${entry['Bill Number']}`);
+      return null; // This will mark the row to be filtered out
     }
+    
+    // Ensure numeric types are correct
+    entry['Revenue'] = Number(entry['Revenue']) || 0;
+    entry['Price'] = Number(entry['Price']) || 0;
+    entry['Quantity'] = Number(entry['Quantity']) || 0;
 
-    return entry
-  })
-  uploadError.classList.add('hidden')
-  return processedData
+    return entry;
+  }).filter(entry => entry !== null); // Filter out the rows with invalid dates
+
+  return processedData;
 }
 
 // --- AI Analysis & Configuration ---
@@ -3115,19 +3245,157 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
  */
 document.getElementById('analysis-sidebar').addEventListener('click', (e) => {
   if (e.target.tagName === 'A') {
-    e.preventDefault()
-    document.querySelectorAll('.sidebar-link').forEach((link) => link.classList.remove('active'))
-    e.target.classList.add('active')
+    e.preventDefault();
+    document.querySelectorAll('.sidebar-link').forEach((link) => link.classList.remove('active'));
+    e.target.classList.add('active');
 
-    const targetId = e.target.dataset.target
-    document.querySelectorAll('.analysis-section').forEach((sec) => sec.classList.remove('active'))
-    document.getElementById(`${targetId}-section`).classList.add('active')
+    const targetId = e.target.dataset.target;
+    document.querySelectorAll('.analysis-section').forEach((sec) => sec.classList.remove('active'));
+    document.getElementById(`${targetId}-section`).classList.add('active');
 
-    // Hide main filters for YoY and Konfigurasi tabs
-    const showMainFilters = !['yoy', 'konfigurasi'].includes(targetId)
-    document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none'
+    const showMainFilters = !['yoy', 'konfigurasi', 'recap'].includes(targetId);
+    document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
+
+    // Call the new function when the 'recap' menu is clicked
+    if (targetId === 'recap') {
+      loadRecapList();
+    }
   }
-})
+});
+
+async function loadRecapList(): Promise<void> {
+  if (!currentUser) return;
+
+  const listContainer = document.getElementById('recap-list-container');
+  listContainer.innerHTML = '<p class="text-sm text-gray-500">Loading...</p>';
+
+  try {
+    const summaryCollectionRef = collection(db, `users/${currentUser.uid}/monthlySummaries`);
+    const q = query(summaryCollectionRef, orderBy('month', 'desc'));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      listContainer.innerHTML = '<p class="text-sm text-gray-500">No recaps found.</p>';
+      return;
+    }
+
+    // Store the fetched data globally so we don't have to re-fetch
+    allRecapsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    listContainer.innerHTML = ''; // Clear loading message
+    allRecapsData.forEach(recap => {
+      const formattedMonth = new Date(recap.month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+      const button = document.createElement('button');
+      button.className = 'w-full text-left p-3 rounded-md hover:bg-gray-100 focus:outline-none focus:bg-indigo-100 recap-item';
+      button.dataset.recapId = recap.id;
+      button.innerHTML = `
+        <p class="font-semibold text-sm text-gray-800">${formattedMonth}</p>
+        <p class="text-xs text-gray-500 truncate">${recap.fileName}</p>
+      `;
+      listContainer.appendChild(button);
+    });
+  } catch (error) {
+    console.error("Error loading recap list:", error);
+    listContainer.innerHTML = '<p class="text-sm text-red-500">Failed to load data.</p>';
+  }
+}
+
+// This new function displays the details for a selected recap
+function displayRecapDetails(recapId: string): void {
+  const detailContainer = document.getElementById('recap-detail-container');
+  const recapPrompt = document.getElementById('recap-prompt');
+
+  const selectedRecap = allRecapsData.find(r => r.id === recapId);
+  if (!selectedRecap) return;
+
+  detailContainer.classList.remove('hidden');
+  recapPrompt.classList.add('hidden');
+
+  // This helper function has been updated to be more robust.
+  const createTableHTML = (title, dataObject, col1, col2, col3) => {
+    // 1. Add a check to handle cases where the data section might be missing entirely.
+    if (!dataObject || typeof dataObject !== 'object') {
+        return `<div class="p-4 text-sm text-gray-500">No data available for ${title}.</div>`;
+    }
+
+    let rows = Object.entries(dataObject)
+      // 2. Filter out any entries that might be malformed (e.g., not an object)
+      .filter(([, value]) => value && typeof value === 'object')
+      // 3. Make the sort safer by providing a fallback value of 0 if revenue is missing.
+      .sort(([, a], [, b]) => (b.revenue || 0) - (a.revenue || 0))
+      .map(([key, value]) => {
+        // 4. Safely access each property with fallbacks to prevent errors.
+        const revenueText = formatCurrency(value.revenue || 0);
+        const thirdColKey = col3 === 'Qty' ? 'quantity' : 'bills';
+        const thirdColText = formatNumber(value[thirdColKey] || 0);
+        
+        return `
+        <tr>
+          <td class="px-4 py-2 text-sm font-medium text-gray-800">${key}</td>
+          <td class="px-4 py-2 text-sm text-gray-600">${revenueText}</td>
+          <td class="px-4 py-2 text-sm text-gray-600">${thirdColText}</td>
+        </tr>`;
+      }).join('');
+    
+    // Add a message if, after filtering, there are no valid rows to display.
+    if (rows.length === 0) {
+        rows = '<tr><td colspan="3" class="text-center p-4 text-sm text-gray-500">No valid entries found.</td></tr>';
+    }
+
+    return `
+      <div class="mb-6">
+        <h4 class="text-lg font-semibold text-gray-700 mb-2">${title}</h4>
+        <div class="overflow-y-auto max-h-60 border rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50"><tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">${col1}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">${col2}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">${col3}</th>
+            </tr></thead>
+            <tbody class="bg-white divide-y divide-gray-200">${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  };
+
+  const formattedMonth = new Date(selectedRecap.month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+  detailContainer.innerHTML = `
+    <h3 class="text-2xl font-bold text-gray-800">${formattedMonth} Recap</h3>
+    <p class="text-sm text-gray-500 mb-6 truncate">${selectedRecap.fileName}</p>
+    
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="bg-gray-50 p-4 rounded-lg">
+        <p class="text-sm text-gray-600">Total Revenue</p>
+        <p class="text-2xl font-bold text-indigo-600">${formatCurrency(selectedRecap.totalRevenue || 0)}</p>
+      </div>
+      <div class="bg-gray-50 p-4 rounded-lg">
+        <p class="text-sm text-gray-600">Total Checks</p>
+        <p class="text-2xl font-bold text-indigo-600">${formatNumber(selectedRecap.totalChecks || 0)}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>${createTableHTML('Branch Performance', selectedRecap.branchMetrics, 'Branch', 'Revenue', 'Checks')}</div>
+      <div>${createTableHTML('Channel Performance', selectedRecap.channelMetrics, 'Channel', 'Revenue', 'Checks')}</div>
+      <div class="lg:col-span-2">${createTableHTML('Top Products by Revenue', selectedRecap.productData, 'Product', 'Revenue', 'Qty')}</div>
+    </div>
+  `;
+}
+
+// Add a new event listener for our new interactive list
+document.getElementById('recap-list-container').addEventListener('click', (e) => {
+    const recapButton = e.target.closest('.recap-item');
+    if (!recapButton) return;
+
+    const recapId = recapButton.dataset.recapId;
+
+    // Highlight the selected item
+    document.querySelectorAll('.recap-item').forEach(btn => btn.classList.remove('bg-indigo-100'));
+    recapButton.classList.add('bg-indigo-100');
+    
+    displayRecapDetails(recapId);
+});
 
 /**
  * Generate hourly Average Per Customer (APC) line chart with AI data storage.
