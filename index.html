@@ -348,6 +348,7 @@
                             >
                                 Analisa YoY
                             </a>
+                            <a href="#" class="sidebar-link p-3 rounded-md" data-target="summaries">Monthly Summaries</a>
                         </nav>
 
                         <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full">
@@ -946,6 +947,27 @@
                                 <div id="analysis-result-yoyDetail" class="analysis-result-container hidden"></div>
                             </div>
                         </section>
+                        <!-- Monthly Summaries -->
+                        <section id="summaries-section" class="analysis-section space-y-6">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Monthly Summaries</h3>
+        <p class="text-gray-600 mb-6">This table shows the pre-aggregated summary data saved for each uploaded file. This is the compact data used to power the compiled analysis.</p>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Checks</th>
+                    </tr>
+                </thead>
+                <tbody id="summaries-tbody" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
                     </main>
                 </div>
             </div>
