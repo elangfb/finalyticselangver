@@ -2559,6 +2559,88 @@ function generateYoYAnalysis(data: any[]): void {
   chartDataForAI['yoyDetail'] = monthlyData
 }
 
+function generateAndShowSummary(data: any[], fileName: string) {
+    if (data.length === 0) {
+        alert('No data available to generate a summary.');
+        return;
+    }
+
+    // --- 1. Calculations ---
+
+    // KPIs
+    const totalOmzet = data.reduce((sum, d) => sum + d.Revenue, 0);
+    const totalTransactions = new Set(data.map(d => d['Bill Number'])).size;
+    const apc = totalTransactions > 0 ? totalOmzet / totalTransactions : 0;
+    const totalItemsSold = data.reduce((sum, d) => sum + d.Quantity, 0);
+
+    // Top Performers
+    const productQty = data.reduce((acc, d) => {
+        acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
+        return acc;
+    }, {});
+    const topProductByQty = Object.entries(productQty).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+    const productRevenue = data.reduce((acc, d) => {
+        acc[d.Menu] = (acc[d.Menu] || 0) + d.Revenue;
+        return acc;
+    }, {});
+    const topProductByRevenue = Object.entries(productRevenue).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+    const branchRevenue = data.reduce((acc, d) => {
+        const branch = d.Branch || 'Unknown';
+        acc[branch] = (acc[branch] || 0) + d.Revenue;
+        return acc;
+    }, {});
+    const topBranch = Object.entries(branchRevenue).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+    
+    // Daily Busiest Hours
+    const dailyHourlyTransactions = Array(7).fill(0).map(() => Array(24).fill(0).map(() => new Set()));
+    data.forEach(d => {
+        const day = d['Sales Date In'].getDay();
+        const hour = d['Sales Date In'].getHours();
+        dailyHourlyTransactions[day][hour].add(d['Bill Number']);
+    });
+
+    const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const busiestHours = dayLabels.map((day, dayIndex) => {
+        const hourlyCounts = dailyHourlyTransactions[dayIndex].map(hourSet => hourSet.size);
+        const busiestHour = hourlyCounts.indexOf(Math.max(...hourlyCounts));
+        return { day, hour: `${String(busiestHour).padStart(2, '0')}:00` };
+    });
+
+    // Data Health
+    const dates = data.map(d => d['Sales Date In']);
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    const dateRange = `${minDate.toLocaleDateString('id-ID')} - ${maxDate.toLocaleDateString('id-ID')}`;
+    const branchCount = new Set(data.map(d => d.Branch)).size;
+    const productCount = new Set(data.map(d => d.Menu)).size;
+
+    // --- 2. DOM Population ---
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+    
+    document.getElementById('summary-modal-title').textContent = `Summary for ${fileName}`;
+    document.getElementById('summary-total-omzet').textContent = formatCurrency(totalOmzet);
+    document.getElementById('summary-total-transactions').textContent = totalTransactions.toLocaleString('id-ID');
+    document.getElementById('summary-apc').textContent = formatCurrency(apc);
+    document.getElementById('summary-total-items').textContent = totalItemsSold.toLocaleString('id-ID');
+
+    document.getElementById('summary-top-product-qty').textContent = topProductByQty;
+    document.getElementById('summary-top-product-revenue').textContent = topProductByRevenue;
+    document.getElementById('summary-top-branch').textContent = topBranch;
+
+    const busiestHoursList = document.getElementById('summary-busiest-hours');
+    busiestHoursList.innerHTML = busiestHours.map(item => `<li><span class="font-semibold w-16 inline-block">${item.day}:</span> ${item.hour}</li>`).join('');
+
+    document.getElementById('summary-date-range').textContent = dateRange;
+    document.getElementById('summary-branch-count').textContent = branchCount;
+    document.getElementById('summary-product-count').textContent = productCount;
+    // Data completeness is assumed to be 100% as this function receives already processed data.
+
+    // --- 3. Show Modal ---
+    document.getElementById('summary-modal').classList.remove('hidden');
+}
+
 // --- Data History & Compilation ---
 /**
  * Load and display user's sales data upload history from Firestore.
@@ -2597,6 +2679,7 @@ async function loadUploadHistory(): Promise<void> {
                             <p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>
                         </div>
                         <div>
+                            <button class="summary-history-btn bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-gray-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Summary</button>
                             <button class="view-history-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
                             <button class="delete-history-btn bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-red-600 ml-2" data-id="${docSnap.id}">Delete</button>
                         </div>
@@ -2643,7 +2726,20 @@ async function fetchAllBillsForUpload(uploadId: string): Promise<any[]> {
   return billsData;
 }
 
+document.getElementById('summary-modal-close').addEventListener('click', () => {
+    document.getElementById('summary-modal').classList.add('hidden');
+});
+
 uploadHistoryList.addEventListener('click', async (e) => {
+  if (e.target.classList.contains('summary-history-btn')) {
+    const uploadId = e.target.dataset.id;
+    const fileName = e.target.dataset.name;
+    showLoading({ message: 'Fetching data for summary...', value: 50 });
+    const billsData = await fetchAllBillsForUpload(uploadId);
+    hideLoading();
+    generateAndShowSummary(billsData, fileName);
+  }
+  
   if (e.target.classList.contains('view-history-btn')) {
     const uploadId = e.target.dataset.id
     const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, uploadId)
