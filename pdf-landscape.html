@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Report - Landscape</title>
+    <style>
+    /* Base styling for the body to provide a background */
+    body {
+        background-color: #e5e7eb; /* A light gray background */
+    }
+
+    /* Defines the landscape page with a 16:9 aspect ratio */
+    .page-landscape {
+        height: 1080px;
+        aspect-ratio: 16 / 9;
+
+        padding: 60px 80px; /* Generous padding for a premium feel */
+
+        background-color: white;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* A more pronounced shadow for depth */
+        margin: 1rem auto; /* Center the page with some margin */
+        box-sizing: border-box;
+
+        display: flex;
+        flex-direction: column;
+        page-break-after: always; /* Ensures proper page breaks when printing */
+        overflow: hidden; /* Prevents content from spilling out */
+    }
+
+    /* Adjustments for printing to ensure a clean output */
+    @media print {
+        body, .page-landscape {
+            margin: 0;
+            box-shadow: none;
+            background-color: white;
+        }
+
+        .page-landscape {
+            width: 100%;
+            height: 100%;
+        }
+    }
+    </style>
+</head>
+<body>
+
+<div id="pdf-landscape">
+    <!-- Cover Page -->
+    <div class="page-landscape bg-gray-800 flex items-center justify-center text-center">
+        <div>
+            <h1 class="text-8xl font-bold text-white tracking-wider">
+                <span class="text-blue-400">Finalytics</span>
+                <span class="text-gray-300">By</span>
+                <span class="text-yellow-400">Arunami</span>
+            </h1>
+            <p class="text-gray-200 mt-6 text-2xl">
+                Prepared for <span class="font-bold text-white">NoEffort</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Page 1: General Overview -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800">Gambaran Umum Keseluruhan</h2>
+            <p class="text-gray-500 mt-3 text-xl max-w-3xl">
+                Penting bagi kamu untuk melihat performa keseluruhan untuk memahami kondisi kesehatan usaha kamu sekarang.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-12 gap-8 flex-grow">
+            <!-- Left Column -->
+            <div class="col-span-4 flex flex-col gap-8">
+                <div class="bg-[#f5f6ff] rounded-2xl p-8 flex flex-col justify-center flex-grow">
+                    <div class="bg-white rounded-2xl p-8 text-center shadow-lg">
+                        <p class="text-gray-600 font-semibold text-lg mb-2">Total Omzet Seluruh Cabang</p>
+                        <p class="text-5xl font-bold text-yellow-500">
+                            <span @analysis:text="currentOmzetFormatted"></span>
+                        </p>
+                        <p class="text-green-500 text-base mt-2">
+                            <span @analysis:text="lastPeriodOmzetUpOrDown"></span>
+                            <span @analysis:text="lastPeriodOmzetPercentage"></span>%
+                            <span @analysis:text="lastPeriodOmzetPlusOrMinus"></span>
+                            Rp<span @analysis:text="lastPeriodOmzetDifference"></span>
+                        </p>
+                    </div>
+                </div>
+                <div class="bg-indigo-600 text-white px-8 py-10 rounded-2xl text-center shadow-lg">
+                    <p class="text-6xl font-bold">
+                        <span @analysis:text="topOmzetPercentage"></span>%
+                    </p>
+                    <p class="mt-4 text-lg">
+                        Outlet <span @analysis:text="topOmzetOutletName"></span> adalah kontributor omzet tertinggi.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-span-8 flex flex-col gap-8">
+                <div class="grid grid-cols-2 gap-8">
+                    <div class="bg-white rounded-2xl p-8 shadow-md">
+                        <p class="text-gray-600 font-medium text-lg">Total Check</p>
+                        <p class="text-4xl font-bold text-indigo-900 mt-2"><span @analysis:text="currentCheckFormatted"></span></p>
+                        <p class="text-green-500 text-base mt-1">
+                            <span @analysis:text="lastPeriodCheckUpOrDown"></span>
+                            <span @analysis:text="lastPeriodCheckPercentage"></span>%
+                            <span @analysis:text="lastPeriodCheckPlusOrMinus"></span>
+                            <span @analysis:text="lastPeriodCheckDifference"></span>
+                        </p>
+                        <div class="border-t my-6"></div>
+                        <p class="text-gray-600 font-medium text-lg">Average Total Check</p>
+                        <p class="text-4xl font-bold text-indigo-900 mt-2">
+                            <span @analysis:text="currentAvgCheckFormatted"></span>
+                        </p>
+                        <p class="text-red-500 text-base mt-1">
+                            <span @analysis:text="lastPeriodAvgCheckUpOrDown"></span>
+                            <span @analysis:text="lastPeriodAvgCheckPercentage"></span>%
+                            <span @analysis:text="lastPeriodAvgCheckPlusOrMinus"></span>
+                            <span @analysis:text="lastPeriodAvgCheckDifference"></span>
+                        </p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col items-center justify-center">
+                        <p class="text-gray-600 font-medium text-lg mb-4">Kontribusi Per Cabang</p>
+                        <div class="w-64 h-64">
+                            <canvas id="kontribusi-cabang-chart-pdf"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-md flex flex-col flex-grow p-8">
+                    <p class="text-gray-600 font-medium text-lg">Total Omzet Harian</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center grow mt-4 p-4">
+                        <canvas id="omzet-harian-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Customer Spending & Trends -->
+    <div class="page-landscape">
+        <div class="text-center mb-10">
+            <h2 class="text-3xl text-gray-600">
+                Pelanggan Anda berbelanja sebesar
+                <span class="block text-6xl font-bold text-indigo-900 my-3">
+                    Rp<span @analysis:text="avgSpendLower"></span> - Rp<span @analysis:text="avgSpendUpper"></span>
+                </span>
+                setiap kali transaksi.
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-3 gap-8 flex-grow">
+            <!-- Left Column with Charts -->
+            <div class="col-span-2 space-y-8 flex flex-col">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col flex-grow">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren Rata-Rata Omzet Mingguan</p>
+                    <div class="w-full bg-gray-50 rounded-lg p-4 flex-grow">
+                        <canvas id="omzet-mingguan-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col flex-grow">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren TC Per Jam Rata-Rata</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow">
+                        <canvas id="tc-jam-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column with Insights -->
+            <div class="col-span-1 space-y-8 flex flex-col">
+                <div class="bg-red-50 border-l-8 border-red-500 rounded-r-lg p-6 shadow-md">
+                    <div class="flex items-center mb-3">
+                        <svg class="w-8 h-8 text-red-700 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                        <h3 class="font-bold text-red-800 text-xl">Tips</h3>
+                    </div>
+                    <p class="text-base text-red-700">
+                        <span @analysis:text="upsellingTips"></span>
+                    </p>
+                </div>
+                <div class="bg-indigo-600 text-white rounded-2xl p-8 shadow-lg text-center flex-grow flex flex-col justify-center">
+                    <h3 class="font-bold text-xl">Tahukah Anda?</h3>
+                    <p class="mt-3 text-base">
+                        Penjualan terbanyak dalam satu kali transaksi adalah
+                        <span class="font-bold text-3xl block mt-2">
+                            Rp<span @analysis:text="highestSingleTransaction"></span>
+                        </span>
+                    </p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md text-center">
+                    <p class="text-gray-600 text-lg">Waktu Terpadat</p>
+                    <p class="text-4xl font-bold text-indigo-900 mt-2">
+                        <span @analysis:text="busiestTimeRange"></span>
+                    </p>
+                    <div class="border-t my-6"></div>
+                    <p class="text-gray-600 text-lg">Hari Terpadat</p>
+                    <p class="text-4xl font-bold text-indigo-900 mt-2">
+                        <span @analysis:text="busiestDay"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Weekend Insights -->
+    <div class="page-landscape">
+        <div class="text-left mb-12">
+            <h2 class="text-5xl font-bold text-gray-800 leading-tight max-w-4xl">
+                <span @analysis:text="mainWeekendInsight">Berikan yang terbaik selama weekend untuk meningkatkan omzetmu secara signifikan.</span>
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-12 flex-grow items-stretch">
+             <div class="bg-white rounded-2xl p-8 shadow-md h-full flex flex-col">
+                <p class="text-gray-600 font-medium text-lg mb-4 text-center">TC Trend per Minggu</p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="tc-mingguan-chart-pdf"></canvas>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl p-8 shadow-md h-full flex flex-col">
+                <p class="text-gray-600 font-medium text-lg mb-4 text-center">APC Trend per Minggu</p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="apc-mingguan-chart-pdf"></canvas>
+                </div>
+            </div>
+        </div>
+         <div class="mt-12 text-center">
+            <p class="text-2xl text-gray-700 leading-relaxed max-w-6xl mx-auto">
+                <span @analysis:text="tcTrendInsight">Hari Sabtu dan Minggu terjadi lonjakan traffic yang konsisten.</span>
+                <span @analysis:text="salesChannelInsight">
+                    Sales channel yang paling diminati untuk pencarian sarapan adalah <strong class="text-indigo-600">dine in</strong>, sedangkan untuk makan siang dan malam, <strong class="text-indigo-600">GrabFood</strong> lebih diminati.
+                </span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Page 4: Sales Insights -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-12 flex-grow">
+            <!-- Left Column -->
+            <div class="flex flex-col space-y-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4 text-center">Sales Trend per Minggu</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="sales-trend-mingguan-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center gap-8">
+                    <div class="flex-shrink-0">
+                        <div class="bg-indigo-600 text-white font-bold text-7xl p-8 rounded-2xl transform -rotate-12 shadow-lg">
+                            <span @analysis:text="weekendSalesPercentage">42</span>%
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <p class="text-4xl text-gray-700 leading-tight">
+                            <span @analysis:text="mainSalesInsight">Sales kamu terjadi di hari <strong class="text-indigo-800">Sabtu dan Minggu</strong></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="flex flex-col space-y-8 justify-center">
+                <div class="bg-white rounded-2xl shadow-lg p-12">
+                    <div class="grid grid-cols-3 items-center text-center gap-6">
+                        <div>
+                            <p class="text-gray-600 text-lg">Peningkatan</p>
+                            <p class="text-5xl font-bold text-gray-800 my-2">
+                                Rp<span @analysis:text="apcIncrease">5.000</span>
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                APC dalam kedua hari tersebut saja
+                            </p>
+                        </div>
+                        <div>
+                            <span class="text-6xl font-bold text-gray-300">=</span>
+                        </div>
+                        <div>
+                            <p class="text-gray-600 text-lg">Bonus omzet</p>
+                            <p class="text-6xl font-bold text-yellow-500 my-2">
+                                Rp<span @analysis:text="potentialBonusOmzet">70</span>juta
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                spesial untuk kamu
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center gap-6 mt-8">
+                    <div class="flex-shrink-0">
+                        <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/7/31/a03e1e51-87a2-4d64-8451-f76136d892d1" alt="Ilustrasi Motivasi" class="h-36">
+                    </div>
+                    <div class="relative bg-indigo-600 text-white p-6 rounded-2xl shadow-lg text-lg">
+                        <p class="text-center">
+                            <span @analysis:text="motivationalMessage">Cieee, ada yang bisa buka <strong class="font-extrabold">cabang baru</strong> tiap bulan nih sekarang!</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 5: Hourly Insights -->
+    <div class="page-landscape">
+         <div class="text-left mb-12">
+            <h2 class="text-5xl font-bold text-gray-800 leading-tight max-w-5xl">
+                <span @analysis:text="hourlyPageTitle">Maksimalkan jam sibuk dan merancang program untuk waktu jadi kunci kesuksesan kamu</span>
+            </h2>
+        </div>
+        <div class="grid grid-cols-2 gap-12 flex-grow items-stretch">
+             <div class="bg-white rounded-2xl p-8 shadow-md h-full flex flex-col">
+                <p class="text-gray-600 font-medium text-lg mb-4 text-center">Tren TC Per Jam Setiap Hari</p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="tc-per-jam-chart-pdf"></canvas>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl p-8 shadow-md h-full flex flex-col">
+                <p class="text-gray-600 font-medium text-lg mb-4 text-center">Tren APC Per Jam Setiap Hari</p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="apc-per-jam-chart-pdf"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 6: Sales Trend by Hour and Day -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-12 flex-grow">
+            <!-- Left Column -->
+            <div class="flex flex-col space-y-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4 text-center">Sales Trend by Hour and Day</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="sales-trend-hourly-daily-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center gap-8">
+                    <div class="flex-shrink-0">
+                        <div class="bg-indigo-600 text-white font-bold text-7xl p-8 rounded-2xl transform -rotate-12 shadow-lg">
+                            <span @analysis:text="mainHourPercentage">36</span>%
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <p class="text-4xl text-gray-700 leading-tight">
+                            <span @analysis:text="mainHourInsight">Sales kamu terjadi di hari <strong class="text-indigo-800">11.00 - 13.00</strong></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="flex flex-col space-y-8 justify-center">
+                <div class="bg-white rounded-2xl shadow-lg p-12">
+                    <div class="grid grid-cols-3 items-center text-center gap-6">
+                        <div>
+                            <p class="text-gray-600 text-lg">Peningkatan</p>
+                            <p class="text-5xl font-bold text-gray-800 my-2">
+                                Rp<span @analysis:text="apcIncreaseAmount">5.000</span>
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                APC dalam range waktu tersebut
+                            </p>
+                        </div>
+                        <div>
+                            <span class="text-6xl font-bold text-gray-300">=</span>
+                        </div>
+                        <div>
+                            <p class="text-gray-600 text-lg">Bonus omzet</p>
+                            <p class="text-6xl font-bold text-yellow-500 my-2">
+                                Rp<span @analysis:text="potentialBonusAmount">40</span>juta
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                spesial untuk kamu
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-red-50 border-l-8 border-red-500 rounded-r-lg p-6 shadow-md mt-8">
+                    <div class="flex items-center mb-3">
+                        <h3 class="font-bold text-red-800 text-xl">Pro Tips</h3>
+                        <svg class="w-6 h-6 text-red-600 ml-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                    </div>
+                    <ol class="list-decimal list-inside text-base text-red-700 space-y-1">
+                        <li><span @analysis:text="proTip1">Meningkatkan service dan memaksimalkan layanan secara maksimum</span></li>
+                        <li><span @analysis:text="proTip2">Meningkatkan kapasitas bisnis dengan menggunakan...</span></li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- Page 1: Sales Channel Trends -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800"><span @analysis:text="pageTitle">Kenali tren penjualan berbagai sales channel dari waktu ke waktu</span></h2>
+        </div>
+        <div class="flex flex-col flex-grow gap-8">
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren Penjualan berbagai channel per jam</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="channel-hourly-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center px-8">
+                    <p class="text-2xl text-gray-700 leading-relaxed">
+                        <span @analysis:text="hourlyChannelInsight">
+                        Sales channel yang paling diminati untuk pencarian sarapan adalah <strong class="text-indigo-800">dine in</strong>, sedangkan untuk makan siang dan makan malam, <strong class="text-indigo-800">GrabFood</strong> lebih diminati.
+                        </span>
+                    </p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                 <div class="bg-white rounded-2xl p-8 shadow-md text-center flex flex-col justify-center items-center h-full">
+                    <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/7/31/545050f3-b184-4809-906d-5390c9b6f12c" alt="Ilustrasi Podium" class="h-28 mb-6">
+                    <p class="text-2xl text-gray-700">
+                        <span @analysis:text="mainChannelInsight">
+                        Dine in masih merupakan <strong class="text-indigo-800">sales channel utama</strong> pada restoran anda.
+                        </span>
+                    </p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren Penjualan berbagai channel per minggu</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="channel-weekly-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: TC Dine In & Channel Comparison -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-12 flex-grow">
+            <!-- Left Column -->
+            <div class="flex flex-col justify-center items-center">
+                 <div class="bg-white rounded-2xl p-8 shadow-md text-center w-full max-w-lg">
+                    <p class="font-bold text-6xl text-green-600">
+                        <span @analysis:text="monthlyIncreasePercentage">20</span>%
+                    </p>
+                    <p class="text-2xl text-gray-700 leading-relaxed mt-4">
+                        <span @analysis:text="monthlyIncreaseInsight">
+                            Terjadi peningkatan TC dine in dibandingkan dengan bulan lalu.
+                        </span>
+                    </p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center h-64 mt-6">
+                        <canvas id="monthly-increase-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- Right Column -->
+            <div class="flex flex-col gap-8 justify-center">
+                <div class="grid grid-cols-2 gap-8 items-center">
+                    <div class="px-4">
+                        <p class="text-xl text-gray-700 leading-relaxed">
+                            <span @analysis:text="hourlyInsight">Konsumen pada jam setelah <strong class="text-indigo-800">makan siang</strong> dikuasai oleh konsumen dari <strong class="text-indigo-800">GoFood</strong> dan <strong class="text-indigo-800">GrabFood</strong>.</span>
+                        </p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-md">
+                        <p class="text-gray-600 font-medium text-center text-base mb-2">Tren TC channel per jam</p>
+                        <div class="w-full bg-gray-50 rounded-md flex items-center justify-center h-48">
+                            <canvas id="tc-hourly-chart-pdf"></canvas>
+                        </div>
+                    </div>
+                </div>
+                 <div class="grid grid-cols-2 gap-8 items-center">
+                    <div class="bg-white rounded-2xl p-6 shadow-md">
+                        <p class="text-gray-600 font-medium text-center text-base mb-2">Tren TC channel per minggu</p>
+                        <div class="w-full bg-gray-50 rounded-md flex items-center justify-center h-48">
+                            <canvas id="tc-weekly-chart-pdf"></canvas>
+                        </div>
+                    </div>
+                     <div class="px-4">
+                        <p class="text-xl text-gray-700 leading-relaxed">
+                            <span @analysis:text="weeklyInsight">Terjadi lonjakan konsumen <strong class="text-indigo-800">Dine in</strong> pada hari <strong class="text-indigo-800">Jumat, Sabtu,</strong> dan <strong class="text-indigo-800">Minggu</strong>.</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: APC Trends -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800"><span @analysis:text="mainGoFoodInsight">Rata-rata ada 3 – 5 pesanan GoFood setiap jamnya pada restoran anda</span></h2>
+        </div>
+        <div class="flex flex-col flex-grow gap-8">
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren APC berbagai channel per jam</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="apc-hourly-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center justify-center px-8 gap-6">
+                    <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="hourlyAPCInsightDinner">Rata-rata nilai pembelian meningkat pesat pada <strong class="text-indigo-800">jam makan malam</strong> baik pada <strong class="text-indigo-800">GoFood</strong>, dan <strong class="text-indigo-800">GrabFood</strong>.</span></p>
+                    <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="hourlyAPCInsightDineIn">Sedangkan pada Dine in, tidak terjadi <strong class="text-indigo-800">perubahan yang signifikan</strong> dari jam ke jam.</span></p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                <div class="flex items-center justify-center px-8">
+                     <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="weeklyAPCInsight">Rata-rata nilai pembelian pada <strong class="text-indigo-800">weekend meningkat pesat</strong> baik pada GoFood, GrabFood, dan Dine In, namun <strong class="text-indigo-800">lonjakan terbesar</strong> terjadi pada pembelian Dine In.</span></p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren APC berbagai channel per minggu</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="apc-weekly-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 4: Sales Channel Comparison -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-12 flex-grow">
+            <!-- Left Column -->
+            <div class="flex flex-col justify-center items-center">
+                 <div class="bg-white rounded-2xl p-8 shadow-md text-center w-full max-w-lg">
+                    <p class="font-bold text-6xl text-green-600">
+                        <span @analysis:text="dineInIncreasePercentage">20</span>%
+                    </p>
+                     <p class="text-2xl text-gray-700 leading-relaxed mt-4">
+                        <span @analysis:text="dineInIncreaseInsight">Penjualan dine-in secara keseluruhan <strong class="text-indigo-800">meningkat 20%</strong></span>
+                    </p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center h-64 mt-6">
+                        <canvas id="dinein-increase-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- Right Column -->
+            <div class="flex flex-col gap-8 justify-center">
+                <h2 class="text-4xl font-bold text-blue-900 mb-4 text-center">Perbandingan Sales Antar Sales Channel</h2>
+                <div class="bg-white rounded-2xl p-6 shadow-md">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Channel dengan Pertumbuhan TC dan APC tertinggi</p>
+                    <table class="w-full text-base text-left">
+                        <thead class="bg-gray-100 text-gray-600"><tr><th class="p-4">Cabang</th><th class="p-4">TC</th><th class="p-4">APC</th><th class="p-4">Persentase</th></tr></thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-4 font-medium"><span @analysis:text="growthChan1Name"></span></td><td class="p-4"><span @analysis:text="growthChan1TC"></span></td><td class="p-4">Rp<span @analysis:text="growthChan1APC"></span>,-</td><td class="p-4 font-bold text-green-600">+<span @analysis:text="growthChan1Percent"></span>%</td></tr>
+                            <tr><td class="p-4 font-medium"><span @analysis:text="growthChan2Name"></span></td><td class="p-4"><span @analysis:text="growthChan2TC"></span></td><td class="p-4">Rp<span @analysis:text="growthChan2APC"></span>,-</td><td class="p-4 font-bold text-green-600">+<span @analysis:text="growthChan2Percent"></span>%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-md">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Channel dengan Sales Tertinggi</p>
+                    <table class="w-full text-base text-left">
+                        <thead class="bg-gray-100 text-gray-600"><tr><th class="p-4">Cabang</th><th class="p-4">Nominal</th></tr></thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-4 font-medium"><span @analysis:text="topSalesChan1Name"></span></td><td class="p-4">Rp<span @analysis:text="topSalesChan1Nominal"></span>,-</td></tr>
+                            <tr><td class="p-4 font-medium"><span @analysis:text="topSalesChan2Name"></span></td><td class="p-4">Rp<span @analysis:text="topSalesChan2Nominal"></span>,-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 5: Product Analysis (Foods) -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800">Analisis Produk Terlaris: Makanan</h2>
+            <p class="text-gray-500 mt-3 text-xl"><span @analysis:text="favoriteFoods">Konsumen kamu paling suka makan Nasi Goreng, Mie Goreng dan Baso.</span></p>
+        </div>
+        <div class="grid grid-cols-3 gap-8 flex-grow">
+            <div class="bg-white rounded-2xl p-8 shadow-md text-center flex flex-col justify-around">
+                <h3 class="font-bold text-gray-700 text-2xl">Peringkat Teratas</h3>
+                <div class="space-y-4">
+                    <div class="bg-yellow-400 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">1. <span @analysis:text="podium1"></span></div>
+                    <div class="bg-gray-400 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">2. <span @analysis:text="podium2"></span></div>
+                    <div class="bg-yellow-700 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">3. <span @analysis:text="podium3"></span></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl p-8 shadow-md">
+                <h3 class="font-bold text-gray-700 text-2xl mb-6">Top 5 Best Revenue Contributor</h3>
+                <ol class="space-y-4 text-lg">
+                    <li class="flex justify-between border-b pb-2"><span>1. <span @analysis:text="top5_1_name"></span> (<span @analysis:text="top5_1_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_1_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>2. <span @analysis:text="top5_2_name"></span> (<span @analysis:text="top5_2_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_2_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>3. <span @analysis:text="top5_3_name"></span> (<span @analysis:text="top5_3_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_3_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>4. <span @analysis:text="top5_4_name"></span> (<span @analysis:text="top5_4_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_4_revenue"></span></span></li>
+                    <li class="flex justify-between"><span>5. <span @analysis:text="top5_5_name"></span> (<span @analysis:text="top5_5_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_5_revenue"></span></span></li>
+                </ol>
+            </div>
+            <div class="space-y-8 flex flex-col">
+                <div class="bg-blue-50 rounded-2xl p-8 text-center flex-grow flex flex-col justify-center">
+                    <h3 class="text-2xl font-bold text-blue-900"><span @analysis:text="superheroTitle">Kalau ini kisah superhero...</span></h3>
+                    <p class="text-5xl font-extrabold text-blue-900 my-4"><span @analysis:text="superheroName"></span></p>
+                    <p class="text-lg text-gray-700 leading-relaxed">
+                        berkontribusi <strong class="text-2xl text-indigo-800"><span @analysis:text="superheroContributionPercent"></span>%</strong> terhadap total omzet,
+                        itu nilainya <strong class="text-2xl text-indigo-800">Rp<span @analysis:text="superheroContributionNominal"></span></strong> loh!
+                    </p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md">
+                    <h3 class="text-xl text-blue-900 text-center mb-4"><span @analysis:text="timelineTitle">Superhero di Setiap Waktu</span></h3>
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">5.00 – 10.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_time1_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">10.00 – 14.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_time2_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">14.00 – 17.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_time3_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">17.00 – 22.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_time4_name"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 6: Product Analysis (Drinks) -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800">Analisis Produk Terlaris: Minuman</h2>
+            <p class="text-gray-500 mt-3 text-xl"><span @analysis:text="favoriteDrinks">Konsumen kamu paling suka minum Teh Manis, Es Teh Tawar dan Es Jeruk.</span></p>
+        </div>
+        <div class="grid grid-cols-3 gap-8 flex-grow">
+            <div class="bg-white rounded-2xl p-8 shadow-md text-center flex flex-col justify-around">
+                <h3 class="font-bold text-gray-700 text-2xl">Peringkat Teratas</h3>
+                <div class="space-y-4">
+                    <div class="bg-yellow-400 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">1. <span @analysis:text="podium1_drink"></span></div>
+                    <div class="bg-gray-400 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">2. <span @analysis:text="podium2_drink"></span></div>
+                    <div class="bg-yellow-700 text-white font-bold p-4 rounded-lg text-2xl shadow-lg">3. <span @analysis:text="podium3_drink"></span></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl p-8 shadow-md">
+                <h3 class="font-bold text-gray-700 text-2xl mb-6">Top 5 Best Revenue Contributor</h3>
+                <ol class="space-y-4 text-lg">
+                    <li class="flex justify-between border-b pb-2"><span>1. <span @analysis:text="top5_drink_1_name"></span> (<span @analysis:text="top5_drink_1_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_drink_1_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>2. <span @analysis:text="top5_drink_2_name"></span> (<span @analysis:text="top5_drink_2_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_drink_2_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>3. <span @analysis:text="top5_drink_3_name"></span> (<span @analysis:text="top5_drink_3_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_drink_3_revenue"></span></span></li>
+                    <li class="flex justify-between border-b pb-2"><span>4. <span @analysis:text="top5_drink_4_name"></span> (<span @analysis:text="top5_drink_4_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_drink_4_revenue"></span></span></li>
+                    <li class="flex justify-between"><span>5. <span @analysis:text="top5_drink_5_name"></span> (<span @analysis:text="top5_drink_5_percent"></span>%)</span> <span class="font-medium">Rp<span @analysis:text="top5_drink_5_revenue"></span></span></li>
+                </ol>
+            </div>
+            <div class="space-y-8 flex flex-col">
+                <div class="bg-blue-50 rounded-2xl p-8 text-center flex-grow flex flex-col justify-center">
+                    <h3 class="text-2xl font-bold text-blue-900"><span @analysis:text="sidekickTitle">Kalau ini kisah superhero...</span></h3>
+                    <p class="text-5xl font-extrabold text-blue-900 my-4"><span @analysis:text="sidekickName"></span></p>
+                    <p class="text-lg text-gray-700 leading-relaxed">
+                        berkontribusi <strong class="text-2xl text-indigo-800"><span @analysis:text="sidekickContributionPercent"></span>%</strong> terhadap total omzet,
+                        itu nilainya <strong class="text-2xl text-indigo-800">Rp<span @analysis:text="sidekickContributionNominal"></span></strong> loh!
+                    </p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md">
+                    <h3 class="text-xl text-blue-900 text-center mb-4"><span @analysis:text="timelineTitle">Sidekick di Setiap Waktu</span></h3>
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">5.00 – 10.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_drink_time1_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">10.00 – 14.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_drink_time2_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">14.00 – 17.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_drink_time3_name"></span></p>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <p class="font-semibold text-gray-600 text-sm">17.00 – 22.00</p>
+                            <p class="font-bold text-gray-800 mt-1"><span @analysis:text="hero_drink_time4_name"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Page 1: Outlet Sales Comparison -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-12 flex-grow">
+            <!-- Left Column -->
+            <div class="flex flex-col justify-center items-center">
+                 <div class="bg-white rounded-2xl p-8 shadow-md text-center w-full max-w-lg">
+                    <p class="font-bold text-6xl text-green-600">
+                        <span @analysis:text="dineInIncreasePercentage">20</span>%
+                    </p>
+                     <p class="text-2xl text-gray-700 leading-relaxed mt-4">
+                        <span @analysis:text="dineInIncreaseInsight">Penjualan dine-in secara keseluruhan <strong class="text-indigo-800">meningkat 20%</strong></span>
+                    </p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center h-64 mt-6">
+                        <canvas id="dinein-increase-outlet-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- Right Column -->
+            <div class="flex flex-col gap-6 justify-center">
+                <h2 class="text-4xl font-bold text-blue-900 mb-4 text-center">Perbandingan Sales Masing-Masing Outlet</h2>
+                <div class="bg-white rounded-2xl p-6 shadow-md">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Outlet dengan Pertumbuhan TC dan APC tertinggi</p>
+                    <table class="w-full text-base text-left">
+                        <thead class="bg-gray-100 text-gray-600"><tr><th class="p-3">Cabang</th><th class="p-3">TC</th><th class="p-3">APC</th><th class="p-3">Persentase</th></tr></thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-3 font-medium"><span @analysis:text="outletGrowth1Name"></span></td><td class="p-3"><span @analysis:text="outletGrowth1TC"></span></td><td class="p-3">Rp<span @analysis:text="outletGrowth1APC"></span>,-</td><td class="p-3 font-bold text-green-600">+<span @analysis:text="outletGrowth1Percent"></span>%</td></tr>
+                            <tr><td class="p-3 font-medium"><span @analysis:text="outletGrowth2Name"></span></td><td class="p-3"><span @analysis:text="outletGrowth2TC"></span></td><td class="p-3">Rp<span @analysis:text="outletGrowth2APC"></span>,-</td><td class="p-3 font-bold text-green-600">+<span @analysis:text="outletGrowth2Percent"></span>%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-md">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Outlet dengan Sales Tertinggi</p>
+                    <table class="w-full text-base text-left">
+                        <thead class="bg-gray-100 text-gray-600"><tr><th class="p-3">Cabang</th><th class="p-3">Nominal</th></tr></thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-3 font-medium"><span @analysis:text="topOutlet1Name"></span></td><td class="p-3">Rp<span @analysis:text="topOutlet1Nominal"></span>,-</td></tr>
+                            <tr><td class="p-3 font-medium"><span @analysis:text="topOutlet2Name"></span></td><td class="p-3">Rp<span @analysis:text="topOutlet2Nominal"></span>,-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                 <div class="bg-white rounded-2xl p-6 shadow-md">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Outlet dengan Peningkatan Sales Bulanan Tertinggi</p>
+                    <table class="w-full text-base text-left">
+                        <thead class="bg-gray-100 text-gray-600"><tr><th class="p-3">Cabang</th><th class="p-3">Persentase</th><th class="p-3">Nominal</th></tr></thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-3 font-medium"><span @analysis:text="monthlyOutletIncrease1Name"></span></td><td class="p-3 font-bold text-green-600">+<span @analysis:text="monthlyOutletIncrease1Percent"></span>%</td><td class="p-3">Rp<span @analysis:text="monthlyOutletIncrease1Nominal"></span>,-</td></tr>
+                            <tr><td class="p-3 font-medium"><span @analysis:text="monthlyOutletIncrease2Name"></span></td><td class="p-3 font-bold text-green-600">+<span @analysis:text="monthlyOutletIncrease2Percent"></span>%</td><td class="p-3">Rp<span @analysis:text="monthlyOutletIncrease2Nominal"></span>,-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Raw Material Usage Review -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800"><span @analysis:text="pageTitle">Tinjauan Penggunaan Bahan Baku</span></h2>
+            <p class="text-gray-500 mt-3 text-xl max-w-4xl"><span @analysis:text="pageSubtitle">Memahami detil komponen penggunaan bahan baku adalah yang sebenarnya membuat kamu benar-benar cuan.</span></p>
+        </div>
+        <div class="grid grid-cols-3 gap-8 flex-grow">
+            <div class="col-span-2 bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                <p class="text-gray-600 font-medium text-lg mb-4 text-center">Penggunaan HPP Harian</p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="hpp-harian-chart-pdf"></canvas>
+                </div>
+            </div>
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md border text-center flex-grow flex flex-col justify-center">
+                    <p class="text-gray-600 font-semibold text-xl mb-2">Total HPP Aktual</p>
+                    <p class="text-6xl font-bold text-gray-800">Rp<span @analysis:text="totalHPP"></span></p>
+                    <p id="hpp-trend-p" class="text-lg mt-2 font-medium text-red-500">
+                        <span @analysis:text="hppTrendArrow"></span> <span @analysis:text="hppTrendPercent"></span>% <span @analysis:text="hppTrendSign"></span> Rp<span @analysis:text="hppTrendNominal"></span>
+                    </p>
+                </div>
+                <div class="bg-indigo-700 text-white rounded-2xl p-8 shadow-lg flex-grow">
+                    <h3 class="text-2xl font-bold mb-4 text-center">Highlights</h3>
+                    <ul class="space-y-3 list-disc list-inside text-base">
+                        <li><span @analysis:text="highlight1"></span></li>
+                        <li><span @analysis:text="highlight2"></span></li>
+                        <li><span @analysis:text="highlight3"></span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Food Cost Analysis -->
+    <div class="page-landscape">
+        <div class="w-full flex justify-between items-center mb-8">
+             <div class="bg-red-50 border-l-8 border-red-500 rounded-r-lg p-6 shadow-md w-1/2">
+                <div class="flex items-center mb-3">
+                    <svg class="w-8 h-8 text-red-700 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                    <h3 class="font-bold text-red-800 text-xl">Tips</h3>
+                </div>
+                <p class="text-base text-red-700"><span @analysis:text="foodCostTip"></span></p>
+            </div>
+            <div class="bg-indigo-600 text-white rounded-2xl p-6 shadow-lg flex items-center justify-between w-1/2 ml-8">
+                <div>
+                    <p class="font-semibold text-lg">Food Cost anda</p>
+                    <p><strong class="text-4xl"><span @analysis:text="foodCostAlertPercentage">40</span>%</strong> lebih besar dari perkiraan anda</p>
+                </div>
+                <div class="bg-red-500 rounded-full p-3">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h11.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-8 flex-grow">
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="text-gray-600 font-medium mb-4 text-center text-lg">Komponen Food Cost Bulan Ini</p>
+                    <div class="w-full bg-gray-50 rounded-md flex items-center justify-center flex-grow p-4"><canvas id="food-cost-komponen-chart-pdf"></canvas></div>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Persentase Cost Tertinggi</p>
+                    <table class="w-full text-base text-left h-full"><tbody>
+                        <tr class="border-b"><td class="py-3 px-2">1. <span @analysis:text="costOutlet1"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="costOutlet1Value"></span></td></tr>
+                        <tr class="border-b"><td class="py-3 px-2">2. <span @analysis:text="costOutlet2"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="costOutlet2Value"></span></td></tr>
+                        <tr class="border-b"><td class="py-3 px-2">3. <span @analysis:text="costOutlet3"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="costOutlet3Value"></span></td></tr>
+                        <tr><td class="py-3 px-2">4. <span @analysis:text="costOutlet4"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="costOutlet4Value"></span></td></tr>
+                    </tbody></table>
+                </div>
+            </div>
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="text-gray-600 font-medium mb-4 text-center text-lg">Food Cost Bulan Ini</p>
+                    <div class="w-full bg-gray-50 rounded-md flex items-center justify-center flex-grow p-4"><canvas id="food-cost-aktual-chart-pdf"></canvas></div>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow flex flex-col">
+                    <p class="font-semibold text-gray-700 mb-2 text-lg">Persentase Variance Tertinggi</p>
+                    <table class="w-full text-base text-left h-full"><tbody>
+                        <tr class="border-b"><td class="py-3 px-2">1. <span @analysis:text="varianceOutlet1"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="varianceOutlet1Value"></span></td></tr>
+                        <tr class="border-b"><td class="py-3 px-2">2. <span @analysis:text="varianceOutlet2"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="varianceOutlet2Value"></span></td></tr>
+                        <tr class="border-b"><td class="py-3 px-2">3. <span @analysis:text="varianceOutlet3"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="varianceOutlet3Value"></span></td></tr>
+                        <tr><td class="py-3 px-2">4. <span @analysis:text="varianceOutlet4"></span></td><td class="py-3 px-2 text-right text-gray-500"><span @analysis:text="varianceOutlet4Value"></span></td></tr>
+                    </tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 4: Customer Analysis -->
+    <div class="page-landscape">
+        <div class="text-center mb-10">
+            <p class="text-3xl text-gray-600">
+                <span @analysis:text="topCustomerNames">Pak Vincent, Bu Nadya, Bu Nia</span>. Familiar dengan nama tersebut?
+            </p>
+            <h2 class="text-6xl font-bold text-blue-900 mt-4">Mereka adalah Top Customer Anda!</h2>
+        </div>
+        <div class="grid grid-cols-3 gap-8 flex-grow">
+            <div class="bg-indigo-700 text-white rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-lg">
+                <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/280802c6-b453-48b5-9f5b-513e8e19572b" alt="New Customer" class="w-32 h-32 mb-6">
+                <h3 class="text-4xl font-bold">New Customer</h3>
+                <p class="mt-4 text-2xl">Jumlah: <span @analysis:text="newCustomerCount"></span></p>
+                <p class="mt-2 text-xl">Rata-Rata Pengeluaran: Rp<span @analysis:text="newCustomerAvgSpend"></span>,-</p>
+            </div>
+            <div class="bg-white border-4 border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-lg">
+                <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/9b61d624-a745-424b-b02e-c35f75608dae" alt="Highest Spender" class="w-32 h-32 mb-6">
+                <h3 class="text-4xl font-bold text-gray-800">Highest Spender</h3>
+                <p class="mt-4 text-2xl text-gray-600">Jumlah: <span @analysis:text="highSpenderCount"></span></p>
+                <p class="mt-2 text-xl text-gray-600">Rata-Rata Pengeluaran: Rp<span @analysis:text="highSpenderAvgSpend"></span>,-</p>
+            </div>
+            <div class="bg-indigo-700 text-white rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-lg">
+                <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/17154238-d731-482a-ad57-9d7a964f693b" alt="Most Loyal" class="w-32 h-32 mb-6">
+                <h3 class="text-4xl font-bold">Most Loyal</h3>
+                <p class="mt-4 text-2xl">Jumlah: <span @analysis:text="loyalCustomerCount"></span></p>
+                <p class="mt-2 text-xl">Rata-Rata Pengeluaran: Rp<span @analysis:text="loyalCustomerAvgSpend"></span>,-</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-md p-8 mt-8 border">
+            <h3 class="font-bold text-center text-gray-700 text-2xl">Newest Member on the List</h3>
+            <ol class="grid grid-cols-5 gap-x-8 gap-y-4 mt-6 text-gray-600 text-lg text-center">
+                <li>1. <span @analysis:text="newestMember1"></span></li>
+                <li>2. <span @analysis:text="newestMember2"></span></li>
+                <li>3. <span @analysis:text="newestMember3"></span></li>
+                <li>4. <span @analysis:text="newestMember4"></span></li>
+                <li>5. <span @analysis:text="newestMember5"></span></li>
+                <li>6. <span @analysis:text="newestMember6"></span></li>
+                <li>7. <span @analysis:text="newestMember7"></span></li>
+                <li>8. <span @analysis:text="newestMember8"></span></li>
+                <li>9. <span @analysis:text="newestMember9"></span></li>
+                <li>10. <span @analysis:text="newestMember10"></span></li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Page 5: Branch Specific Sales -->
+    <div class="page-landscape">
+        <div class="flex justify-between items-start mb-10">
+            <div>
+                <p class="text-gray-500 text-2xl">Yuk Analisis Cabang dengan Omzet tertinggi...</p>
+                <h2 class="text-6xl font-bold text-indigo-900 mt-2">
+                    Sales Bulanan Cabang <span @analysis:text="branchName"></span>
+                </h2>
+            </div>
+            <div class="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/9b61d624-a745-424b-b02e-c35f75608dae" alt="Illustration" class="w-24 h-24">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-8 flex-grow">
+            <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                <p class="text-center text-gray-700 font-semibold text-xl mb-4">
+                    Omzet dan Traffic Harian Cabang <span @analysis:text="branchNameForChart"></span>
+                </p>
+                <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                    <canvas id="omzet-traffic-harian-chart-pdf"></canvas>
+                </div>
+            </div>
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex-grow grid grid-cols-2 gap-8 items-center">
+                    <div class="flex flex-col justify-center">
+                        <p class="text-gray-600 font-medium text-lg">Total Omzet</p>
+                        <p class="text-5xl font-bold text-yellow-500 my-1">
+                            Rp<span @analysis:text="totalOmzetFormatted"></span>
+                        </p>
+                        <p id="branch-omzet-trend" class="text-base">
+                            <span @analysis:text="omzetUpOrDown"></span>
+                            <span @analysis:text="omzetPercentage"></span>%
+                            <span @analysis:text="omzetPlusOrMinus"></span> Rp<span @analysis:text="omzetDifference"></span>
+                        </p>
+                        <div class="border-t my-6"></div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-gray-600 font-medium">Traffic</p>
+                                <p class="text-3xl font-bold text-indigo-900 mt-1">
+                                    <span @analysis:text="trafficCountFormatted"></span>
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-gray-600 font-medium">Avg. Sale</p>
+                                <p class="text-3xl font-bold text-indigo-900 mt-1">
+                                    Rp <span @analysis:text="avgSaleFormatted"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full h-64">
+                         <canvas id="branch-sales-donut-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-indigo-600 text-white rounded-2xl p-8 shadow-lg">
+                    <h3 class="font-bold text-xl mb-3">Highlights</h3>
+                    <ul class="list-disc list-inside space-y-2 text-base">
+                        <li>Puncak penjualan cabang <span @analysis:text="highlightBranchName1"></span> terjadi pada tanggal <span @analysis:text="peakSaleDate1"></span> disusul oleh tanggal <span @analysis:text="peakSaleDate2"></span>.</li>
+                        <li>Traffic tertinggi terjadi pada tanggal <span @analysis:text="peakTrafficDate"></span> sebanyak <span @analysis:text="peakTrafficCount"></span> customer.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 6: Branch APC Growth -->
+    <div class="page-landscape">
+        <div class="w-full">
+            <h2 class="text-5xl font-bold text-indigo-900 mb-8">
+                Cabang <span @analysis:text="branchName"></span> memiliki pertumbuhan APC tercepat
+            </h2>
+            <div class="bg-white rounded-2xl shadow-md p-6 mb-8">
+                <table class="w-full text-center text-lg">
+                    <thead>
+                        <tr class="text-gray-500 font-semibold border-b">
+                            <th class="py-3 px-4 text-left"></th>
+                            <th class="py-3 px-4">Current Overall Value</th>
+                            <th class="py-3 px-4">30 Day Value</th>
+                            <th class="py-3 px-4">YoY Value</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-800">
+                        <tr class="border-b">
+                            <td class="py-4 px-4 text-left font-semibold">Sales</td>
+                            <td>Rp <span @analysis:text="salesCurrent"></span></td>
+                            <td>Rp <span @analysis:text="sales30Day"></span></td>
+                            <td>Rp <span @analysis:text="salesYoY"></span></td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-4 px-4 text-left font-semibold">No. Of Check</td>
+                            <td><span @analysis:text="checkCurrent"></span></td>
+                            <td><span @analysis:text="check30Day"></span> <span id="check-30day-trend" class="text-base text-green-500">(<span @analysis:text="check30DayPercentage"></span>%)</span></td>
+                            <td><span @analysis:text="checkYoY"></span> <span id="check-yoy-trend" class="text-base text-red-500">(<span @analysis:text="checkYoYPercentage"></span>%)</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-4 text-left font-semibold">Total Traffic</td>
+                            <td><span @analysis:text="trafficCurrent"></span> bon</td>
+                            <td><span @analysis:text="traffic30Day"></span> bon</td>
+                            <td><span @analysis:text="trafficYoY"></span> bon</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex flex-col">
+                    <h3 class="text-gray-700 font-semibold mb-4 text-xl text-center">Rata-Rata Nilai Per Pembelian</h3>
+                    <div class="w-full bg-gray-100 rounded-md flex items-center justify-center flex-grow">
+                        <canvas id="avg-purchase-value-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-8 justify-center">
+                    <div class="bg-indigo-600 text-white p-8 rounded-2xl shadow-lg">
+                        <p class="font-semibold text-xl">Sumber data: POS data</p>
+                        <ul class="list-disc list-inside mt-3 text-base space-y-2">
+                            <li>Data ini didapat dari analisis data penjualan dan jumlah bon</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-8 rounded-2xl shadow-md flex items-center justify-between">
+                        <div>
+                            <h3 class="text-2xl font-bold text-indigo-900 mb-3 flex items-center">Pro Tips</h3>
+                            <ol class="list-decimal list-inside text-gray-700 space-y-2 text-base">
+                                <li>Meningkatkan service dan memaksimalkan layanan secara maksimum</li>
+                                <li>Meningkatkan kapasitas bisnis dengan menggunakan <span @analysis:text="tipToolName"></span></li>
+                            </ol>
+                        </div>
+                        <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/17154238-d731-482a-ad57-9d7a964f693b" alt="Illustration" class="h-32 w-32">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Page 1: Peak Hour Analysis -->
+    <div class="page-landscape">
+        <div class="w-full">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Pahami Peak Hour Restoran Anda
+            </h2>
+            <p class="text-gray-600 mt-3 text-xl max-w-4xl">
+                Penting bagi anda untuk memahami bagaimana perilaku konsumen pada waktu yang berbeda setiap harinya untuk menerapkan strategi yang tepat.
+            </p>
+            <div class="grid grid-cols-2 gap-8 flex-grow mt-8">
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow">
+                        <h3 class="text-gray-700 font-semibold mb-4 text-xl text-center">Popular Times</h3>
+                        <div class="w-full bg-gray-100 rounded-md flex items-center justify-center flex-grow">
+                            <canvas id="popular-times-chart-1-pdf"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-indigo-600 text-white p-8 rounded-2xl shadow-lg">
+                        <ul class="list-disc list-inside space-y-2 text-base">
+                            <li>Hourly trend jumlah orang terbanyak</li>
+                            <li>Hourly trend nominal penjualan tertinggi</li>
+                            <li>Kapasitas (lost sales bisa karena stock out / kapasitas produksi / kapasitas tempat / lainnya)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8">
+                        <h3 class="text-2xl font-bold text-indigo-900">Peak Hour 1 : Makan Siang</h3>
+                        <p class="text-gray-600 mt-2 text-lg">
+                            Jam traffic terbesar: <span class="font-bold">jam <span @analysis:text="peakHour1Start"></span> - jam <span @analysis:text="peakHour1End"></span></span>
+                        </p>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex items-center justify-around">
+                        <div class="text-center">
+                            <h4 class="font-semibold text-gray-800 text-xl mb-3">Menu Terpopuler</h4>
+                            <ol class="text-2xl text-indigo-900 font-bold space-y-3 text-left">
+                                <li>1. <span @analysis:text="popularMenu1"></span></li>
+                                <li>2. <span @analysis:text="popularMenu2"></span></li>
+                                <li>3. <span @analysis:text="popularMenu3"></span></li>
+                            </ol>
+                        </div>
+                        <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/3d49262f-1c4b-4822-96f3-a2d988081a29" class="h-32 w-32">
+                        <div class="text-center">
+                            <h4 class="font-semibold text-gray-800 text-xl mb-2">Avg. Total Check</h4>
+                            <p class="text-3xl font-bold text-indigo-900">
+                                Rp <span @analysis:text="avgCheckPeak1Min"></span> - <span @analysis:text="avgCheckPeak1Max"></span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Peak Hour 2 & Off-Peak Analysis -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <div class="bg-white rounded-2xl shadow-md p-8">
+                <div class="flex justify-between items-center">
+                     <div class="text-center">
+                        <h3 class="text-2xl font-bold text-indigo-900">Peak Hour 2 : Makan Malam</h3>
+                        <p class="text-gray-600 mt-1 text-lg">
+                            Jam traffic terbesar: <span class="font-bold">jam <span @analysis:text="peakHour2Start"></span> - jam <span @analysis:text="peakHour2End"></span></span>
+                        </p>
+                    </div>
+                    <div class="text-center">
+                        <h4 class="font-semibold text-gray-800 text-xl mb-3">Menu Terpopuler</h4>
+                        <ol class="text-2xl text-indigo-900 font-bold space-y-2 text-left">
+                            <li>1. <span @analysis:text="popularMenuDinner1"></span></li>
+                            <li>2. <span @analysis:text="popularMenuDinner2"></span></li>
+                        </ol>
+                    </div>
+                    <div class="text-center">
+                        <h4 class="font-semibold text-gray-800 text-xl mb-2">Avg. Spending</h4>
+                        <p class="text-3xl font-bold text-indigo-900">
+                            Rp <span @analysis:text="avgSpendingPeak1Min"></span> - <span @analysis:text="avgSpendingPeak1Max"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-8 flex-grow mt-8">
+                <div class="space-y-8 flex flex-col justify-around">
+                    <div class="flex items-center justify-between gap-8 bg-white p-6 rounded-2xl shadow-md">
+                        <div>
+                            <h4 class="font-bold text-indigo-900 text-2xl">Jam Makan Pagi</h4>
+                            <p class="text-gray-600 text-lg">Jam dengan nilai pembelian terkecil</p>
+                            <p class="text-gray-500 text-base mt-2">APC: <span @analysis:text="apcBreakfast"></span> | Menu Populer: <span @analysis:text="popularMenuBreakfast"></span></p>
+                        </div>
+                        <img src="./assets/illustration-breakfast.svg" alt="Breakfast" class="w-36 h-24 flex-shrink-0">
+                    </div>
+                    <div class="flex items-center justify-between gap-8 bg-white p-6 rounded-2xl shadow-md">
+                        <div>
+                            <h4 class="font-bold text-indigo-900 text-2xl">Post-Lunch</h4>
+                             <p class="text-gray-600 text-lg">Jam tersepi</p>
+                            <p class="text-gray-500 text-base mt-2">APC: <span @analysis:text="apcPostLunch"></span> | Menu Populer: <span @analysis:text="popularMenuPostLunch"></span></p>
+                        </div>
+                        <img src="./assets/illustration-post-lunch.svg" alt="Post-lunch" class="w-36 h-24 flex-shrink-0">
+                    </div>
+                </div>
+                <div class="flex items-center justify-center bg-white p-8 rounded-2xl shadow-md">
+                    <img src="./assets/illustration-pro-tips.svg" alt="Pro Tips Illustration" class="w-40 h-40 flex-shrink-0 mr-8">
+                    <div>
+                        <h3 class="text-3xl font-bold text-indigo-900 mb-4 flex items-center">
+                            Pro Tips
+                            <img src="./assets/icon-pro-tips.svg" alt="Tips Icon" class="h-8 w-8 ml-3">
+                        </h3>
+                        <ol class="list-decimal list-inside text-gray-700 space-y-3 text-lg">
+                            <li>Meningkatkan service dan memaksimalkan layanan secara maksimum</li>
+                            <li>Meningkatkan kapasitas bisnis dengan menggunakan <span @analysis:text="tipToolName2"></span></li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Sales Trend by Hour and Day -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-8 flex-grow">
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 text-xl mb-4 text-center">Sales Trend by Hour and Day</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="sales-trend-hour-day-pdf"></canvas>
+                    </div>
+                </div>
+                 <div class="flex items-center justify-center p-8 bg-white rounded-2xl shadow-md">
+                    <div class="text-center relative">
+                        <img src="./assets/illustration-peak-day-idea.svg" alt="Illustration" class="absolute -top-16 -right-16 w-24 h-24">
+                        <p class="text-8xl font-bold text-indigo-600"><span @analysis:text="mainHourPercentage">36</span>%</p>
+                        <p class="text-gray-700 mt-4 text-2xl">
+                            <span @analysis:text="mainHourInsight">sales cabang Dago terjadi di jam 11.00 - 13.00 setiap harinya.</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 text-xl mb-4 text-center">Tren TC Per Jam Setiap Hari</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="tc-trend-hour-pdf"></canvas>
+                    </div>
+                </div>
+                 <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 text-xl mb-4 text-center">Tren APC Per Jam Setiap Hari</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="apc-trend-hour-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 4: Peak Day Analysis -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Hindari Opportunity Loss dengan Memaksimalkan Penjualan pada Peak Day
+            </h2>
+            <div class="grid grid-cols-2 gap-8 flex-grow mt-8">
+                <div class="flex flex-col gap-8">
+                     <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="text-gray-700 font-semibold mb-4 text-xl text-center">Popular Times</h3>
+                        <div class="w-full bg-gray-100 rounded-md flex items-center justify-center flex-grow">
+                            <canvas id="popular-times-chart-2-pdf"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-indigo-600 text-white p-8 rounded-2xl shadow-lg">
+                        <ul class="list-disc list-inside space-y-2 text-base">
+                            <li>Hourly trend jumlah orang terbanyak</li>
+                            <li>Hourly trend nominal penjualan tertinggi</li>
+                            <li>Kapasitas (lost sales bisa karena stock out / kapasitas produksi / kapasitas tempat / lainnya)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-8 justify-center">
+                    <div class="mb-6">
+                        <h3 class="text-3xl font-bold text-indigo-900">Peak Day : Weekend</h3>
+                        <p class="text-gray-600 mt-2 text-lg max-w-xl">
+                            Secara umum terdapat sejumlah xx konsumen yang tidak dapat dilayani karena adanya kapasitas tempat duduk dan stock bahan baku yang habis.
+                        </p>
+                    </div>
+                    <div class="flex items-center justify-center gap-6">
+                        <div class="bg-white rounded-2xl shadow-md p-8 w-1/2">
+                            <p class="text-gray-600 text-lg">Avg. Total Check pada Peak day:</p>
+                            <p class="text-4xl font-bold text-indigo-800 my-2">
+                                Rp <span @analysis:text="avgCheckPeakDayMin"></span> - <span @analysis:text="avgCheckPeakDayMax"></span>,-
+                            </p>
+                            <p class="text-base text-gray-500 mt-2">
+                                Peak days: <span class="font-bold" @analysis:text="peakDaysText"></span>
+                            </p>
+                        </div>
+                        <div class="text-yellow-500 text-6xl font-bold">[→]</div>
+                        <div class="bg-white rounded-2xl shadow-md p-8 w-1/2">
+                            <h4 class="font-bold text-indigo-900 text-xl mb-3 flex items-center">Tips</h4>
+                            <p class="text-gray-600 text-lg">
+                                Rancang program upselling dengan bundling produk atau promosi untuk meningkatkan nilai belanja per transaksi.
+                            </p>
+                        </div>
+                    </div>
+                     <div>
+                        <h3 class="font-bold text-indigo-900 text-2xl">Weekday : <span class="font-normal text-gray-600">hari dengan nilai pembelian terkecil</span></h3>
+                        <p class="text-gray-500 text-lg mt-2">APC pada jam makan pagi : <span @analysis:text="apcWeekdayBreakfast"></span></p>
+                        <p class="text-gray-500 text-lg">Menu terpopuler pada jam makan pagi : <span @analysis:text="popularMenuWeekdayBreakfast"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 5: Product Quadrant Analysis -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Kenali Produk Utama, Produk Regular, dan “Bad” Product Anda
+            </h2>
+            <div class="bg-blue-50 p-6 rounded-2xl my-6">
+                <h3 class="font-bold text-indigo-800 text-2xl">Tahukah anda?</h3>
+                <p class="text-gray-700 text-xl mt-2">
+                    Meski penjualan 'Ayam Geprek Sambal Rica' memiliki volume penjualan tertinggi, namun nyatanya 70% total pendapatan anda berasal dari produk 'Paket Kombo Lengkap Kenyang'!
+                </p>
+            </div>
+            <div class="relative flex-grow flex flex-col">
+                <div class="absolute -left-16 top-1/2 -translate-y-1/2 transform -rotate-90 font-semibold text-yellow-500 text-2xl">Profit%</div>
+                <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 font-semibold text-yellow-500 text-2xl">Sales</div>
+                <div class="absolute top-0 left-4 text-lg text-gray-500">High</div>
+                <div class="absolute bottom-0 left-4 text-lg text-gray-500">Low</div>
+                <div class="absolute bottom-4 left-0 text-lg text-gray-500">Low</div>
+                <div class="absolute bottom-4 right-0 text-lg text-gray-500">High</div>
+                <div class="absolute top-1/2 left-0 w-full h-px bg-gray-300 border-b border-dashed"></div>
+                <div class="absolute left-1/2 top-0 w-px h-full bg-gray-300 border-r border-dashed"></div>
+                <div id="food-quadrant-chart" class="grid grid-cols-2 grid-rows-2 h-full w-full"></div>
+                <div class="absolute bottom-[-60px] right-0 bg-yellow-500 text-white text-xl px-6 py-3 rounded-lg">Grouping Product</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 6: Sales Trend per Week -->
+    <div class="page-landscape">
+        <div class="grid grid-cols-2 gap-8 flex-grow">
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 mb-4 text-xl text-center">Sales Trend per Minggu</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="sales-trend-week-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center p-8 bg-white rounded-2xl shadow-md">
+                    <div class="text-center relative">
+                        <img src="./assets/illustration-peak-day-idea.svg" alt="Illustration" class="absolute -top-16 -right-16 w-24 h-24">
+                        <p class="text-8xl font-bold text-indigo-600"><span @analysis:text="weekendSalesPercentage">42</span>%</p>
+                        <p class="text-gray-700 mt-4 text-2xl">
+                            sales cabang Dago terjadi hari <span class="font-bold text-yellow-500">Sabtu dan Minggu</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-8">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 text-xl mb-4 text-center">TC Trend per Minggu</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="tc-trend-week-pdf"></canvas>
+                    </div>
+                </div>
+                 <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                    <h3 class="font-semibold text-gray-700 text-xl mb-4 text-center">APC Trend per Minggu</h3>
+                    <div class="w-full h-full bg-gray-100 rounded flex items-center justify-center p-4">
+                        <canvas id="apc-trend-week-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 7: Drinks Quadrant Analysis -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Kenali Produk Minuman Utama Anda
+            </h2>
+            <div class="bg-blue-50 p-6 rounded-2xl my-6">
+                <h3 class="font-bold text-indigo-800 text-2xl">Tahukah anda?</h3>
+                <p class="text-gray-700 text-xl mt-2">
+                    Meski penjualan 'Orange Juice' memiliki volume penjualan tertinggi, namun nyatanya 70% total pendapatan anda berasal dari produk 'Es Teh Manis'!
+                </p>
+            </div>
+            <div class="relative flex-grow flex flex-col">
+                <div class="absolute -left-16 top-1/2 -translate-y-1/2 transform -rotate-90 font-semibold text-yellow-500 text-2xl">Profit%</div>
+                <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 font-semibold text-yellow-500 text-2xl">Harga Jual</div>
+                <div class="absolute top-0 left-4 text-lg text-gray-500">High</div>
+                <div class="absolute bottom-0 left-4 text-lg text-gray-500">Low</div>
+                <div class="absolute bottom-4 left-0 text-lg text-gray-500">Low</div>
+                <div class="absolute bottom-4 right-0 text-lg text-gray-500">High</div>
+                <div class="absolute top-1/2 left-0 w-full h-px bg-gray-300 border-b border-dashed"></div>
+                <div class="absolute left-1/2 top-0 w-px h-full bg-gray-300 border-r border-dashed"></div>
+                <div id="drinks-quadrant-chart" class="grid grid-cols-2 grid-rows-2 h-full w-full gap-4"></div>
+                <div class="absolute bottom-[-60px] right-0 bg-yellow-500 text-white text-xl px-6 py-3 rounded-lg">Grouping Product</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 8: Key Highlights & Recommendations -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col justify-center gap-12">
+            <div class="bg-white rounded-2xl shadow-md p-12 w-full">
+                <h3 class="font-bold text-indigo-800 text-center text-4xl mb-6">Key Highlight</h3>
+                <ul class="list-disc list-inside space-y-4 text-gray-700 mx-auto max-w-4xl text-2xl">
+                    <li>Produk C memiliki potensi untuk ditekan COGSnya hingga menjadi salah satu produk star.</li>
+                    <li>Membuat perjanjian dengan supplier</li>
+                    <li>Highlight data atau insight temuan lain; konklusi serta rekomendasi yang dapat ditarik dari highlight dan insight</li>
+                </ul>
+            </div>
+            <div class="text-center text-8xl text-gray-400">↓</div>
+            <div class="bg-white rounded-2xl shadow-md p-12 w-full">
+                <h3 class="font-bold text-indigo-800 text-center text-4xl mb-6">Rekomendasi Kami</h3>
+                <ul class="list-decimal list-inside space-y-4 text-gray-700 mx-auto max-w-5xl text-2xl">
+                    <li>Rekomendasi 1 : Membuat campaign untuk meningkatkan kedatangan konsumen yang berpasangan dapat meningkatkan ATC dan sales total</li>
+                    <li>Rekomendasi 2 : Konklusi serta rekomendasi yang dapat ditarik dari highlight dan insight</li>
+                    <li>Rekomendasi 3 : Konklusi serta rekomendasi yang dapat ditarik dari highlight dan insight 2</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+        <!-- Page 1: Sales Channel Analysis -->
+    <div class="page-landscape">
+        <div class="w-full">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Kenali 3 Sales Channel Anda Saat Ini
+            </h2>
+            <p class="text-gray-600 mt-3 text-xl max-w-4xl">
+                Mengenali karakteristik channel penjualan yang anda gunakan dapat membantu meningkatkan penjualan anda!
+            </p>
+            <div class="grid grid-cols-2 gap-8 items-center flex-grow mt-8">
+                <div class="bg-white rounded-2xl shadow-md p-8 h-full flex flex-col">
+                    <h3 class="text-gray-700 font-semibold mb-4 text-xl text-center">Penjualan Sales Channel</h3>
+                    <div class="w-full bg-gray-100 rounded-md flex items-center justify-center flex-grow">
+                        <canvas id="sales-channel-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-8">
+                    <div class="bg-indigo-600 text-white p-8 rounded-2xl shadow-lg">
+                        <p class="font-semibold text-xl">Sumber data : POS data</p>
+                        <ul class="list-disc list-inside mt-2 text-base">
+                            <li>Saat ini anda menggunakan 3 dari 7 sales channel yang ada dan umumnya digunakan untuk perusahaan FnB</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-md p-6">
+                        <h3 class="text-2xl font-bold text-indigo-900">GoFood & GrabFood</h3>
+                        <p class="text-gray-500 text-lg">Sales channel dengan volume penjualan tertinggi</p>
+                    </div>
+                     <div class="bg-white rounded-2xl shadow-md p-6">
+                        <h3 class="text-2xl font-bold text-indigo-900">DineIn</h3>
+                        <p class="text-gray-500 text-lg">Sales channel dengan perkembangan tertinggi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Sales Channel Deep Dive -->
+     <div class="page-landscape">
+        <div class="w-full h-full flex flex-col justify-center gap-12">
+            <div class="grid grid-cols-2 gap-8 items-center">
+                <div class="bg-white rounded-2xl shadow-md p-8">
+                    <h4 class="font-bold text-indigo-800 text-2xl text-center">Key Highlight: GoFood</h4>
+                    <p class="text-lg text-center text-gray-600 mt-2">Channel dengan penjualan tertinggi; memaintain promosi yang berjalan</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-md p-8 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-indigo-800 text-3xl">Biasanya konsumen anda memesan <span @analysis:text="goFoodPopularFood">bakso</span></h4>
+                    </div>
+                    <img src="./assets/illustration-bakso.svg" alt="Bakso" class="w-32 h-24">
+                </div>
+            </div>
+             <div class="grid grid-cols-2 gap-8 items-center">
+                <div class="bg-white rounded-2xl shadow-md p-8 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-indigo-800 text-3xl">Biasanya konsumen anda memesan <span @analysis:text="grabFoodPopularFood">nasi goreng</span></h4>
+                    </div>
+                    <img src="./assets/illustration-nasi-goreng.svg" alt="Nasi Goreng" class="w-32 h-24">
+                </div>
+                <div class="bg-white rounded-2xl shadow-md p-8">
+                    <h4 class="font-bold text-indigo-800 text-2xl text-center">Key Highlight: GrabFood</h4>
+                    <p class="text-lg text-center text-gray-600 mt-2">Channel dengan penjualan tertinggi; memaintain promosi yang berjalan</p>
+                </div>
+            </div>
+             <div class="grid grid-cols-2 gap-8 items-center">
+                <div class="bg-white rounded-2xl shadow-md p-8">
+                    <h4 class="font-bold text-indigo-800 text-2xl text-center">Key Highlight: ShopeeFood</h4>
+                    <p class="text-lg text-center text-gray-600 mt-2">Channel dengan penjualan tertinggi; memaintain promosi yang berjalan</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-md p-8 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-indigo-800 text-3xl">Biasanya Konsumen kamu memesan <span @analysis:text="shopeeFoodPopularFood">pizza</span></h4>
+                    </div>
+                    <img src="./assets/illustration-nasi-goreng.svg" alt="Pizza Illustration" class="w-32 h-24">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Sales Channel Trends by Time -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <h2 class="text-5xl font-bold text-indigo-900">
+                Tren Penjualan Sales Channel Cabang <span @analysis:text="branchName"></span>
+            </h2>
+            <div class="grid grid-cols-2 gap-8 flex-grow mt-8">
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren Penjualan per Jam</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="sales-trend-channel-hour-pdf"></canvas>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 text-2xl leading-relaxed px-4">
+                        Sales channel yang paling diminati untuk sarapan adalah <span class="font-bold text-yellow-500">dine in</span>, sedangkan untuk makan siang dan makan malam, <span class="font-bold text-green-500">GrabFood</span> lebih diminati.
+                    </p>
+                </div>
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren Penjualan per Minggu</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="sales-trend-channel-week-pdf"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren Penjualan per Bulan</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="sales-trend-channel-month-pdf"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 4: Traffic & APC Analysis -->
+    <div class="page-landscape">
+        <div class="w-full h-full flex flex-col">
+            <h2 class="text-5xl font-bold text-indigo-900 mb-8">
+                Traffic & APC Sales Channel Cabang <span @analysis:text="branchName"></span>
+            </h2>
+            <div class="grid grid-cols-2 gap-8 flex-grow">
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren TC berbagai channel per jam</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="tc-trend-channel-hour-pdf"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren TC berbagai channel per minggu</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="tc-trend-channel-week-pdf"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren APC berbagai channel per jam</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="apc-trend-channel-hour-pdf"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-md p-8 flex-grow flex flex-col">
+                        <h3 class="font-semibold text-gray-700 text-xl mb-4">Tren APC berbagai channel per minggu</h3>
+                        <div class="w-full h-full bg-gray-100 rounded-lg p-4">
+                            <canvas id="apc-trend-channel-week-pdf"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 1: APC Trends -->
+    <div class="page-landscape">
+        <div class="mb-10">
+            <h2 class="text-5xl font-bold text-gray-800"><span @analysis:text="mainGoFoodInsight">Rata-rata ada 3 – 5 pesanan GoFood setiap jamnya pada restoran anda</span></h2>
+        </div>
+        <div class="grid grid-rows-3 gap-8 flex-grow">
+            <div class="grid grid-cols-2 gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren APC berbagai channel per jam</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="apc-hourly-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center justify-center px-8 gap-6">
+                    <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="hourlyAPCInsightDinner">Rata-rata nilai pembelian meningkat pesat pada <strong class="text-indigo-800">jam makan malam</strong> baik pada <strong class="text-indigo-800">GoFood</strong>, dan <strong class="text-indigo-800">GrabFood</strong>.</span></p>
+                    <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="hourlyAPCInsightDineIn">Sedangkan pada Dine in, tidak terjadi <strong class="text-indigo-800">perubahan yang signifikan</strong> dari jam ke jam.</span></p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-8">
+                <div class="flex items-center justify-center px-8">
+                     <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="weeklyAPCInsight">Rata-rata nilai pembelian pada <strong class="text-indigo-800">weekend meningkat pesat</strong> baik pada GoFood, GrabFood, dan Dine In, namun <strong class="text-indigo-800">lonjakan terbesar</strong> terjadi pada pembelian Dine In.</span></p>
+                </div>
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren APC berbagai channel per minggu</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="apc-weekly-chart-pdf"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-8">
+                <div class="bg-white rounded-2xl p-8 shadow-md flex flex-col">
+                    <p class="text-gray-600 font-medium text-lg mb-4">Tren APC berbagai channel per bulan</p>
+                    <div class="w-full bg-gray-50 rounded-lg flex items-center justify-center flex-grow p-4">
+                        <canvas id="apc-monthly-chart-pdf"></canvas>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center px-8">
+                     <p class="text-2xl text-gray-700 leading-relaxed"><span @analysis:text="monthlyAPCInsight">Pada <strong class="text-indigo-800">akhir bulan</strong>, rata-rata <strong class="text-indigo-800">nilai pembelian menurun</strong> di semua sales channel, namun yang paling terdampak adalah <strong class="text-indigo-800">GoFood</strong>.</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 5: Conclusion -->
+     <div class="page-landscape flex flex-col items-center justify-center text-center">
+        <p class="text-9xl font-bold text-gray-300">04</p>
+        <h2 class="text-9xl font-bold text-indigo-900 -mt-8">Kesimpulan</h2>
+        <p class="text-yellow-500 font-bold text-4xl mt-16">aturkuliner</p>
+    </div>
+
+    <!-- Page 6: Priority Matrix -->
+    <div class="page-landscape">
+        <h2 class="text-6xl font-bold text-indigo-900 mb-8">Prioritas Rekomendasi Keseluruhan</h2>
+        <div class="flex-grow relative p-16">
+            <div class="absolute top-1/2 left-8 w-[calc(100%-4rem)] h-px bg-gray-300 border-b border-dashed"></div>
+            <div class="absolute left-1/2 top-8 h-[calc(100%-4rem)] w-px bg-gray-300 border-r border-dashed"></div>
+
+            <div class="absolute -left-4 top-1/2 -translate-y-1/2 transform -rotate-90 font-semibold text-gray-600 text-2xl">Impact →</div>
+            <div class="absolute -bottom-4 left-1/2 -translate-x-1/2 font-semibold text-gray-600 text-2xl">Effort →</div>
+            <div class="absolute bottom-0 left-8 text-gray-600 text-xl">Size = <span class="text-yellow-500 font-bold">Risk</span></div>
+
+            <div class="w-full h-full relative">
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[15%] left-[20%]">R1</div>
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[30%] left-[5%]">R2</div>
+
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[10%] right-[10%]">R7</div>
+                <div class="w-36 h-36 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[25%] right-[25%]">R6</div>
+
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[15%] left-[15%]">R3</div>
+
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[30%] right-[30%]">R4</div>
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[10%] right-[15%]">R5</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Priority Matrix Branch A -->
+    <div class="page-landscape">
+        <h2 class="text-6xl font-bold text-indigo-900 mb-8">Prioritas Rekomendasi Cabang A</h2>
+        <div class="flex-grow relative p-16">
+            <div class="absolute top-1/2 left-8 w-[calc(100%-4rem)] h-px bg-gray-300 border-b border-dashed"></div>
+            <div class="absolute left-1/2 top-8 h-[calc(100%-4rem)] w-px bg-gray-300 border-r border-dashed"></div>
+
+            <div class="absolute -left-4 top-1/2 -translate-y-1/2 transform -rotate-90 font-semibold text-gray-600 text-2xl">Impact →</div>
+            <div class="absolute -bottom-4 left-1/2 -translate-x-1/2 font-semibold text-gray-600 text-2xl">Effort →</div>
+            <div class="absolute bottom-0 left-8 text-gray-600 text-xl">Size = <span class="text-yellow-500 font-bold">Risk</span></div>
+
+            <div class="w-full h-full relative">
+                <!-- Bubbles representing recommendations -->
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[15%] left-[20%]">R1</div>
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[30%] left-[5%]">R2</div>
+
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[10%] right-[10%]">R7</div>
+                <div class="w-36 h-36 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[25%] right-[25%]">R6</div>
+
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[15%] left-[15%]">R3</div>
+
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[30%] right-[30%]">R4</div>
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[10%] right-[15%]">R5</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Priority Matrix Branch B -->
+    <div class="page-landscape">
+        <h2 class="text-6xl font-bold text-indigo-900 mb-8">Prioritas Rekomendasi Cabang B</h2>
+        <div class="flex-grow relative p-16">
+            <div class="absolute top-1/2 left-8 w-[calc(100%-4rem)] h-px bg-gray-300 border-b border-dashed"></div>
+            <div class="absolute left-1/2 top-8 h-[calc(100%-4rem)] w-px bg-gray-300 border-r border-dashed"></div>
+
+            <div class="absolute -left-4 top-1/2 -translate-y-1/2 transform -rotate-90 font-semibold text-gray-600 text-2xl">Impact →</div>
+            <div class="absolute -bottom-4 left-1/2 -translate-x-1/2 font-semibold text-gray-600 text-2xl">Effort →</div>
+            <div class="absolute bottom-0 left-8 text-gray-600 text-xl">Size = <span class="text-yellow-500 font-bold">Risk</span></div>
+
+            <div class="w-full h-full relative">
+                <!-- Bubbles representing recommendations -->
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[15%] left-[20%]">R1</div>
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[30%] left-[5%]">R2</div>
+
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[10%] right-[10%]">R7</div>
+                <div class="w-36 h-36 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute top-[25%] right-[25%]">R6</div>
+
+                <div class="w-32 h-32 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[15%] left-[15%]">R3</div>
+
+                <div class="w-24 h-24 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[30%] right-[30%]">R4</div>
+                <div class="w-28 h-28 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-2xl absolute bottom-[10%] right-[15%]">R5</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 1: Recommendations -->
+    <div class="page-landscape">
+        <div class="w-full">
+            <h2 class="text-6xl font-bold text-indigo-900 mb-16">Rekomendasi Keseluruhan</h2>
+            <div class="grid grid-cols-2 gap-x-16 gap-y-12">
+                <div class="flex items-center gap-8">
+                    <div class="w-40 h-40 bg-gray-100 rounded-full flex flex-col items-center justify-center text-center p-4 flex-shrink-0">
+                        <span class="font-bold text-indigo-800 text-2xl">Rekomendasi 1</span>
+                    </div>
+                    <div class="flex-1 relative h-px bg-gray-300">
+                        <div class="w-3 h-3 bg-gray-300 rounded-full absolute right-0 top-1/2 -translate-y-1/2"></div>
+                    </div>
+                    <div class="w-1/2">
+                        <ul class="list-disc list-inside text-gray-700 text-2xl space-y-2">
+                            <li>More focused Marketing Cost</li>
+                            <li>Increase avg cust spending</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex items-center gap-8">
+                    <div class="w-40 h-40 bg-gray-100 rounded-full flex flex-col items-center justify-center text-center p-4 flex-shrink-0">
+                        <span class="font-bold text-indigo-800 text-2xl">Rekomendasi 2</span>
+                    </div>
+                    <div class="flex-1 relative h-px bg-gray-300">
+                        <div class="w-3 h-3 bg-gray-300 rounded-full absolute right-0 top-1/2 -translate-y-1/2"></div>
+                    </div>
+                    <div class="w-1/2">
+                        <ul class="list-disc list-inside text-gray-700 text-2xl space-y-2">
+                            <li>Increase “cash cow” & “star” product</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex items-center gap-8">
+                    <div class="w-40 h-40 bg-gray-100 rounded-full flex flex-col items-center justify-center text-center p-4 flex-shrink-0">
+                        <span class="font-bold text-indigo-800 text-2xl">Rekomendasi 3</span>
+                    </div>
+                    <div class="flex-1 relative h-px bg-gray-300">
+                        <div class="w-3 h-3 bg-gray-300 rounded-full absolute right-0 top-1/2 -translate-y-1/2"></div>
+                    </div>
+                    <div class="w-1/2">
+                        <ul class="list-disc list-inside text-gray-700 text-2xl space-y-2">
+                            <li>Increase inventory efficiency</li>
+                            <li>Less waste and spoilage</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex items-center gap-8">
+                    <div class="w-40 h-40 bg-gray-100 rounded-full flex flex-col items-center justify-center text-center p-4 flex-shrink-0">
+                        <span class="font-bold text-indigo-800 text-2xl">Rekomendasi 4</span>
+                    </div>
+                    <div class="flex-1 relative h-px bg-gray-300">
+                        <div class="w-3 h-3 bg-gray-300 rounded-full absolute right-0 top-1/2 -translate-y-1/2"></div>
+                    </div>
+                    <div class="w-1/2">
+                        <ul class="list-disc list-inside text-gray-700 text-2xl space-y-2">
+                            <li>Lorem ipsum dolor sit amet</li>
+                            <li>Sed do eiusmod tempor</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: 3 Easy Steps -->
+    <div class="page-landscape flex items-center justify-center">
+        <div class="w-full">
+            <h2 class="text-6xl font-bold text-center mb-24">
+                Hanya Melalui 3 Langkah Mudah
+            </h2>
+            <div class="flex justify-around items-start">
+                <div class="flex flex-col items-center text-center max-w-sm">
+                    <div class="flex items-center gap-8">
+                        <p class="text-8xl font-bold text-gray-800">1.</p>
+                        <div class="w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12h-5.5M14.5 12V6.5a1.5 1.5 0 0 1 3 0V12m-2-5.5V6.5m-5 11.5c-3.314 0-6-2.686-6-6s2.686-6 6-6c1.657 0 3.157.672 4.243 1.757" /><path d="M8.5 18.5L10 17" /><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-semibold text-gray-800 mt-8">Daftarkan bisnis Anda</p>
+                </div>
+                <div class="flex flex-col items-center text-center max-w-sm">
+                    <div class="flex items-center gap-8">
+                        <p class="text-8xl font-bold text-gray-800">2.</p>
+                        <div class="w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12h4m-4 4h10" /><path d="M14 4.5V10c0 .828.672 1.5 1.5 1.5H20v5.5a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17V6.5A2.5 2.5 0 0 1 6.5 4H10" /><path d="M14 4.5L19.5 10" /><circle cx="17" cy="17" r="3" /><path d="m19 19-1.5-1.5" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-semibold text-gray-800 mt-8">Beri Analiso akses POS serta data data yang dibutuhkan</p>
+                </div>
+                <div class="flex flex-col items-center text-center max-w-sm">
+                    <div class="flex items-center gap-8">
+                        <p class="text-8xl font-bold text-gray-800">3.</p>
+                        <div class="w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-semibold text-gray-800 mt-8">Dapatkan laporan dan rekomendasi rutin untuk perkembangan bisnis Anda</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 3: Final CTA -->
+    <div class="page-landscape bg-gray-800 flex items-center justify-center text-center">
+        <div class="w-full h-full flex items-center justify-center relative">
+            <div class="absolute top-0 right-0 h-full w-1/2 bg-cover bg-center" style="background-image: url('https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/30a5746b-433b-45a8-9411-9a7448833076'); clip-path: circle(65% at 100% 50%);">
+            </div>
+            <div class="z-10 text-left w-1/2 pl-20">
+                <h2 class="text-8xl font-bold text-blue-400">Analiso</h2>
+                <h3 class="text-6xl font-bold mt-6 leading-tight text-white">
+                    Dapatkan Sampel Laporan Anda Sekarang!
+                </h3>
+                <div class="mt-12 flex items-center gap-12">
+                    <div class="bg-white p-4 rounded-lg">
+                        <img src="https://storage.googleapis.com/gemini-prod-ui-images/2024/8/6/c579339e-b5f7-4148-a0de-440a33c6a4f9" alt="QR Code" class="w-40 h-40">
+                        <p class="text-black text-center font-bold mt-2 text-lg">SCAN ME</p>
+                    </div>
+                    <div class="text-white space-y-6">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
+                            </div>
+                            <p class="text-2xl">WhatsApp: <span @analysis:text="whatsappNumber"></span></p>
+                        </div>
+                        <p class="text-2xl underline"><a href="https://bit.ly/analiso">https://bit.ly/analiso</a></p>
+                        <p class="text-2xl underline text-yellow-400"><a href="#">Atau klik disini</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
