@@ -39,7 +39,8 @@ import {
   getCountFromServer,
   orderBy,           
   limit,             
-  startAfter         
+  startAfter,
+  onSnapshot
 } from 'firebase/firestore'
 
 import { setupAnalysis } from './analysis'
@@ -56,7 +57,7 @@ import {
   shortenCurrency,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
-import { getStorage, ref, uploadBytes } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Firebase Config
@@ -481,37 +482,193 @@ async function deleteUserRecord(userId: string): Promise<void> {
   }
 }
 
+function listenForProcessingStatus(fileName: string) {
+  if (!currentUser) return;
+
+  const progressContainer = document.getElementById('upload-progress-container');
+  const progressBar = document.getElementById('upload-progress-bar');
+  const progressPercent = document.getElementById('upload-progress-percent');
+  const statusText = document.getElementById('upload-status-text');
+
+  // --- Simulation Variables ---
+  let simulationInterval: number | null = null;
+  let simulatedProgress = 0;
+  const simulationDuration = 20000; // 20 seconds total simulation time
+  const simulationStep = 100; // Update every 100ms
+  const progressIncrement = 90 / (simulationDuration / simulationStep); // Increment to reach 90%
+  const statusMessages = [
+      { percent: 0, text: 'Server is initializing...' },
+      { percent: 25, text: 'Parsing file rows...' },
+      { percent: 50, text: 'Analyzing sales data...' },
+      { percent: 75, text: 'Generating summaries...' }
+  ];
+
+  // --- UI Transition to "Processing" ---
+  statusText.textContent = statusMessages[0].text;
+  progressBar.style.width = '0%';
+  progressBar.classList.remove('bg-green-500');
+  progressBar.classList.add('bg-blue-600');
+  progressPercent.textContent = '0%';
+
+  const uploadsRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
+  const q = query(uploadsRef, where("name", "==", fileName), orderBy("createdAt", "desc"), limit(1));
+
+  let unsubscribeProcessor = () => {}; // To hold the inner listener's unsubscribe function
+
+  // --- Real Firestore Listener ---
+  const unsubscribeFinder = onSnapshot(q, (querySnapshot) => {
+    if (!querySnapshot.empty) {
+      const uploadDoc = querySnapshot.docs[0];
+      unsubscribeFinder(); // Stop listening for the document itself
+
+      unsubscribeProcessor = onSnapshot(doc(uploadsRef, uploadDoc.id), (docSnap) => {
+        const status = docSnap.data()?.processingStatus;
+
+        if (status?.state === 'complete' || status?.state === 'error') {
+          // Real status received, stop the simulation
+          if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+          }
+
+          if (status.state === 'complete') {
+            statusText.textContent = 'Processing Complete!';
+            progressBar.style.width = '100%';
+            progressPercent.textContent = '100%';
+            progressBar.classList.remove('bg-blue-600');
+            progressBar.classList.add('bg-green-500');
+            loadUploadHistory();
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+                setTimeout(() => progressContainer.classList.add('hidden'), 300);
+            }, 3000);
+          } else { // Error state
+            statusText.textContent = `Error: ${status.message || 'Processing failed'}`;
+            progressBar.classList.remove('bg-blue-600');
+            progressBar.classList.add('bg-red-500');
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+                setTimeout(() => progressContainer.classList.add('hidden'), 300);
+            }, 5000);
+          }
+          unsubscribeProcessor(); // Stop listening for updates
+        }
+      });
+    }
+  });
+
+  // --- Start Progress Simulation ---
+  simulationInterval = setInterval(() => {
+    simulatedProgress += progressIncrement;
+    if (simulatedProgress >= 90) {
+      // Simulation finished without real completion, assume background processing
+      clearInterval(simulationInterval);
+      simulationInterval = null;
+      statusText.textContent = 'Processing in background...';
+      setTimeout(() => {
+        progressContainer.classList.remove('show');
+        setTimeout(() => progressContainer.classList.add('hidden'), 300);
+        loadUploadHistory();
+      }, 4000);
+      unsubscribeFinder(); // Clean up listeners
+      unsubscribeProcessor();
+      return;
+    }
+
+    // Update UI with simulated progress
+    const currentStatus = statusMessages.slice().reverse().find(s => simulatedProgress >= s.percent) || statusMessages[0];
+    statusText.textContent = currentStatus.text;
+    const percent = Math.round(simulatedProgress);
+    progressBar.style.width = `${percent}%`;
+    progressPercent.textContent = `${percent}%`;
+
+  }, simulationStep);
+}
+
 // --- Excel Processing & Data Storage ---
 document.getElementById('upload-btn').addEventListener('click', async () => {
-  const fileInput = document.getElementById('file-input');
-  const file = fileInput.files[0];
+  const fileInput = document.getElementById('file-input') as HTMLInputElement;
+  const file = fileInput.files?.[0];
   if (!file) {
-    console.warn('Button upload click listener triggered without any file')
+    uploadError.textContent = 'Please select a file to upload.';
+    uploadError.classList.remove('hidden');
     return;
   }
+  uploadError.classList.add('hidden');
 
-  const uploadButton = document.getElementById('upload-btn');
+  const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
   uploadButton.disabled = true;
-  // Show progress for the UPLOAD only
-  // You would need to add a listener for upload progress here
+
+  const progressContainer = document.getElementById('upload-progress-container');
+  const progressBar = document.getElementById('upload-progress-bar');
+  const progressPercent = document.getElementById('upload-progress-percent');
+  const statusText = document.getElementById('upload-status-text');
+  const filenameText = document.getElementById('upload-filename');
+  const cancelBtn = document.getElementById('cancel-upload-btn');
+
+  filenameText.textContent = file.name;
+  statusText.textContent = 'Uploading...';
+  progressBar.style.width = '0%';
+  progressBar.classList.remove('bg-green-500', 'bg-red-500');
+  progressBar.classList.add('bg-blue-600');
+  progressPercent.textContent = '0%';
+
+  progressContainer.classList.remove('hidden');
+  setTimeout(() => progressContainer.classList.add('show'), 10);
 
   try {
-    // 1. Create a reference in Cloud Storage
     const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
+    const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, { customMetadata: { userId: currentUser.uid } });
 
-    // 2. Upload the file
-    await uploadBytes(storageRef, file, { customMetadata: { userId: currentUser.uid } });
+    const cancelUpload = () => uploadTask.cancel();
+    cancelBtn.addEventListener('click', cancelUpload, { once: true });
 
-    alert("File uploaded successfully! Processing will continue in the background.");
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        const percent = Math.round(progress);
+        progressBar.style.width = `${percent}%`;
+        progressPercent.textContent = `${percent}%`;
+        statusText.textContent = `Uploading... (${(snapshot.bytesTransferred / 1024 / 1024).toFixed(2)} MB of ${(snapshot.totalBytes / 1024 / 1024).toFixed(2)} MB)`;
+      },
+      (error) => {
+        console.error("Upload failed:", error);
+        statusText.textContent = 'Upload Failed!';
+        progressBar.classList.remove('bg-blue-600');
+        progressBar.classList.add('bg-red-500');
+        uploadError.textContent = `Upload failed: ${error.message}`;
+        uploadError.classList.remove('hidden');
+        uploadButton.disabled = false;
+        setTimeout(() => {
+            progressContainer.classList.remove('show');
+            setTimeout(() => progressContainer.classList.add('hidden'), 300);
+        }, 5000);
+        cancelBtn.removeEventListener('click', cancelUpload);
+      },
+      () => {
+        // ---- THIS IS THE KEY CHANGE ----
+        // On completion, transition to the processing listener
+        statusText.textContent = 'Upload Complete! Waiting for server...';
+        progressBar.classList.remove('bg-blue-600');
+        progressBar.classList.add('bg-green-500');
+        progressPercent.textContent = '100%';
+        uploadButton.disabled = false;
+        cancelBtn.removeEventListener('click', cancelUpload);
+
+        // Start listening for the background processing status
+        listenForProcessingStatus(file.name);
+      }
+    );
 
   } catch (error) {
-    console.error("Upload failed:", error);
+    console.error("Upload initialization failed:", error);
     uploadError.textContent = `Upload failed: ${error.message}`;
     uploadError.classList.remove('hidden');
-  } finally {
     uploadButton.disabled = false;
+    progressContainer.classList.remove('show');
+    setTimeout(() => progressContainer.classList.add('hidden'), 300);
   }
-})
+});
 
 // --- AI Analysis & Configuration ---
 /**
