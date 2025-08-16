@@ -486,103 +486,79 @@ function listenForProcessingStatus(fileName: string) {
   if (!currentUser) return;
 
   const progressContainer = document.getElementById('upload-progress-container');
-  const progressBar = document.getElementById('upload-progress-bar');
-  const progressPercent = document.getElementById('upload-progress-percent');
-  const statusText = document.getElementById('upload-status-text');
+  const uploadView = document.getElementById('upload-view');
+  const processingView = document.getElementById('processing-view');
+  const processingFilename = document.getElementById('processing-filename');
+  const processingStatusText = document.getElementById('processing-status-text');
 
-  // --- Simulation Variables ---
-  let simulationInterval: number | null = null;
-  let simulatedProgress = 0;
-  const simulationDuration = 20000; // 20 seconds total simulation time
-  const simulationStep = 100; // Update every 100ms
-  const progressIncrement = 90 / (simulationDuration / simulationStep); // Increment to reach 90%
-  const statusMessages = [
-      { percent: 0, text: 'Server is initializing...' },
-      { percent: 25, text: 'Parsing file rows...' },
-      { percent: 50, text: 'Analyzing sales data...' },
-      { percent: 75, text: 'Generating summaries...' }
-  ];
-
-  // --- UI Transition to "Processing" ---
-  statusText.textContent = statusMessages[0].text;
-  progressBar.style.width = '0%';
-  progressBar.classList.remove('bg-green-500');
-  progressBar.classList.add('bg-blue-600');
-  progressPercent.textContent = '0%';
+  // --- Transition UI to "Processing" state ---
+  uploadView.classList.add('hidden');
+  processingView.classList.remove('hidden');
+  processingFilename.textContent = fileName;
+  processingStatusText.textContent = 'Please wait while the server is processing your file. Do not refresh or close this page.';
 
   const uploadsRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
   const q = query(uploadsRef, where("name", "==", fileName), orderBy("createdAt", "desc"), limit(1));
 
-  let unsubscribeProcessor = () => {}; // To hold the inner listener's unsubscribe function
+  let progressReceived = false;
+  let unsubscribeProcessor = () => {};
+  let unsubscribeFinder = () => {};
 
-  // --- Real Firestore Listener ---
-  const unsubscribeFinder = onSnapshot(q, (querySnapshot) => {
-    if (!querySnapshot.empty) {
-      const uploadDoc = querySnapshot.docs[0];
-      unsubscribeFinder(); // Stop listening for the document itself
-
-      unsubscribeProcessor = onSnapshot(doc(uploadsRef, uploadDoc.id), (docSnap) => {
-        const status = docSnap.data()?.processingStatus;
-
-        if (status?.state === 'complete' || status?.state === 'error') {
-          // Real status received, stop the simulation
-          if (simulationInterval) {
-            clearInterval(simulationInterval);
-            simulationInterval = null;
-          }
-
-          if (status.state === 'complete') {
-            statusText.textContent = 'Processing Complete!';
-            progressBar.style.width = '100%';
-            progressPercent.textContent = '100%';
-            progressBar.classList.remove('bg-blue-600');
-            progressBar.classList.add('bg-green-500');
-            loadUploadHistory();
-            setTimeout(() => {
-                progressContainer.classList.remove('show');
-                setTimeout(() => progressContainer.classList.add('hidden'), 300);
-            }, 3000);
-          } else { // Error state
-            statusText.textContent = `Error: ${status.message || 'Processing failed'}`;
-            progressBar.classList.remove('bg-blue-600');
-            progressBar.classList.add('bg-red-500');
-            setTimeout(() => {
-                progressContainer.classList.remove('show');
-                setTimeout(() => progressContainer.classList.add('hidden'), 300);
-            }, 5000);
-          }
-          unsubscribeProcessor(); // Stop listening for updates
-        }
-      });
-    }
-  });
-
-  // --- Start Progress Simulation ---
-  simulationInterval = setInterval(() => {
-    simulatedProgress += progressIncrement;
-    if (simulatedProgress >= 90) {
-      // Simulation finished without real completion, assume background processing
-      clearInterval(simulationInterval);
-      simulationInterval = null;
-      statusText.textContent = 'Processing in background...';
+  const progressTimeout = setTimeout(() => {
+    if (!progressReceived) {
+      unsubscribeFinder();
+      unsubscribeProcessor();
+      processingStatusText.textContent = 'Processing is taking longer than usual. It will continue in the background.';
       setTimeout(() => {
         progressContainer.classList.remove('show');
         setTimeout(() => progressContainer.classList.add('hidden'), 300);
         loadUploadHistory();
-      }, 4000);
-      unsubscribeFinder(); // Clean up listeners
-      unsubscribeProcessor();
-      return;
+      }, 5000);
     }
+  }, 25000); // Increased timeout to 25 seconds for longer processing jobs
 
-    // Update UI with simulated progress
-    const currentStatus = statusMessages.slice().reverse().find(s => simulatedProgress >= s.percent) || statusMessages[0];
-    statusText.textContent = currentStatus.text;
-    const percent = Math.round(simulatedProgress);
-    progressBar.style.width = `${percent}%`;
-    progressPercent.textContent = `${percent}%`;
+  unsubscribeFinder = onSnapshot(q, (querySnapshot) => {
+    if (!querySnapshot.empty) {
+      const uploadDoc = querySnapshot.docs[0];
+      unsubscribeFinder();
 
-  }, simulationStep);
+      unsubscribeProcessor = onSnapshot(doc(uploadsRef, uploadDoc.id), (docSnap) => {
+        const status = docSnap.data()?.processingStatus;
+
+        if (status) {
+          clearTimeout(progressTimeout);
+          progressReceived = true;
+
+          if (status.state === 'complete') {
+            processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
+            loadUploadHistory();
+            unsubscribeProcessor();
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+                setTimeout(() => {
+                    progressContainer.classList.add('hidden');
+                    // Reset for next upload
+                    uploadView.classList.remove('hidden');
+                    processingView.classList.add('hidden');
+                }, 300);
+            }, 3000);
+          } else if (status.state === 'error') {
+            processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
+            unsubscribeProcessor();
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+                setTimeout(() => {
+                    progressContainer.classList.add('hidden');
+                    // Reset for next upload
+                    uploadView.classList.remove('hidden');
+                    processingView.classList.add('hidden');
+                }, 300);
+            }, 5000);
+          }
+        }
+      });
+    }
+  });
 }
 
 // --- Excel Processing & Data Storage ---
