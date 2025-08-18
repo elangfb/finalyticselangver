@@ -3599,16 +3599,22 @@ async function loadUploadHistory(): Promise<void> {
       const div = document.createElement('div');
       div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg';
       
-      // --- FIX: Use new fields to create the two-line display ---
+      // --- NEW: Check for and display duplicate count message ---
+      let duplicateMessage = '';
+      if (upload.duplicateCount && upload.duplicateCount > 0) {
+          duplicateMessage = `<p class="text-xs text-orange-600 mt-1">Note: ${upload.duplicateCount} duplicate transactions were skipped.</p>`;
+      }
+
       const displayName = upload.branchName && upload.period 
         ? `<p class="font-semibold">${upload.branchName}</p><p class="text-sm text-gray-500">Periode: ${upload.period}</p>`
-        : `<p class="font-semibold">${upload.name}</p><p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>`; // Fallback for old uploads
+        : `<p class="font-semibold">${upload.name}</p><p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>`;
 
       const fileNameForRecap = upload.branchName ? `${upload.branchName} - ${upload.period}` : upload.name;
 
       div.innerHTML = `
         <div>
             ${displayName}
+            ${duplicateMessage} 
         </div>
         <div>
             <button class="monthly-summary-btn bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-purple-600 mr-2" data-id="${docSnap.id}" data-name="${fileNameForRecap}">Monthly Summary</button>
