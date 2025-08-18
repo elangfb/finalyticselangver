@@ -86,6 +86,7 @@ const chartDataForAI = {}
 let aiAnalysisResults = {} // <-- New: To store AI analysis for PDF export
 let adminCredentials = null
 let yoyYearSelectInitialized = false
+let monthlyComparisonInitialized = false;
 
 const defaultGeminiConfig = Object.freeze({
   apiKey: '',
@@ -870,21 +871,18 @@ async function getGeminiAnalysis(prompt: string): Promise<string> {
  */
 function setupAndShowAnalysisView(data: any[], title: string): void {
   showLoading({ message: 'Preparing data...', value: 60 });
-  // Store the full dataset globally, making sure dates are Date objects
   allSalesData = data.map((d) => ({ ...d, date: new Date(d.date) }));
-
-  // Reset AI analysis results when showing a new view
   aiAnalysisResults = {};
 
   document.getElementById('analysis-title').textContent = title;
-
   showLoading({ message: 'Preparing view...', value: 80 });
   
   populateFilters(allSalesData);
-  runAnalysis(); // This will run analysis for the default date range on the main tabs
+  runAnalysis();
 
-  // This new line initializes the YoY tab with the *entire* dataset
+  // Call both setup functions
   generateYoYAnalysisFromSummaries(allSalesData);
+  setupMonthlyComparison(allSalesData); // ADD THIS LINE
 
   hideLoading();
   showView('analysis');
@@ -960,6 +958,109 @@ document.getElementById('apply-filters-btn').addEventListener('click', runAnalys
  * runAnalysis();
  * // Generates all charts and insights for the selected periods, updates dashboard UI
  */
+
+function setupMonthlyComparison(summaries: any[]) {
+    const monthASelect = document.getElementById('month-a-select') as HTMLSelectElement;
+    const monthBSelect = document.getElementById('month-b-select') as HTMLSelectElement;
+    const runBtn = document.getElementById('run-comparison-btn');
+    const resultsContainer = document.getElementById('comparison-results-container');
+
+    const availableMonths = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+
+    if (availableMonths.length < 2) {
+        monthASelect.innerHTML = '<option>Not enough data</option>';
+        monthBSelect.innerHTML = '<option>Not enough data</option>';
+        runBtn.disabled = true;
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+
+    const optionsHtml = availableMonths.map(month => `<option value="${month}">${new Date(month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    monthASelect.innerHTML = optionsHtml;
+    monthBSelect.innerHTML = optionsHtml;
+
+    monthASelect.value = availableMonths[0];
+    monthBSelect.value = availableMonths[1];
+    runBtn.disabled = false;
+
+    // --- FIX: Only add the event listener ONCE ---
+    if (!monthlyComparisonInitialized) {
+        runBtn.addEventListener('click', () => {
+            // We pass the global 'allSalesData' to ensure it always uses the latest full dataset
+            runMonthlyComparison(allSalesData);
+        });
+        monthlyComparisonInitialized = true;
+    }
+    
+    // Run initial comparison and show the results
+    runMonthlyComparison(summaries);
+    resultsContainer.classList.remove('hidden');
+}
+
+/**
+ * Runs the comparison between two selected months and updates the UI.
+ * @param {any[]} summaries - The complete array of all daily summary objects.
+ */
+function runMonthlyComparison(summaries: any[]) {
+    const monthAValue = (document.getElementById('month-a-select') as HTMLSelectElement).value;
+    const monthBValue = (document.getElementById('month-b-select') as HTMLSelectElement).value;
+
+    if (!monthAValue || !monthBValue) return;
+
+    // Helper to aggregate daily summaries for a given month
+    const aggregateMonth = (month: string) => {
+        const monthSummaries = summaries.filter(s => s.date.toISOString().startsWith(month));
+        return monthSummaries.reduce((acc, s) => {
+            acc.totalOmzet += s.totalOmzet || 0;
+            acc.totalTransactions += s.totalTransactions || 0;
+            return acc;
+        }, { totalOmzet: 0, totalTransactions: 0, dailyData: monthSummaries });
+    };
+
+    const dataA = aggregateMonth(monthAValue);
+    const dataB = aggregateMonth(monthBValue);
+
+    // Helper to calculate and format the percentage change
+    const getChange = (valA: number, valB: number) => {
+        if (valA === 0) return { text: 'N/A', class: 'text-gray-500' };
+        const change = ((valB - valA) / valA) * 100;
+        const sign = change >= 0 ? '▲' : '▼';
+        const color = change >= 0 ? 'text-green-600' : 'text-red-600';
+        return { text: `${sign} ${Math.abs(change).toFixed(1)}%`, class: color };
+    };
+
+    // Prepare data for the table
+    const comparisonData = [
+        { metric: 'Total Omzet', valA: dataA.totalOmzet, valB: dataB.totalOmzet, format: (v) => `Rp${v.toLocaleString('id-ID')}` },
+        { metric: 'Total Transactions', valA: dataA.totalTransactions, valB: dataB.totalTransactions, format: (v) => v.toLocaleString('id-ID') },
+    ];
+
+    // Populate the table
+    const tbody = document.getElementById('comparison-tbody');
+    tbody.innerHTML = '';
+    comparisonData.forEach(item => {
+        const change = getChange(item.valA, item.valB);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.metric}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.format(item.valA)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.format(item.valB)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold ${change.class}">${change.text}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Update headers
+    document.getElementById('month-a-header').textContent = new Date(monthAValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+    document.getElementById('month-b-header').textContent = new Date(monthBValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    // Store the full daily data for AI analysis
+    chartDataForAI['monthlyComparison'] = {
+        monthA: { month: monthAValue, summary: dataA },
+        monthB: { month: monthBValue, summary: dataB }
+    };
+}
+
 function runAnalysis(): void {
   const currentStartDate = new Date(document.getElementById('date-start').value);
   const currentEndDate = new Date(document.getElementById('date-end').value);
@@ -3217,6 +3318,75 @@ function generateDailyRecap(data: any[], fileName: string) {
     document.getElementById('summary-modal').classList.remove('hidden');
 }
 
+function generateMonthlySummary(dailySummaries: any[], fileName: string) {
+    if (dailySummaries.length === 0) return;
+
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+    // --- 1. Aggregate all daily summaries ---
+    const monthly = dailySummaries.reduce((acc, s) => {
+        acc.totalOmzet += s.totalOmzet || 0;
+        acc.totalTransactions += s.totalTransactions || 0;
+        acc.totalItemsSold += s.totalItemsSold || 0;
+        if (s.date < acc.minDate) acc.minDate = s.date;
+        if (s.date > acc.maxDate) acc.maxDate = s.date;
+
+        // Aggregate nested objects
+        const aggregateNested = (target, source) => {
+            for (const key in source) {
+                target[key] = (target[key] || 0) + source[key];
+            }
+        };
+        
+        aggregateNested(acc.revenueByBranch, s.revenueByBranch);
+        aggregateNested(acc.billsByChannel, s.visitPurposes); // visitPurposes holds the bill count per channel
+
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                if (!acc.itemQuantities[category]) acc.itemQuantities[category] = {};
+                aggregateNested(acc.itemQuantities[category], s.menuItemQuantities[category]);
+            }
+        }
+        return acc;
+    }, {
+        totalOmzet: 0, totalTransactions: 0, totalItemsSold: 0,
+        minDate: dailySummaries[0].date, maxDate: dailySummaries[0].date,
+        revenueByBranch: {}, billsByChannel: {}, itemQuantities: {}
+    });
+
+    // --- 2. Calculate final metrics ---
+    const apc = monthly.totalTransactions > 0 ? monthly.totalOmzet / monthly.totalTransactions : 0;
+    const dateRange = `${monthly.minDate.toLocaleDateString('id-ID')} - ${monthly.maxDate.toLocaleDateString('id-ID')}`;
+    const totalDays = dailySummaries.length;
+    const totalBranches = Object.keys(monthly.revenueByBranch).length;
+
+    const getTop5 = (category) => Object.entries(monthly.itemQuantities[category] || {})
+        .filter(([name]) => !name.includes('(PACKAGE)'))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+    const topMakanan = getTop5('MAKANAN');
+    const topMinuman = getTop5('MINUMAN');
+
+    // --- 3. Populate Modal ---
+    document.getElementById('monthly-summary-modal-title').textContent = `Monthly Summary for ${fileName}`;
+    document.getElementById('monthly-total-omzet').textContent = formatCurrency(monthly.totalOmzet);
+    document.getElementById('monthly-total-transactions').textContent = monthly.totalTransactions.toLocaleString('id-ID');
+    document.getElementById('monthly-apc').textContent = formatCurrency(apc);
+    document.getElementById('monthly-total-items').textContent = monthly.totalItemsSold.toLocaleString('id-ID');
+    document.getElementById('monthly-date-range').textContent = dateRange;
+    document.getElementById('monthly-total-days').textContent = totalDays;
+    document.getElementById('monthly-branch-count').textContent = totalBranches;
+
+    document.getElementById('monthly-top-makanan').innerHTML = topMakanan.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
+    document.getElementById('monthly-top-minuman').innerHTML = topMinuman.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
+    document.getElementById('monthly-revenue-by-branch').innerHTML = Object.entries(monthly.revenueByBranch).map(([name, rev]) => `<li>${name}: ${formatCurrency(rev)}</li>`).join('');
+    document.getElementById('monthly-bills-by-channel').innerHTML = Object.entries(monthly.billsByChannel).map(([name, count]) => `<li>${name}: ${count} bills</li>`).join('');
+
+    // --- 4. Show Modal ---
+    document.getElementById('monthly-summary-modal').classList.remove('hidden');
+}
+
 // --- Data History & Compilation ---
 /**
  * Load and display user's sales data upload history from Firestore.
@@ -3250,18 +3420,19 @@ async function loadUploadHistory(): Promise<void> {
       const div = document.createElement('div')
       div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg'
       div.innerHTML = `
-                        <div>
-                            <p class="font-semibold">${upload.name}</p>
-                            <p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <button class="summary-history-btn bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-gray-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Summary</button>
-                            <button class="view-history-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
-                            <button class="delete-history-btn bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-red-600 ml-2" data-id="${docSnap.id}">Delete</button>
-                        </div>
-                    `
-      uploadHistoryList.appendChild(div)
-    })
+        <div>
+            <p class="font-semibold">${upload.name}</p>
+            <p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>
+        </div>
+        <div>
+            <button class="monthly-summary-btn bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-purple-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Monthly Summary</button>
+            <button class="summary-history-btn bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-gray-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Daily Summary</button>
+            <button class="view-history-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
+            <button class="delete-history-btn bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-red-600 ml-2" data-id="${docSnap.id}">Delete</button>
+        </div>
+      `;
+      uploadHistoryList.appendChild(div);
+    });
   }
 }
 
@@ -3315,6 +3486,15 @@ uploadHistoryList.addEventListener('click', async (e) => {
     generateDailyRecap(dailySummaries, fileName); // This function now receives summaries
   }
 
+  if (target.classList.contains('monthly-summary-btn')) {
+    const uploadId = target.dataset.id;
+    const fileName = target.dataset.name;
+    showLoading({ message: 'Fetching data for monthly summary...', value: 50 });
+    const dailySummaries = await fetchDailySummariesForUpload(uploadId);
+    hideLoading();
+    generateMonthlySummary(dailySummaries, fileName);
+  }
+
   if (target.classList.contains('view-history-btn')) {
     const uploadId = target.dataset.id;
     const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, uploadId);
@@ -3342,6 +3522,10 @@ uploadHistoryList.addEventListener('click', async (e) => {
       }
     }
   }
+});
+
+document.getElementById('monthly-summary-modal-close').addEventListener('click', () => {
+    document.getElementById('monthly-summary-modal').classList.add('hidden');
 });
 
 /**

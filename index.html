@@ -981,21 +981,44 @@
                         <!-- Monthly Summaries -->
                         <section id="summaries-section" class="analysis-section space-y-6">
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Monthly Summaries</h3>
-        <p class="text-gray-600 mb-6">This table shows the pre-aggregated summary data saved for each uploaded file. This is the compact data used to power the compiled analysis.</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Checks</th>
-                    </tr>
-                </thead>
-                <tbody id="summaries-tbody" class="bg-white divide-y divide-gray-200">
+        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Monthly Comparison</h3>
+        <p class="text-gray-600 mb-6">Select two months to compare their performance side-by-side. The comparison is based on the sum of all daily data within each month.</p>
+        
+        <!-- Month Selector UI -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-gray-50 p-4 rounded-lg border">
+            <div>
+                <label for="month-a-select" class="block text-sm font-medium text-gray-700">Compare this month:</label>
+                <select id="month-a-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+            </div>
+            <div>
+                <label for="month-b-select" class="block text-sm font-medium text-gray-700">With this month:</label>
+                <select id="month-b-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+            </div>
+            <button id="run-comparison-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300 h-10">Compare</button>
+        </div>
+
+        <!-- Comparison Results Table -->
+        <div id="comparison-results-container" class="mt-6 hidden">
+            <h4 class="text-xl font-semibold text-gray-700 mb-3">Comparison Results</h4>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" id="month-a-header">Month A</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" id="month-b-header">Month B</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparison-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Results will be injected here -->
                     </tbody>
-            </table>
+                </table>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="monthlyComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-monthlyComparison" class="analysis-result-container hidden"></div>
         </div>
     </div>
 </section>
@@ -5240,6 +5263,56 @@
         </div>
     </div>
 </div>
+<div id="monthly-summary-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="text-xl font-semibold text-gray-800" id="monthly-summary-modal-title">Monthly Summary</h3>
+            <button id="monthly-summary-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Column 1: KPIs & Scope -->
+            <div class="md:col-span-1 space-y-6">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Key Metrics</h4>
+                    <ul class="text-sm space-y-2">
+                        <li class="flex justify-between"><span>Total Omzet:</span> <strong id="monthly-total-omzet"></strong></li>
+                        <li class="flex justify-between"><span>Total Transactions:</span> <strong id="monthly-total-transactions"></strong></li>
+                        <li class="flex justify-between"><span>Avg. per Transaction:</span> <strong id="monthly-apc"></strong></li>
+                        <li class="flex justify-between"><span>Total Items Sold:</span> <strong id="monthly-total-items"></strong></li>
+                    </ul>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Data Scope</h4>
+                    <ul class="text-sm space-y-2">
+                        <li class="flex justify-between"><span>Date Range:</span> <strong id="monthly-date-range"></strong></li>
+                        <li class="flex justify-between"><span>Total Days:</span> <strong id="monthly-total-days"></strong></li>
+                        <li class="flex justify-between"><span>Total Branches:</span> <strong id="monthly-branch-count"></strong></li>
+                    </ul>
+                </div>
+            </div>
+            <!-- Column 2 & 3: Top Performers & Breakdowns -->
+            <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Top 5 Makanan</h4>
+                    <ol class="text-sm list-decimal pl-4" id="monthly-top-makanan"></ol>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Top 5 Minuman</h4>
+                    <ol class="text-sm list-decimal pl-4" id="monthly-top-minuman"></ol>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Revenue by Branch</h4>
+                    <ul class="text-sm" id="monthly-revenue-by-branch"></ul>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-indigo-700 mb-2">Transactions by Channel</h4>
+                    <ul class="text-sm" id="monthly-bills-by-channel"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 
         <script type="module" src="./src/main.ts"></script>
     </body>
