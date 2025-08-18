@@ -871,22 +871,23 @@ async function getGeminiAnalysis(prompt: string): Promise<string> {
 function setupAndShowAnalysisView(data: any[], title: string): void {
   showLoading({ message: 'Preparing data...', value: 60 });
   // Store the full dataset globally, making sure dates are Date objects
-  allSalesData = data.map((d) => ({ ...d, 'Sales Date In': new Date(d['Sales Date In']) }))
+  allSalesData = data.map((d) => ({ ...d, date: new Date(d.date) }));
 
-  // New: Reset AI analysis results when showing a new view
-  aiAnalysisResults = {}
+  // Reset AI analysis results when showing a new view
+  aiAnalysisResults = {};
 
-  document.getElementById('analysis-title').textContent = title
+  document.getElementById('analysis-title').textContent = title;
 
   showLoading({ message: 'Preparing view...', value: 80 });
-  populateFilters(allSalesData)
-  runAnalysis() // Run analysis with default filter values
-  setupAnalysis(allSalesData, [])
-  applyAnalysisTextBindings(getStoreState())
+  
+  populateFilters(allSalesData);
+  runAnalysis(); // This will run analysis for the default date range on the main tabs
 
-  hideLoading()
+  // This new line initializes the YoY tab with the *entire* dataset
+  generateYoYAnalysisFromSummaries(allSalesData);
 
-  showView('analysis')
+  hideLoading();
+  showView('analysis');
 }
 
 /**
@@ -915,18 +916,14 @@ function setupAndShowAnalysisView(data: any[], title: string): void {
 function populateFilters(data: any[]): void {
   if (data.length === 0) return;
 
-  // OLD METHOD that causes the error with large arrays:
-  // const dates = data.map((d) => d['Sales Date In']);
-  // const minDate = new Date(Math.min(...dates));
-  // const maxDate = new Date(Math.max(...dates));
-
-  // NEW, SAFER METHOD: Use reduce to find min/max dates without exceeding the call stack.
+  // FIX: This now correctly uses the 'date' property from summary objects
+  // instead of the old 'Sales Date In' property from raw data.
   const { minDate, maxDate } = data.reduce((acc, d) => {
-    const currentDate = d['Sales Date In'];
+    const currentDate = d.date; // <-- THE FIX IS HERE
     if (currentDate < acc.minDate) acc.minDate = currentDate;
     if (currentDate > acc.maxDate) acc.maxDate = currentDate;
     return acc;
-  }, { minDate: data[0]['Sales Date In'], maxDate: data[0]['Sales Date In'] });
+  }, { minDate: data[0].date, maxDate: data[0].date });
 
 
   // The rest of the function remains the same
@@ -963,7 +960,7 @@ document.getElementById('apply-filters-btn').addEventListener('click', runAnalys
  * runAnalysis();
  * // Generates all charts and insights for the selected periods, updates dashboard UI
  */
-function runAnalysis(startTime: number): void {
+function runAnalysis(): void {
   const currentStartDate = new Date(document.getElementById('date-start').value);
   const currentEndDate = new Date(document.getElementById('date-end').value);
   currentEndDate.setHours(23, 59, 59, 999);
@@ -972,76 +969,612 @@ function runAnalysis(startTime: number): void {
   const lastPeriodEndDate = new Date(document.getElementById('last-period-end').value);
   lastPeriodEndDate.setHours(23, 59, 59, 999);
 
-  const currentData = allSalesData.filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate);
-  const lastPeriodData = allSalesData.filter((d) => d['Sales Date In'] >= lastPeriodStartDate && d['Sales Date In'] <= lastPeriodEndDate);
+  // Filter summaries based on the selected date range
+  const currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
+  const lastPeriodData = allSalesData.filter((summary) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
 
   destroyCharts();
 
-  showLoading({ message: 'Generating General Overview...', value: 70 });
-  generateRingkasan(currentData, lastPeriodData);
-  generateDailyOmzetHeatmap(currentData);
-  generateOmzetHeatmap(currentData);
-  generateTcApcHarianChart(currentData);
-  generateOmzetHarianChart(currentData);
-  generateOmzetMingguanChart(currentData);
-  generateOmzetOutletChart(currentData);
-
-  showLoading({ message: 'Analyzing Sales Performance...', value: 75 });
-  generatePenjualanBulananChart(currentData);
-  generatePenjualanChannelChart(currentData);
-  generateSalesTrendHourlyDailyChart(currentData);
-
-  showLoading({ message: 'Analyzing Product Performance...', value: 80 });
-  generateOrderByCategoryCharts(currentData);
-  generateProductQuadrantChart(currentData, 'MAKANAN', 'food-quadrant-chart');
-  generateProductQuadrantChart(currentData, 'MINUMAN', 'drinks-quadrant-chart');
-
-  showLoading({ message: 'Analyzing Branch Performance...', value: 85 });
-  generateCabangAnalysis(currentData);
-  generateTopBranchAnalysis(currentData, lastPeriodData);
-  generateBranchApcGrowthAnalysis(currentData, allSalesData);
-
-  showLoading({ message: 'Analyzing Year-over-Year Data...', value: 90 });
-  generateYoYAnalysis(allSalesData);
-
-  showLoading({ message: 'Preparing report data...', value: 95 });
-  generateTcHarianJamChart(currentData);
-  generateMultiWeekTrendChart(currentData, 'tc-mingguan-chart-pdf', 'TC');
-  generateMultiWeekTrendChart(currentData, 'apc-mingguan-chart-pdf', 'APC');
-  generateMultiWeekTrendChart(currentData, 'sales-trend-mingguan-chart-pdf', 'Sales');
-  generateWeekendSalesInsights(currentData);
-  generateDailyHourTrendChart(currentData, 'tc-per-jam-chart-pdf', 'TC');
-  generateDailyHourTrendChart(currentData, 'apc-per-jam-chart-pdf', 'APC');
-  generateHourlyInsights(currentData);
-  generateDailyHourTrendChart(currentData, 'sales-trend-hourly-daily-chart-pdf', 'Sales');
-  generateHourlySalesInsights(currentData);
-  generateStackedChannelTrendChart(currentData, 'channel-hourly-chart-pdf', 'hour', 'Sales');
-  generateStackedChannelTrendChart(currentData, 'channel-weekly-chart-pdf', 'day', 'Sales');
-  generateStackedChannelTrendChart(currentData, 'channel-monthly-chart-pdf', 'month', 'Sales');
-  generateDineInMonthlyIncreaseChart(currentData);
-  generateStackedChannelTrendChart(currentData, 'tc-hourly-chart-pdf', 'hour', 'TC');
-  generateStackedChannelTrendChart(currentData, 'tc-weekly-chart-pdf', 'day', 'TC');
-  generateStackedChannelTrendChart(currentData, 'tc-monthly-chart-pdf', 'month', 'TC');
-  generateChannelTcInsights(currentData);
-  generateChannelInsights(currentData);
-  generateWeekendInsights(currentData);
-  generateCustomerSpendingInsights(currentData);
-  // (and all other generate... functions)
-
-  showLoading({ message: 'Finalizing view...', value: 100 });
-  setupAnalysis(currentData, lastPeriodData);
-  applyAnalysisTextBindings(getStoreState());
+  // --- Call all the NEW summary-based functions ---
+  generateRingkasanFromSummaries(currentData, lastPeriodData);
+  generateOmzetHarianChartFromSummaries(currentData);
+  generateTcApcHarianChartFromSummaries(currentData);
+  generateDailyOmzetHeatmapFromSummaries(currentData);
+  generateOmzetHeatmapFromSummaries(currentData);
+  generateOmzetMingguanChartFromSummaries(currentData);
+  generateOmzetOutletChartFromSummaries(currentData);
+  generatePenjualanBulananChartFromSummaries(currentData);
+  generatePenjualanChannelChartFromSummaries(currentData);
+  generateSalesTrendHourlyDailyChartFromSummaries(currentData);
+  generateProductAnalysisChartsFromSummaries(currentData);
+  generateCabangAnalysisFromSummaries(currentData);
   
-  setTimeout(() => {
-      hideLoading();
-      showView('analysis');
+  console.log("Analysis complete with pre-calculated summaries.");
+}
 
-      // Stop the timer and show the result
-      const endTime = performance.now();
-      const durationInSeconds = ((endTime - startTime) / 1000).toFixed(2);
-      alert(`Data loaded and analysis complete in ${durationInSeconds} seconds.`);
+function generateCabangAnalysisFromSummaries(summaries: any[]) {
+    if (summaries.length === 0) return;
 
-  }, 400);
+    // Aggregate stats for each branch across all summaries
+    const branchStats = summaries.reduce((acc, s) => {
+        if (s.revenueByBranch) {
+            for (const branchName in s.revenueByBranch) {
+                if (!acc[branchName]) {
+                    acc[branchName] = { revenue: 0, checks: 0 };
+                }
+                acc[branchName].revenue += s.revenueByBranch[branchName];
+            }
+        }
+        if (s.transactionCountsByBranch) {
+            for (const branchName in s.transactionCountsByBranch) {
+                if (!acc[branchName]) {
+                    acc[branchName] = { revenue: 0, checks: 0 };
+                }
+                acc[branchName].checks += s.transactionCountsByBranch[branchName];
+            }
+        }
+        return acc;
+    }, {});
+
+    const processedStats = Object.entries(branchStats).map(([name, stats]) => {
+        const apc = stats.checks > 0 ? stats.revenue / stats.checks : 0;
+        return { name, totalRevenue: stats.revenue, totalCheck: stats.checks, avgCheck: apc };
+    });
+
+    if (processedStats.length === 0) return;
+
+    // --- 1. Populate Stat Cards ---
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+    const topOmzet = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
+    document.getElementById('cabang-omzet-tertinggi-nama').textContent = topOmzet.name;
+    document.getElementById('cabang-omzet-tertinggi-nilai').textContent = formatCurrency(topOmzet.totalRevenue);
+
+    const topCheck = [...processedStats].sort((a, b) => b.totalCheck - a.totalCheck)[0];
+    document.getElementById('cabang-ramai-nama').textContent = topCheck.name;
+    document.getElementById('cabang-ramai-nilai').textContent = `${topCheck.totalCheck.toLocaleString('id-ID')} checks`;
+
+    const topApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)[0];
+    document.getElementById('cabang-apc-tertinggi-nama').textContent = topApc.name;
+    document.getElementById('cabang-apc-tertinggi-nilai').textContent = formatCurrency(topApc.avgCheck);
+
+    // --- 2. Create Charts ---
+    const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const labels = sortedByRevenue.map((s) => s.name);
+    chartDataForAI['cabangOmzetCheck'] = sortedByRevenue;
+
+    createChart('cabang-omzet-check-chart', 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: 'Total Omzet', data: sortedByRevenue.map((s) => s.totalRevenue), backgroundColor: '#4F46E5', yAxisID: 'y-omzet' },
+            { type: 'line', label: 'Total Check', data: sortedByRevenue.map((s) => s.totalCheck), borderColor: '#F97316', yAxisID: 'y-check' },
+        ],
+    }, {
+        scales: {
+            'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
+        },
+    });
+
+    const sortedByApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck);
+    chartDataForAI['cabangApc'] = sortedByApc;
+    createChart('cabang-apc-chart', 'bar', {
+        labels: sortedByApc.map((s) => s.name),
+        datasets: [{ label: 'Average Check (APC)', data: sortedByApc.map((s) => s.avgCheck), backgroundColor: '#10B981' }],
+    }, {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } },
+    });
+
+    // --- 3. Populate Detail Table ---
+    const tbody = document.getElementById('cabang-detail-tbody');
+    tbody.innerHTML = '';
+    sortedByRevenue.forEach((s) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${s.name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.totalRevenue)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s.totalCheck.toLocaleString('id-ID')}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.avgCheck)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    chartDataForAI['cabangDetail'] = sortedByRevenue;
+}
+
+function generateYoYAnalysisFromSummaries(summaries: any[]) {
+    const yearSelect = document.getElementById('yoy-year-select') as HTMLSelectElement;
+
+    // --- Populate Year Selector (only once) ---
+    if (!yoyYearSelectInitialized) {
+        const years = [...new Set(summaries.map(s => s.date.getFullYear()))].sort((a, b) => b - a);
+        yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+        // When the year changes, re-run the analysis on the *entire* dataset
+        yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(allSalesData));
+        yoyYearSelectInitialized = true;
+    }
+
+    const selectedYear = parseInt(yearSelect.value);
+    if (isNaN(selectedYear)) {
+        // Clear the view if no year is selected or available
+        document.getElementById('yoy-omzet-growth').textContent = 'N/A';
+        document.getElementById('yoy-check-growth').textContent = 'N/A';
+        document.getElementById('yoy-apc-growth').textContent = 'N/A';
+        if (charts['yoy-omzet-chart']) charts['yoy-omzet-chart'].destroy();
+        document.getElementById('yoy-detail-tbody').innerHTML = '<tr><td colspan="4" class="text-center p-4">Select a year to see data.</td></tr>';
+        return;
+    };
+    const prevYear = selectedYear - 1;
+
+    // --- Filter data for the two years ---
+    const currentYearData = summaries.filter(s => s.date.getFullYear() === selectedYear);
+    const prevYearData = summaries.filter(s => s.date.getFullYear() === prevYear);
+
+    // --- Calculate overall stats ---
+    const calcStats = (summaryData: any[]) => {
+        const stats = summaryData.reduce((acc, s) => {
+            acc.revenue += s.totalOmzet;
+            acc.checks += s.totalTransactions;
+            return acc;
+        }, { revenue: 0, checks: 0 });
+        stats.apc = stats.checks > 0 ? stats.revenue / stats.checks : 0;
+        return stats;
+    };
+    const currentYearStats = calcStats(currentYearData);
+    const prevYearStats = calcStats(prevYearData);
+
+    // --- Calculate and display growth for KPI cards ---
+    const calcGrowth = (current, previous) => {
+        if (previous === 0) return { text: 'N/A', class: 'text-gray-500' };
+        const growth = ((current - previous) / previous) * 100;
+        const sign = growth >= 0 ? '+' : '';
+        const colorClass = growth >= 0 ? 'text-green-600' : 'text-red-600';
+        return { text: `${sign}${growth.toFixed(1)}%`, class: colorClass };
+    };
+
+    const omzetGrowth = calcGrowth(currentYearStats.revenue, prevYearStats.revenue);
+    const checkGrowth = calcGrowth(currentYearStats.checks, prevYearStats.checks);
+    const apcGrowth = calcGrowth(currentYearStats.apc, prevYearStats.apc);
+
+    document.getElementById('yoy-omzet-growth').textContent = omzetGrowth.text;
+    document.getElementById('yoy-omzet-growth').className = `text-4xl font-bold mt-2 ${omzetGrowth.class}`;
+    document.getElementById('yoy-check-growth').textContent = checkGrowth.text;
+    document.getElementById('yoy-check-growth').className = `text-4xl font-bold mt-2 ${checkGrowth.class}`;
+    document.getElementById('yoy-apc-growth').textContent = apcGrowth.text;
+    document.getElementById('yoy-apc-growth').className = `text-4xl font-bold mt-2 ${apcGrowth.class}`;
+
+    // --- Prepare monthly data for Chart & Table ---
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+        month: monthNames[i],
+        currentRevenue: 0,
+        prevRevenue: 0,
+    }));
+
+    currentYearData.forEach(s => { monthlyData[s.date.getMonth()].currentRevenue += s.totalOmzet; });
+    prevYearData.forEach(s => { monthlyData[s.date.getMonth()].prevRevenue += s.totalOmzet; });
+
+    chartDataForAI['yoyOmzet'] = { year: selectedYear, previous_year: prevYear, monthly_comparison: monthlyData };
+
+    // --- Create Chart ---
+    createChart('yoy-omzet-chart', 'line', {
+        labels: monthNames,
+        datasets: [
+            { label: `Omzet ${prevYear}`, data: monthlyData.map(m => m.prevRevenue), borderColor: '#9CA3AF', tension: 0.1 },
+            { label: `Omzet ${selectedYear}`, data: monthlyData.map(m => m.currentRevenue), borderColor: '#4F46E5', tension: 0.1 },
+        ]
+    });
+
+    // --- Populate Detail Table ---
+    const tbody = document.getElementById('yoy-detail-tbody');
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+    tbody.innerHTML = '';
+    monthlyData.forEach(m => {
+        const growth = calcGrowth(m.currentRevenue, m.prevRevenue);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${m.month}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(m.prevRevenue)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(m.currentRevenue)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${growth.class}">${growth.text}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    chartDataForAI['yoyDetail'] = monthlyData;
+}
+
+function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
+    // --- Aggregate data from all summaries ---
+    const aggregatedData = summaries.reduce((acc, s) => {
+        // Aggregate category quantities
+        if (s.menuCategories) {
+            for (const category in s.menuCategories) {
+                acc.categoryQuantities[category] = (acc.categoryQuantities[category] || 0) + s.menuCategories[category].quantity;
+            }
+        }
+        // Aggregate all item quantities
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                if (!acc.itemQuantities[category]) {
+                    acc.itemQuantities[category] = {};
+                }
+                for (const menu in s.menuItemQuantities[category]) {
+                    acc.itemQuantities[category][menu] = (acc.itemQuantities[category][menu] || 0) + s.menuItemQuantities[category][menu];
+                }
+            }
+        }
+        return acc;
+    }, { categoryQuantities: {}, itemQuantities: {} });
+
+    // --- Chart 1: Order by Menu Category (Donut Chart) ---
+    chartDataForAI['orderByCategory'] = aggregatedData.categoryQuantities;
+    createChart('order-by-menu-category-chart', 'doughnut', {
+        labels: Object.keys(aggregatedData.categoryQuantities),
+        datasets: [{ data: Object.values(aggregatedData.categoryQuantities), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'] }],
+    });
+
+    // --- Helper to create Top 5 Bar Charts ---
+    const createTop5Chart = (containerId: string, categoryName: string, color: string) => {
+        const categoryItems = aggregatedData.itemQuantities[categoryName] || {};
+        const top5 = Object.entries(categoryItems)
+            // --- FIX: Filter out items with '(PACKAGE)' in their name ---
+            .filter(item => !item[0].includes('(PACKAGE)'))
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        if (top5.length > 0) {
+            chartDataForAI[containerId] = Object.fromEntries(top5);
+            createChart(containerId, 'bar', {
+                labels: top5.map(item => item[0]),
+                datasets: [{
+                    label: 'Quantity Sold',
+                    data: top5.map(item => item[1]),
+                    backgroundColor: color,
+                }],
+            }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+        } else {
+            const ctx = document.getElementById(containerId).getContext('2d');
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear previous drawing
+            ctx.font = "14px Inter";
+            ctx.fillStyle = "#9CA3AF";
+            ctx.textAlign = "center";
+            ctx.fillText(`No non-package '${categoryName}' data.`, ctx.canvas.width / 2, ctx.canvas.height / 2);
+        }
+    };
+
+    // --- Chart 2 & 3: Top 5 Makanan & Minuman ---
+    createTop5Chart('top-makanan-chart', 'MAKANAN', '#EF4444');
+    createTop5Chart('top-minuman-chart', 'MINUMAN', '#3B82F6');
+}
+
+function generatePenjualanBulananChartFromSummaries(summaries: any[]) {
+    const monthlyData = summaries.reduce((acc, s) => {
+        const month = s.date.toISOString().slice(0, 7); // YYYY-MM
+        if (!acc[month]) {
+            acc[month] = { revenue: 0, checks: 0 };
+        }
+        acc[month].revenue += s.totalOmzet;
+        acc[month].checks += s.totalTransactions;
+        return acc;
+    }, {});
+
+    const sortedMonths = Object.keys(monthlyData).sort();
+    const salesData = sortedMonths.map((month) => monthlyData[month].revenue);
+    const checkData = sortedMonths.map((month) => monthlyData[month].checks);
+
+    chartDataForAI['penjualanBulanan'] = sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] }));
+
+    createChart('penjualan-bulanan-chart', 'bar', {
+        labels: sortedMonths,
+        datasets: [
+            { label: 'Total Penjualan', data: salesData, backgroundColor: '#3B82F6', yAxisID: 'y-sales' },
+            { label: 'Total Check', data: checkData, backgroundColor: '#F97316', yAxisID: 'y-check' },
+        ],
+    }, {
+        scales: {
+            'y-sales': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Penjualan (Rp)' } },
+            'y-check': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false } },
+        },
+    });
+}
+
+function generatePenjualanChannelChartFromSummaries(summaries: any[]) {
+    const channelSales = summaries.reduce((acc, s) => {
+        if (s.revenueByVisitPurpose) {
+            for (const channel in s.revenueByVisitPurpose) {
+                acc[channel] = (acc[channel] || 0) + s.revenueByVisitPurpose[channel];
+            }
+        }
+        return acc;
+    }, {});
+
+    chartDataForAI['penjualanChannel'] = channelSales;
+
+    createChart('penjualan-channel-chart', 'doughnut', {
+        labels: Object.keys(channelSales),
+        datasets: [{
+            data: Object.values(channelSales),
+            backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
+        }],
+    });
+}
+
+function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[]) {
+    const dailyData = Array(7).fill(0).map(() => Array(24).fill(0));
+
+    summaries.forEach(s => {
+        if (s.hourlyRevenue && s.hourlyRevenue.length === 24) {
+            const dayIndex = s.date.getDay(); // Sunday = 0, Monday = 1, etc.
+            s.hourlyRevenue.forEach((rev, hourIndex) => {
+                dailyData[dayIndex][hourIndex] += rev;
+            });
+        }
+    });
+    
+    const labels = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+    const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const colors = ['#EF4444', '#F97316', '#F59E0B', '#84CC16', '#22C55E', '#14B8A6', '#3B82F6'];
+
+    const datasets = dayLabels.map((label, dayIndex) => ({
+        label: label,
+        data: dailyData[dayIndex],
+        borderColor: colors[dayIndex % colors.length],
+        backgroundColor: colors[dayIndex % colors.length],
+        tension: 0.2,
+        fill: false,
+    }));
+
+    chartDataForAI['salesTrendHourlyDaily'] = datasets.map(ds => ({ [ds.label]: ds.data }));
+
+    createChart('sales-trend-hourly-daily-chart', 'line', { labels, datasets });
+}
+
+function generateOmzetOutletChartFromSummaries(summaries: any[]) {
+    const outletOmzet = summaries.reduce((acc, summary) => {
+        if (summary.revenueByBranch) {
+            for (const branch in summary.revenueByBranch) {
+                acc[branch] = (acc[branch] || 0) + summary.revenueByBranch[branch];
+            }
+        }
+        return acc;
+    }, {});
+
+    const sortedOutlets = Object.entries(outletOmzet).sort((a, b) => b[1] - a[1]);
+    chartDataForAI['omzetOutlet'] = Object.fromEntries(sortedOutlets);
+
+    createChart('omzet-outlet-chart', 'bar', {
+        labels: sortedOutlets.map((entry) => entry[0]),
+        datasets: [{
+            label: 'Total Omzet',
+            data: sortedOutlets.map((entry) => entry[1]),
+            backgroundColor: '#4F46E5',
+        }],
+    }, {
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: { callback: shortenCurrency },
+            },
+        },
+    });
+}
+
+function generateOmzetMingguanChartFromSummaries(summaries: any[]) {
+    const weeklyOmzet = summaries.reduce((acc, summary) => {
+        const d = summary.date;
+        // Create a key for the week by finding the date of the preceding Sunday
+        const firstDayOfWeek = new Date(d);
+        firstDayOfWeek.setDate(d.getDate() - d.getDay());
+        const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
+
+        acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
+        return acc;
+    }, {});
+
+    const sortedWeeks = Object.keys(weeklyOmzet).sort();
+    chartDataForAI['omzetMingguan'] = weeklyOmzet;
+
+    createChart('omzet-mingguan-chart', 'line', {
+        labels: sortedWeeks,
+        datasets: [{
+            label: 'Total Omzet Mingguan',
+            data: sortedWeeks.map((week) => weeklyOmzet[week]),
+            borderColor: '#10B981',
+            tension: 0.1,
+        }],
+    }, deepmerge(
+        chartYTicks(shortenCurrency),
+        chartXTicks(shortenDateTickCallback),
+    ));
+}
+
+function generateOmzetHeatmapFromSummaries(summaries: any[]) {
+    const container = document.getElementById('omzet-heatmap-container');
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    const heatmapData = Array(7).fill(0).map(() => Array(24).fill(0));
+    let maxOmzet = 0;
+
+    summaries.forEach(summary => {
+        if (summary.hourlyRevenue && summary.hourlyRevenue.length === 24) {
+            const dayIndex = summary.date.getDay();
+            summary.hourlyRevenue.forEach((revenue, hourIndex) => {
+                heatmapData[dayIndex][hourIndex] += revenue;
+                if (heatmapData[dayIndex][hourIndex] > maxOmzet) {
+                    maxOmzet = heatmapData[dayIndex][hourIndex];
+                }
+            });
+        }
+    });
+
+    chartDataForAI['omzetJamHariHeatmap'] = heatmapData;
+
+    let tableHTML = '<table class="heatmap-table"><thead><tr><th></th>';
+    hours.forEach(hour => tableHTML += `<th>${hour.toString().padStart(2, '0')}</th>`);
+    tableHTML += '</tr></thead><tbody>';
+    days.forEach((day, dayIndex) => {
+        tableHTML += `<tr><td class="day-label">${day}</td>`;
+        hours.forEach(hour => {
+            const omzet = heatmapData[dayIndex][hour];
+            const opacity = maxOmzet > 0 ? (omzet / maxOmzet) : 0;
+            const color = `rgba(79, 70, 229, ${opacity})`;
+            const title = `Rp${omzet.toLocaleString('id-ID')}`;
+            tableHTML += `<td class="heatmap-cell" style="background-color: ${color}" title="${title}"></td>`;
+        });
+        tableHTML += '</tr>';
+    });
+    tableHTML += '</tbody></table>';
+
+    container.innerHTML = tableHTML;
+}
+
+function generateDailyOmzetHeatmapFromSummaries(summaries: any[]) {
+  const container = document.getElementById('daily-omzet-heatmap-container');
+  container.innerHTML = ''; // Clear previous heatmap
+
+  if (summaries.length === 0) {
+    container.innerHTML = '<p class="text-gray-500">No data to display for the selected period.</p>';
+    return;
+  }
+
+  const dailyTotals = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
+  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals; // Store data for AI
+
+  const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
+
+  const startDate = new Date(document.getElementById('date-start').value + 'T00:00:00');
+  const endDate = new Date(document.getElementById('date-end').value + 'T00:00:00');
+
+  let currentMonth = -1;
+  let calendarHTML = '';
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const month = d.getMonth();
+    if (month !== currentMonth) {
+      if (currentMonth !== -1) {
+        calendarHTML += '</tr></tbody></table></div>';
+      }
+      currentMonth = month;
+      calendarHTML += `<div class="mb-4"><h4 class="text-lg font-semibold text-center mb-2">${monthNames[month]} ${d.getFullYear()}</h4><table class="heatmap-calendar-table"><thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead><tbody><tr>`;
+      const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+      for (let i = 0; i < firstDayOfMonth.getDay(); i++) calendarHTML += '<td></td>';
+    }
+
+    if (d.getDay() === 0 && d.getDate() !== 1) {
+      calendarHTML += '</tr><tr>';
+    }
+
+    const dateStr = d.toISOString().split('T')[0];
+    const omzet = dailyTotals[dateStr] || 0;
+    const opacity = maxOmzet > 0 ? (omzet / maxOmzet) : 0;
+    const color = `rgba(79, 70, 229, ${opacity})`;
+    const title = `${dateStr}: Rp${omzet.toLocaleString('id-ID')}`;
+    const textColor = opacity > 0.5 ? 'white' : '#374151';
+    calendarHTML += `<td style="background-color: ${color}" title="${title}"><div class="day-number" style="color: ${textColor}">${d.getDate()}</div></td>`;
+  }
+  calendarHTML += '</tr></tbody></table></div>';
+
+  container.innerHTML = calendarHTML;
+}
+
+function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[]) {
+    const calculateTotals = (summaries: any[]) => {
+        return summaries.reduce((acc, summary) => {
+            acc.omzet += summary.totalOmzet || 0;
+            acc.checks += summary.totalTransactions || 0;
+            return acc;
+        }, { omzet: 0, checks: 0 });
+    };
+
+    const currentTotals = calculateTotals(currentSummaries);
+    const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
+
+    const currentAvgCheck = currentTotals.checks > 0 ? currentTotals.omzet / currentTotals.checks : 0;
+    const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
+
+    // Update the UI with current period's metrics
+    document.getElementById('ringkasan-total-omzet').textContent = `Rp${currentTotals.omzet.toLocaleString('id-ID')}`;
+    document.getElementById('ringkasan-total-check').textContent = currentTotals.checks.toLocaleString('id-ID');
+    document.getElementById('ringkasan-avg-check').textContent = `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+
+    // Calculate and display growth
+    calculateAndDisplayGrowth('ringkasan-omzet-growth', currentTotals.omzet, lastPeriodTotals.omzet, true);
+    calculateAndDisplayGrowth('ringkasan-check-growth', currentTotals.checks, lastPeriodTotals.checks);
+    calculateAndDisplayGrowth('ringkasan-avg-check-growth', currentAvgCheck, lastPeriodAvgCheck, true);
+}
+
+function generateOmzetHarianChartFromSummaries(summaries: any[]) {
+    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
+
+    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    const data = sortedSummaries.map(s => s.totalOmzet);
+    
+    chartDataForAI['omzetHarian'] = Object.fromEntries(sortedSummaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
+
+    createChart('omzet-harian-chart', 'line', {
+        labels: labels,
+        datasets: [{
+            label: 'Total Omzet Harian',
+            data: data,
+            borderColor: '#3B82F6',
+            tension: 0.1,
+        }],
+    }, deepmerge(
+        chartYTicks(shortenCurrency),
+        chartXTicks(shortenDateTickCallback),
+    ));
+}
+
+function generateTcApcHarianChartFromSummaries(summaries: any[]) {
+    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
+
+    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    const tcData = sortedSummaries.map(s => s.totalTransactions);
+    const apcData = sortedSummaries.map(s => s.apc);
+
+    chartDataForAI['tcApcHarian'] = sortedSummaries.map(s => ({ date: s.date.toISOString().split('T')[0], totalChecks: s.totalTransactions, averageCheck: s.apc }));
+
+    createChart('tc-apc-harian-chart', 'bar', {
+        labels: labels,
+        datasets: [
+            {
+                type: 'bar',
+                label: 'Total Check (TC)',
+                data: tcData,
+                backgroundColor: '#60A5FA',
+                yAxisID: 'y-tc',
+            },
+            {
+                type: 'line',
+                label: 'Average Check (APC)',
+                data: apcData,
+                borderColor: '#F97316',
+                backgroundColor: '#F97316',
+                tension: 0.1,
+                yAxisID: 'y-apc',
+            },
+        ],
+    }, deepmerge({
+        scales: {
+            'y-tc': {
+                ticks: { callback: shortenNumber },
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: { display: true, text: 'Total Check' },
+            },
+            'y-apc': {
+                ticks: { callback: shortenCurrency },
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: { display: true, text: 'Average Check (Rp)' },
+                grid: { drawOnChartArea: false },
+            },
+        },
+    }, chartXTicks(shortenDateTickCallback)));
 }
 
 /**
@@ -2754,26 +3287,23 @@ async function loadUploadHistory(): Promise<void> {
  * const salesData = await fetchAllBillsForUpload('upload123');
  * // Returns: [{ "Bill Number": "1", "Item Group": "Food", Revenue: 100 }, ...]
  */
-async function fetchAllBillsForUpload(uploadId: string): Promise<any[]> {
+async function fetchDailySummariesForUpload(uploadId: string): Promise<any[]> {
   if (!currentUser) return [];
 
-  const billsCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads/${uploadId}/bills`);
-  showLoading({ message: 'Fetching bills...', value: 40 });
-  const billsSnapshot = await getDocs(billsCollectionRef);
+  const summariesCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads/${uploadId}/dailySummaries`);
+  showLoading({ message: 'Fetching daily summaries...', value: 40 });
+  const summariesSnapshot = await getDocs(summariesCollectionRef);
 
-  const billsData: any[] = [];
-  billsSnapshot.forEach((billDoc) => {
-    const billData = billDoc.data();
-
-    // Convert Firestore Timestamp to JavaScript Date
-    if (billData['Sales Date In']?.toDate) {
-      billData['Sales Date In'] = billData['Sales Date In'].toDate();
-    }
-
-    billsData.push(billData);
+  const summariesData: any[] = [];
+  summariesSnapshot.forEach((doc) => {
+    const summary = doc.data();
+    // Ensure date is a JS Date object for sorting and filtering
+    summary.date = new Date(summary.date);
+    summariesData.push(summary);
   });
 
-  return billsData;
+  // Sort by date just in case they come out of order
+  return summariesData.sort((a, b) => a.date - b.date);
 }
 
 document.getElementById('summary-modal-close').addEventListener('click', () => {
@@ -2781,44 +3311,45 @@ document.getElementById('summary-modal-close').addEventListener('click', () => {
 });
 
 uploadHistoryList.addEventListener('click', async (e) => {
-   if (e.target.classList.contains('summary-history-btn')) {
-    const uploadId = e.target.dataset.id;
-    const fileName = e.target.dataset.name;
+  const target = e.target as HTMLElement;
+
+  if (target.classList.contains('summary-history-btn')) {
+    const uploadId = target.dataset.id;
+    const fileName = target.dataset.name;
     showLoading({ message: 'Fetching data for daily recap...', value: 50 });
-    const billsData = await fetchAllBillsForUpload(uploadId);
+    const dailySummaries = await fetchDailySummariesForUpload(uploadId);
     hideLoading();
-    // CALL THE NEW FUNCTION HERE
-    generateDailyRecap(billsData, fileName);
+    generateDailyRecap(dailySummaries, fileName); // This function now receives summaries
   }
-  
-  if (e.target.classList.contains('view-history-btn')) {
-    const uploadId = e.target.dataset.id
-    const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, uploadId)
-    showLoading({ message: 'Fetching report...', value: 10 });
-    const docSnap = await getDoc(docRef)
+
+  if (target.classList.contains('view-history-btn')) {
+    const uploadId = target.dataset.id;
+    const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, uploadId);
+    showLoading({ message: 'Fetching report summaries...', value: 10 });
+    const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const upload = docSnap.data()
-      const billsData = await fetchAllBillsForUpload(uploadId)
-      setupAndShowAnalysisView(billsData, `Analysis for ${upload.name}`)
+        const upload = docSnap.data();
+        const dailySummaries = await fetchDailySummariesForUpload(uploadId);
+        // The analysis view now works with summaries, not raw bills
+        setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
     }
   }
-  if (e.target.classList.contains('delete-history-btn')) {
-    const uploadId = e.target.dataset.id
+
+  if (target.classList.contains('delete-history-btn')) {
+    const uploadId = target.dataset.id;
     if (confirm('Are you sure you want to delete this uploaded dataset? This action cannot be undone.')) {
       try {
-        // Use the new callable Cloud Function for safe deletion
         const deleteUploadFunction = httpsCallable(functions, 'deleteUpload');
         const result = await deleteUploadFunction({ uploadId });
-
         console.log(`Deleted ${result.data.deletedBills} bills and upload document`);
-        await loadUploadHistory(); // Refresh the history list
+        await loadUploadHistory();
       } catch (error: any) {
         console.error('Error deleting upload:', error);
         alert('Failed to delete upload. Please try again.');
       }
     }
   }
-})
+});
 
 /**
  * Event listener for the 'View Compiled Analysis' button.
@@ -2831,105 +3362,47 @@ uploadHistoryList.addEventListener('click', async (e) => {
  * @returns {void}
  */
 document.getElementById('view-compiled-btn').addEventListener('click', async () => {
-  if (!currentUser) return;
+    if (!currentUser) return;
 
-  const startTime = performance.now();
-  showLoading({ message: 'Checking for data...', value: 0 });
+    const startTime = performance.now();
+    showLoading({ message: 'Fetching all daily summaries...', value: 10 });
 
-  try {
-    const uploadsCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
-    const uploadsCountSnapshot = await getCountFromServer(uploadsCollectionRef);
-    const currentUploadCount = uploadsCountSnapshot.data().count;
-    
-    const cachedResult = await getCachedData();
+    try {
+        const summariesQuery = query(
+            collectionGroup(db, 'dailySummaries'),
+            where('userId', '==', currentUser.uid)
+        );
 
-    let finalData;
+        const querySnapshot = await getDocs(summariesQuery);
+        const allSummaries = [];
+        querySnapshot.forEach(doc => {
+            const summary = doc.data();
+            summary.date = new Date(summary.date);
+            allSummaries.push(summary);
+        });
 
-    // Case 1: Cache is up-to-date. Load directly from device.
-    if (cachedResult && cachedResult.uploadCount === currentUploadCount) {
-      console.log('Cache is valid. Loading from IndexedDB.');
-      showLoading({ message: 'Loading from device...', value: 100 });
-      finalData = cachedResult.data;
-    } 
-    // Case 2: Cache is outdated BUT has the required timestamp. Fetch ONLY the new data.
-    // THIS IS THE NEW CHECK to prevent the error.
-    else if (cachedResult && currentUploadCount > cachedResult.uploadCount && cachedResult.lastTransactionDate instanceof Date) {
-      console.log('Cache is outdated. Fetching only new records.');
-      const existingData = cachedResult.data;
-      const lastFetchDate = cachedResult.lastTransactionDate;
+        // --- FIX STARTS HERE ---
+        // Filter out any summaries that might have an invalid date before proceeding.
+        const validSummaries = allSummaries.filter(summary => summary.date instanceof Date && !isNaN(summary.date.getTime()));
 
-      showLoading({ message: `Loading ${existingData.length} records from device...`, value: 20 });
-
-      // Query for documents newer than the last one in the cache
-      const newDataQuery = query(
-        collectionGroup(db, 'bills'),
-        where('userId', '==', currentUser.uid),
-        where('Sales Date In', '>', lastFetchDate)
-      );
-      
-      const newDataSnapshot = await getDocs(newDataQuery);
-      const newData = [];
-      newDataSnapshot.forEach(doc => {
-        const billData = doc.data();
-        if (billData['Sales Date In']?.toDate) {
-            billData['Sales Date In'] = billData['Sales Date In'].toDate();
+        if (validSummaries.length === 0) {
+            alert('No valid summarized data found. Please ensure your files have been processed correctly.');
+            hideLoading();
+            return;
         }
-        newData.push(billData);
-      });
-      
-      console.log(`Fetched ${newData.length} new records.`);
-      showLoading({ message: `Found ${newData.length} new records. Combining...`, value: 80 });
+        // --- FIX ENDS HERE ---
+        
+        // Sort all summaries from all files by date
+        validSummaries.sort((a, b) => a.date - b.date);
 
-      finalData = [...existingData, ...newData];
-      await saveCompiledData(finalData, currentUploadCount); // Update the cache
-    } 
-    // Case 3: No cache exists, or the cache is in an old format. Do a full initial fetch.
-    else {
-      console.log('No valid cache or cache is in old format. Performing full refresh.');
-      const baseQuery = query(collectionGroup(db, 'bills'), where('userId', '==', currentUser.uid));
-      const totalBills = currentUploadCount > 0 ? (await getCountFromServer(baseQuery)).data().count : 0;
-      
-      if (totalBills === 0) {
-        alert('No sales data has been uploaded yet.'); hideLoading(); return;
-      }
-      
-      showLoading({ message: `Found ${totalBills} records. Starting download...`, value: 5 });
-      const fetchedData = [];
-      const PAGE_SIZE = 10000;
-      let lastVisible = null;
-      const paginatedQuery = query(baseQuery, orderBy('Sales Date In'));
-      
-      while (fetchedData.length < totalBills) {
-          let pageQuery = lastVisible ? query(paginatedQuery, startAfter(lastVisible), limit(PAGE_SIZE)) : query(paginatedQuery, limit(PAGE_SIZE));
-          const pageSnapshot = await getDocs(pageQuery);
-          if (pageSnapshot.empty) break;
+        // Pass the cleaned data to the analysis view
+        setupAndShowAnalysisView(validSummaries, 'Compiled Analysis of All Uploads');
 
-          pageSnapshot.forEach(billDoc => {
-              const billData = billDoc.data();
-              if (billData['Sales Date In']?.toDate) billData['Sales Date In'] = billData['Sales Date In'].toDate();
-              fetchedData.push(billData);
-          });
-
-          lastVisible = pageSnapshot.docs[pageSnapshot.docs.length - 1];
-          const fetchProgress = 5 + (fetchedData.length / totalBills) * 65;
-          showLoading({ message: `Fetching records... (${fetchedData.length} / ${totalBills})`, value: Math.round(fetchProgress) });
-      }
-      finalData = fetchedData;
-      await saveCompiledData(finalData, currentUploadCount);
+    } catch (error) {
+        console.error("Failed to compile analysis from summaries:", error);
+        hideLoading();
+        alert(`An error occurred: ${error.message}`);
     }
-
-    // Now, run the analysis with the final combined data
-    allSalesData = finalData;
-    aiAnalysisResults = {};
-    document.getElementById('analysis-title').textContent = 'Compiled Analysis of All Uploads';
-    populateFilters(allSalesData);
-    runAnalysis(startTime);
-
-  } catch (error) {
-    console.error("Failed to compile analysis:", error);
-    hideLoading();
-    alert(`An error occurred: ${error.message}`);
-  }
 });
 
 // --- PDF Export Function ---
