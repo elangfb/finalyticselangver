@@ -1443,26 +1443,32 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[]) {
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
-  const startDate = new Date(document.getElementById('date-start').value + 'T00:00:00');
-  const endDate = new Date(document.getElementById('date-end').value + 'T00:00:00');
+  // --- FIX STARTS HERE: Treat filter dates as UTC ---
+  const startDateString = document.getElementById('date-start').value;
+  const endDateString = document.getElementById('date-end').value;
+  // By appending 'T00:00:00Z', we explicitly tell the Date constructor this is a UTC date.
+  const startDate = new Date(startDateString + 'T00:00:00Z');
+  const endDate = new Date(endDateString + 'T00:00:00Z');
+  // --- FIX ENDS HERE ---
 
   let currentMonth = -1;
   let calendarHTML = '';
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const month = d.getMonth();
+  // The loop now correctly iterates through UTC dates
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const month = d.getUTCMonth();
     if (month !== currentMonth) {
       if (currentMonth !== -1) {
         calendarHTML += '</tr></tbody></table></div>';
       }
       currentMonth = month;
-      calendarHTML += `<div class="mb-4"><h4 class="text-lg font-semibold text-center mb-2">${monthNames[month]} ${d.getFullYear()}</h4><table class="heatmap-calendar-table"><thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead><tbody><tr>`;
-      const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-      for (let i = 0; i < firstDayOfMonth.getDay(); i++) calendarHTML += '<td></td>';
+      calendarHTML += `<div class="mb-4"><h4 class="text-lg font-semibold text-center mb-2">${monthNames[month]} ${d.getUTCFullYear()}</h4><table class="heatmap-calendar-table"><thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead><tbody><tr>`;
+      const firstDayOfMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+      for (let i = 0; i < firstDayOfMonth.getUTCDay(); i++) calendarHTML += '<td></td>';
     }
 
-    if (d.getDay() === 0 && d.getDate() !== 1) {
+    if (d.getUTCDay() === 0 && d.getUTCDate() !== 1) {
       calendarHTML += '</tr><tr>';
     }
 
@@ -1472,7 +1478,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[]) {
     const color = `rgba(79, 70, 229, ${opacity})`;
     const title = `${dateStr}: Rp${omzet.toLocaleString('id-ID')}`;
     const textColor = opacity > 0.5 ? 'white' : '#374151';
-    calendarHTML += `<td style="background-color: ${color}" title="${title}"><div class="day-number" style="color: ${textColor}">${d.getDate()}</div></td>`;
+    calendarHTML += `<td style="background-color: ${color}" title="${title}"><div class="day-number" style="color: ${textColor}">${d.getUTCDate()}</div></td>`;
   }
   calendarHTML += '</tr></tbody></table></div>';
 
@@ -3099,14 +3105,11 @@ function generateDailyRecap(data: any[], fileName: string) {
     }
 
     const container = document.getElementById('daily-recap-container');
-    container.innerHTML = '<div class="text-center p-8"><div class="loader"></div><p class="mt-2">Calculating daily summaries...</p></div>'; // Show loader
+    container.innerHTML = '<div class="text-center p-8"><div class="loader"></div><p class="mt-2">Calculating daily summaries...</p></div>';
 
-    // --- 1. Group Data by Day ---
     const dataByDay = data.reduce((acc, d) => {
-        const dateStr = d['Sales Date In'].toISOString().split('T')[0];
-        if (!acc[dateStr]) {
-            acc[dateStr] = [];
-        }
+        const dateStr = d.date.toISOString().split('T')[0];
+        if (!acc[dateStr]) acc[dateStr] = [];
         acc[dateStr].push(d);
         return acc;
     }, {});
@@ -3114,56 +3117,41 @@ function generateDailyRecap(data: any[], fileName: string) {
     const sortedDates = Object.keys(dataByDay).sort();
     let recapHtml = '';
 
-    // --- 2. Process Each Day ---
     sortedDates.forEach(dateStr => {
-        const dayData = dataByDay[dateStr];
+        const daySummary = dataByDay[dateStr][0];
         const date = new Date(dateStr);
         const formattedDate = date.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-        // --- Calculations for the day ---
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
 
-        // Branch & Brand
-        const branches = [...new Set(dayData.map(d => d.Branch || 'N/A'))];
-        const brands = [...new Set(dayData.map(d => d.Brand || 'N/A'))];
+        const getTop5FromCategory = (categoryName: string) => {
+            if (!daySummary.menuItemQuantities || !daySummary.menuItemQuantities[categoryName]) return [];
+            return Object.entries(daySummary.menuItemQuantities[categoryName])
+                .filter(([name]) => !name.includes('(PACKAGE)'))
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+        };
+        const top5Makanan = getTop5FromCategory('MAKANAN');
+        const top5Minuman = getTop5FromCategory('MINUMAN');
 
-        // Visit Purpose
-        const visitPurposes = dayData.reduce((acc, d) => {
-            const purpose = d['Visit Purpose'] || 'Unknown';
-            acc[purpose] = (acc[purpose] || 0) + 1;
-            return acc;
-        }, {});
+        // --- NEW: Format Hourly Traffic Data ---
+        let trafficHtml = '<p class="text-xs text-gray-500">No traffic data.</p>';
+        if (daySummary.trafficByHour && daySummary.trafficByHour.length === 24) {
+            trafficHtml = daySummary.trafficByHour
+                .map((count, hour) => ({ hour, count }))
+                .filter(item => item.count > 0)
+                .map(item => `<li><span class="font-semibold w-16 inline-block">${String(item.hour).padStart(2, '0')}:00 :</span> ${item.count} bills</li>`)
+                .join('');
+        }
 
-        // Payment Method
-        const paymentMethods = dayData.reduce((acc, d) => {
-            const method = d['Payment Method'] || 'Unknown';
-            acc[method] = (acc[method] || 0) + d.Revenue;
-            return acc;
-        }, {});
+        const branches = daySummary.branches || ['N/A'];
+        const brands = daySummary.brands || ['N/A'];
+        const visitPurposes = daySummary.visitPurposes || {};
+        const paymentMethods = daySummary.paymentMethods || {};
+        const menuCategories = daySummary.menuCategories || {};
+        const subtotal = daySummary.subtotal || 0;
+        const totalDiscount = daySummary.totalDiscount || 0;
+        const totalAfterDiscount = daySummary.totalOmzet || 0;
 
-        // Menu Category (Revenue & Quantity)
-        const menuCategories = dayData.reduce((acc, d) => {
-            const category = d['Menu Category'] || 'Unknown';
-            if (!acc[category]) acc[category] = { revenue: 0, quantity: 0 };
-            acc[category].revenue += d.Revenue;
-            acc[category].quantity += d.Quantity;
-            return acc;
-        }, {});
-
-        // Top 5 Menu by Quantity
-        const menuQuantities = dayData.reduce((acc, d) => {
-            const menu = d.Menu || 'Unknown';
-            acc[menu] = (acc[menu] || 0) + d.Quantity;
-            return acc;
-        }, {});
-        const top5Menu = Object.entries(menuQuantities).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-        // Financials
-        const subtotal = dayData.reduce((sum, d) => sum + (d.Price * d.Quantity), 0);
-        const totalDiscount = dayData.reduce((sum, d) => sum + (d.Discount || 0) + (d['Bill Discount'] || 0), 0);
-        const totalAfterDiscount = dayData.reduce((sum, d) => sum + d.Revenue, 0); // Nett Sales is the final revenue
-
-        // --- 3. Build HTML for the Day ---
         recapHtml += `
             <div class="border rounded-lg">
                 <button class="accordion-header w-full text-left p-4 bg-gray-50 hover:bg-gray-100 flex justify-between items-center">
@@ -3184,14 +3172,21 @@ function generateDailyRecap(data: any[], fileName: string) {
                             <div><h5 class="font-bold text-sm mb-1">Payment Method</h5>
                                 <ul class="text-xs list-disc pl-4">${Object.entries(paymentMethods).map(([m, r]) => `<li>${m}: ${formatCurrency(r)}</li>`).join('')}</ul>
                             </div>
+                            <!-- NEW: Traffic per Hour Section -->
+                            <div><h5 class="font-bold text-sm mb-1">Traffic per Hour</h5>
+                                <ul class="text-xs">${trafficHtml}</ul>
+                            </div>
                         </div>
                         <!-- Column 2: Menu Info -->
                         <div class="space-y-4">
                              <div><h5 class="font-bold text-sm mb-1">Menu Category Summary</h5>
-                                <ul class="text-xs list-disc pl-4">${Object.entries(menuCategories).map(([cat, data]) => `<li>${cat}: ${formatCurrency(data.revenue)} (${data.quantity} items)</li>`).join('')}</ul>
+                                <ul class="text-xs list-disc pl-4">${Object.entries(menuCategories).map(([cat, catData]) => `<li>${cat}: ${formatCurrency(catData.revenue)} (${catData.quantity} items)</li>`).join('')}</ul>
                             </div>
-                            <div><h5 class="font-bold text-sm mb-1">Top 5 Menu Items (by Qty)</h5>
-                                <ol class="text-xs list-decimal pl-4">${top5Menu.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('')}</ol>
+                            <div><h5 class="font-bold text-sm mb-1">Top 5 Makanan (by Qty)</h5>
+                                <ol class="text-xs list-decimal pl-4">${top5Makanan.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('')}</ol>
+                            </div>
+                            <div><h5 class="font-bold text-sm mb-1">Top 5 Minuman (by Qty)</h5>
+                                <ol class="text-xs list-decimal pl-4">${top5Minuman.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('')}</ol>
                             </div>
                         </div>
                         <!-- Column 3: Financials -->
@@ -3207,7 +3202,6 @@ function generateDailyRecap(data: any[], fileName: string) {
         `;
     });
 
-    // --- 4. Populate Modal & Add Listeners ---
     document.getElementById('summary-modal-title').textContent = `Daily Recap for ${fileName}`;
     container.innerHTML = recapHtml;
 
@@ -3220,7 +3214,6 @@ function generateDailyRecap(data: any[], fileName: string) {
         });
     });
 
-    // --- 5. Show Modal ---
     document.getElementById('summary-modal').classList.remove('hidden');
 }
 
