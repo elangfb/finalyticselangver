@@ -2559,85 +2559,135 @@ function generateYoYAnalysis(data: any[]): void {
   chartDataForAI['yoyDetail'] = monthlyData
 }
 
-function generateAndShowSummary(data: any[], fileName: string) {
+function generateDailyRecap(data: any[], fileName: string) {
     if (data.length === 0) {
-        alert('No data available to generate a summary.');
+        alert('No data available to generate a recap.');
         return;
     }
 
-    // --- 1. Calculations ---
+    const container = document.getElementById('daily-recap-container');
+    container.innerHTML = '<div class="text-center p-8"><div class="loader"></div><p class="mt-2">Calculating daily summaries...</p></div>'; // Show loader
 
-    // KPIs
-    const totalOmzet = data.reduce((sum, d) => sum + d.Revenue, 0);
-    const totalTransactions = new Set(data.map(d => d['Bill Number'])).size;
-    const apc = totalTransactions > 0 ? totalOmzet / totalTransactions : 0;
-    const totalItemsSold = data.reduce((sum, d) => sum + d.Quantity, 0);
-
-    // Top Performers
-    const productQty = data.reduce((acc, d) => {
-        acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
+    // --- 1. Group Data by Day ---
+    const dataByDay = data.reduce((acc, d) => {
+        const dateStr = d['Sales Date In'].toISOString().split('T')[0];
+        if (!acc[dateStr]) {
+            acc[dateStr] = [];
+        }
+        acc[dateStr].push(d);
         return acc;
     }, {});
-    const topProductByQty = Object.entries(productQty).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
 
-    const productRevenue = data.reduce((acc, d) => {
-        acc[d.Menu] = (acc[d.Menu] || 0) + d.Revenue;
-        return acc;
-    }, {});
-    const topProductByRevenue = Object.entries(productRevenue).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+    const sortedDates = Object.keys(dataByDay).sort();
+    let recapHtml = '';
 
-    const branchRevenue = data.reduce((acc, d) => {
-        const branch = d.Branch || 'Unknown';
-        acc[branch] = (acc[branch] || 0) + d.Revenue;
-        return acc;
-    }, {});
-    const topBranch = Object.entries(branchRevenue).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
-    
-    // Daily Busiest Hours
-    const dailyHourlyTransactions = Array(7).fill(0).map(() => Array(24).fill(0).map(() => new Set()));
-    data.forEach(d => {
-        const day = d['Sales Date In'].getDay();
-        const hour = d['Sales Date In'].getHours();
-        dailyHourlyTransactions[day][hour].add(d['Bill Number']);
+    // --- 2. Process Each Day ---
+    sortedDates.forEach(dateStr => {
+        const dayData = dataByDay[dateStr];
+        const date = new Date(dateStr);
+        const formattedDate = date.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        // --- Calculations for the day ---
+        const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+        // Branch & Brand
+        const branches = [...new Set(dayData.map(d => d.Branch || 'N/A'))];
+        const brands = [...new Set(dayData.map(d => d.Brand || 'N/A'))];
+
+        // Visit Purpose
+        const visitPurposes = dayData.reduce((acc, d) => {
+            const purpose = d['Visit Purpose'] || 'Unknown';
+            acc[purpose] = (acc[purpose] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Payment Method
+        const paymentMethods = dayData.reduce((acc, d) => {
+            const method = d['Payment Method'] || 'Unknown';
+            acc[method] = (acc[method] || 0) + d.Revenue;
+            return acc;
+        }, {});
+
+        // Menu Category (Revenue & Quantity)
+        const menuCategories = dayData.reduce((acc, d) => {
+            const category = d['Menu Category'] || 'Unknown';
+            if (!acc[category]) acc[category] = { revenue: 0, quantity: 0 };
+            acc[category].revenue += d.Revenue;
+            acc[category].quantity += d.Quantity;
+            return acc;
+        }, {});
+
+        // Top 5 Menu by Quantity
+        const menuQuantities = dayData.reduce((acc, d) => {
+            const menu = d.Menu || 'Unknown';
+            acc[menu] = (acc[menu] || 0) + d.Quantity;
+            return acc;
+        }, {});
+        const top5Menu = Object.entries(menuQuantities).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+        // Financials
+        const subtotal = dayData.reduce((sum, d) => sum + (d.Price * d.Quantity), 0);
+        const totalDiscount = dayData.reduce((sum, d) => sum + (d.Discount || 0) + (d['Bill Discount'] || 0), 0);
+        const totalAfterDiscount = dayData.reduce((sum, d) => sum + d.Revenue, 0); // Nett Sales is the final revenue
+
+        // --- 3. Build HTML for the Day ---
+        recapHtml += `
+            <div class="border rounded-lg">
+                <button class="accordion-header w-full text-left p-4 bg-gray-50 hover:bg-gray-100 flex justify-between items-center">
+                    <span class="font-semibold text-gray-700">${formattedDate}</span>
+                    <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div class="accordion-content hidden p-4 border-t bg-white">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Column 1: General Info -->
+                        <div class="space-y-4">
+                            <div><h5 class="font-bold text-sm mb-1">Branch & Brand</h5>
+                                <p class="text-xs">(${branches.length}) ${branches.join(', ')}</p>
+                                <p class="text-xs">(${brands.length}) ${brands.join(', ')}</p>
+                            </div>
+                            <div><h5 class="font-bold text-sm mb-1">Visit Purpose</h5>
+                                <ul class="text-xs list-disc pl-4">${Object.entries(visitPurposes).map(([p, c]) => `<li>${p}: ${c}</li>`).join('')}</ul>
+                            </div>
+                            <div><h5 class="font-bold text-sm mb-1">Payment Method</h5>
+                                <ul class="text-xs list-disc pl-4">${Object.entries(paymentMethods).map(([m, r]) => `<li>${m}: ${formatCurrency(r)}</li>`).join('')}</ul>
+                            </div>
+                        </div>
+                        <!-- Column 2: Menu Info -->
+                        <div class="space-y-4">
+                             <div><h5 class="font-bold text-sm mb-1">Menu Category Summary</h5>
+                                <ul class="text-xs list-disc pl-4">${Object.entries(menuCategories).map(([cat, data]) => `<li>${cat}: ${formatCurrency(data.revenue)} (${data.quantity} items)</li>`).join('')}</ul>
+                            </div>
+                            <div><h5 class="font-bold text-sm mb-1">Top 5 Menu Items (by Qty)</h5>
+                                <ol class="text-xs list-decimal pl-4">${top5Menu.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('')}</ol>
+                            </div>
+                        </div>
+                        <!-- Column 3: Financials -->
+                        <div class="space-y-2 bg-indigo-50 p-3 rounded-lg">
+                            <h5 class="font-bold text-sm mb-2 text-center">Financial Summary</h5>
+                            <div class="flex justify-between text-xs"><span class="text-gray-600">Subtotal:</span><span class="font-mono">${formatCurrency(subtotal)}</span></div>
+                            <div class="flex justify-between text-xs"><span class="text-gray-600">Total Discount:</span><span class="font-mono text-red-600">${formatCurrency(totalDiscount)}</span></div>
+                            <div class="flex justify-between text-sm font-bold border-t pt-1 mt-1"><span class="text-gray-800">Total Nett Sales:</span><span class="font-mono text-green-700">${formatCurrency(totalAfterDiscount)}</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     });
 
-    const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const busiestHours = dayLabels.map((day, dayIndex) => {
-        const hourlyCounts = dailyHourlyTransactions[dayIndex].map(hourSet => hourSet.size);
-        const busiestHour = hourlyCounts.indexOf(Math.max(...hourlyCounts));
-        return { day, hour: `${String(busiestHour).padStart(2, '0')}:00` };
+    // --- 4. Populate Modal & Add Listeners ---
+    document.getElementById('summary-modal-title').textContent = `Daily Recap for ${fileName}`;
+    container.innerHTML = recapHtml;
+
+    container.querySelectorAll('.accordion-header').forEach(button => {
+        button.addEventListener('click', () => {
+            const content = button.nextElementSibling;
+            const icon = button.querySelector('svg');
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        });
     });
 
-    // Data Health
-    const dates = data.map(d => d['Sales Date In']);
-    const minDate = new Date(Math.min(...dates));
-    const maxDate = new Date(Math.max(...dates));
-    const dateRange = `${minDate.toLocaleDateString('id-ID')} - ${maxDate.toLocaleDateString('id-ID')}`;
-    const branchCount = new Set(data.map(d => d.Branch)).size;
-    const productCount = new Set(data.map(d => d.Menu)).size;
-
-    // --- 2. DOM Population ---
-    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-    
-    document.getElementById('summary-modal-title').textContent = `Summary for ${fileName}`;
-    document.getElementById('summary-total-omzet').textContent = formatCurrency(totalOmzet);
-    document.getElementById('summary-total-transactions').textContent = totalTransactions.toLocaleString('id-ID');
-    document.getElementById('summary-apc').textContent = formatCurrency(apc);
-    document.getElementById('summary-total-items').textContent = totalItemsSold.toLocaleString('id-ID');
-
-    document.getElementById('summary-top-product-qty').textContent = topProductByQty;
-    document.getElementById('summary-top-product-revenue').textContent = topProductByRevenue;
-    document.getElementById('summary-top-branch').textContent = topBranch;
-
-    const busiestHoursList = document.getElementById('summary-busiest-hours');
-    busiestHoursList.innerHTML = busiestHours.map(item => `<li><span class="font-semibold w-16 inline-block">${item.day}:</span> ${item.hour}</li>`).join('');
-
-    document.getElementById('summary-date-range').textContent = dateRange;
-    document.getElementById('summary-branch-count').textContent = branchCount;
-    document.getElementById('summary-product-count').textContent = productCount;
-    // Data completeness is assumed to be 100% as this function receives already processed data.
-
-    // --- 3. Show Modal ---
+    // --- 5. Show Modal ---
     document.getElementById('summary-modal').classList.remove('hidden');
 }
 
@@ -2731,13 +2781,14 @@ document.getElementById('summary-modal-close').addEventListener('click', () => {
 });
 
 uploadHistoryList.addEventListener('click', async (e) => {
-  if (e.target.classList.contains('summary-history-btn')) {
+   if (e.target.classList.contains('summary-history-btn')) {
     const uploadId = e.target.dataset.id;
     const fileName = e.target.dataset.name;
-    showLoading({ message: 'Fetching data for summary...', value: 50 });
+    showLoading({ message: 'Fetching data for daily recap...', value: 50 });
     const billsData = await fetchAllBillsForUpload(uploadId);
     hideLoading();
-    generateAndShowSummary(billsData, fileName);
+    // CALL THE NEW FUNCTION HERE
+    generateDailyRecap(billsData, fileName);
   }
   
   if (e.target.classList.contains('view-history-btn')) {

@@ -5230,75 +5230,13 @@
         </div>
 
         <div id="summary-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center border-b pb-3 mb-4">
-            <h3 class="text-xl font-semibold text-gray-800" id="summary-modal-title">File Summary</h3>
-            <button id="summary-modal-close" class="text-gray-400 hover:text-gray-600">&times;</button>
+            <h3 class="text-xl font-semibold text-gray-800" id="summary-modal-title">Daily Recap</h3>
+            <button id="summary-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
         </div>
-        <div class="space-y-6">
-            <!-- KPIs Section -->
-            <div>
-                <h4 class="text-lg font-bold text-indigo-700 mb-2">Key Performance Indicators 📈</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Total Omzet</p>
-                        <p class="text-2xl font-bold text-gray-800" id="summary-total-omzet">Rp0</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Total Transaksi</p>
-                        <p class="text-2xl font-bold text-gray-800" id="summary-total-transactions">0</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Rata-rata per Transaksi</p>
-                        <p class="text-2xl font-bold text-gray-800" id="summary-apc">Rp0</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Item Terjual</p>
-                        <p class="text-2xl font-bold text-gray-800" id="summary-total-items">0</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Top Performers & Daily Patterns Section -->
-            <div>
-                <h4 class="text-lg font-bold text-indigo-700 mb-2">Top Performers & Daily Patterns 🏆</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-gray-50 p-4 rounded-lg space-y-3">
-                        <div><p class="text-sm text-gray-500">Produk Terlaris:</p><p class="font-semibold text-gray-800" id="summary-top-product-qty">-</p></div>
-                        <div><p class="text-sm text-gray-500">Pendapatan Produk Tertinggi:</p><p class="font-semibold text-gray-800" id="summary-top-product-revenue">-</p></div>
-                        <div><p class="text-sm text-gray-500">Cabang Teratas:</p><p class="font-semibold text-gray-800" id="summary-top-branch">-</p></div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500 mb-2">Jam Sibuk Harian:</p>
-                        <ul class="text-sm text-gray-800 space-y-1" id="summary-busiest-hours">
-                            <!-- Dynamically populated -->
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Data Health & Scope Section -->
-            <div>
-                <h4 class="text-lg font-bold text-indigo-700 mb-2">Data Health & Scope 🩺</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Rentang Tanggal</p>
-                        <p class="font-semibold text-gray-800 text-sm" id="summary-date-range">-</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Jumlah Cabang</p>
-                        <p class="font-semibold text-gray-800" id="summary-branch-count">0</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Produk Unik</p>
-                        <p class="font-semibold text-gray-800" id="summary-product-count">0</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <p class="text-sm text-gray-500">Data Completeness</p>
-                        <p class="font-semibold text-green-600" id="summary-completeness">100%</p>
-                    </div>
-                </div>
-            </div>
+        <div id="daily-recap-container" class="space-y-2 max-h-[80vh] overflow-y-auto pr-2">
+            <!-- Daily accordion items will be injected here by the script -->
         </div>
     </div>
 </div>
