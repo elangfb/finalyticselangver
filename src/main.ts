@@ -87,6 +87,7 @@ let aiAnalysisResults = {} // <-- New: To store AI analysis for PDF export
 let adminCredentials = null
 let yoyYearSelectInitialized = false
 let monthlyComparisonInitialized = false;
+let monthlyComparisonTargets = {};
 
 const defaultGeminiConfig = Object.freeze({
   apiKey: '',
@@ -962,7 +963,7 @@ document.getElementById('apply-filters-btn').addEventListener('click', runAnalys
 function setupMonthlyComparison(summaries: any[]) {
     const monthASelect = document.getElementById('month-a-select') as HTMLSelectElement;
     const monthBSelect = document.getElementById('month-b-select') as HTMLSelectElement;
-    const runBtn = document.getElementById('run-comparison-btn');
+    const runBtn = document.getElementById('run-comparison-btn'); // We still need the reference to hide it
     const resultsContainer = document.getElementById('comparison-results-container');
 
     const availableMonths = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
@@ -970,7 +971,7 @@ function setupMonthlyComparison(summaries: any[]) {
     if (availableMonths.length < 2) {
         monthASelect.innerHTML = '<option>Not enough data</option>';
         monthBSelect.innerHTML = '<option>Not enough data</option>';
-        runBtn.disabled = true;
+        runBtn.classList.add('hidden'); // Hide button if not usable
         resultsContainer.classList.add('hidden');
         return;
     }
@@ -978,17 +979,18 @@ function setupMonthlyComparison(summaries: any[]) {
     const optionsHtml = availableMonths.map(month => `<option value="${month}">${new Date(month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
     monthASelect.innerHTML = optionsHtml;
     monthBSelect.innerHTML = optionsHtml;
+    
+    // Set default selections
+    monthBSelect.value = availableMonths[0];
+    monthASelect.value = availableMonths[1];
 
-    monthASelect.value = availableMonths[0];
-    monthBSelect.value = availableMonths[1];
-    runBtn.disabled = false;
-
-    // --- FIX: Only add the event listener ONCE ---
+    // --- FIX: Add event listeners to the dropdowns to auto-update ---
     if (!monthlyComparisonInitialized) {
-        runBtn.addEventListener('click', () => {
-            // We pass the global 'allSalesData' to ensure it always uses the latest full dataset
-            runMonthlyComparison(allSalesData);
-        });
+        const autoRunComparison = () => runMonthlyComparison(allSalesData);
+        
+        monthASelect.addEventListener('change', autoRunComparison);
+        monthBSelect.addEventListener('change', autoRunComparison);
+        
         monthlyComparisonInitialized = true;
     }
     
@@ -1002,12 +1004,17 @@ function setupMonthlyComparison(summaries: any[]) {
  * @param {any[]} summaries - The complete array of all daily summary objects.
  */
 function runMonthlyComparison(summaries: any[]) {
+    // --- Load saved targets from localStorage ---
+    const savedTargets = localStorage.getItem('monthlyComparisonTargets');
+    if (savedTargets) {
+        monthlyComparisonTargets = JSON.parse(savedTargets);
+    }
+
     const monthAValue = (document.getElementById('month-a-select') as HTMLSelectElement).value;
     const monthBValue = (document.getElementById('month-b-select') as HTMLSelectElement).value;
 
     if (!monthAValue || !monthBValue) return;
 
-    // Helper to aggregate daily summaries for a given month
     const aggregateMonth = (month: string) => {
         const monthSummaries = summaries.filter(s => s.date.toISOString().startsWith(month));
         return monthSummaries.reduce((acc, s) => {
@@ -1019,8 +1026,9 @@ function runMonthlyComparison(summaries: any[]) {
 
     const dataA = aggregateMonth(monthAValue);
     const dataB = aggregateMonth(monthBValue);
+    const apcA = dataA.totalTransactions > 0 ? dataA.totalOmzet / dataA.totalTransactions : 0;
+    const apcB = dataB.totalTransactions > 0 ? dataB.totalOmzet / dataB.totalTransactions : 0;
 
-    // Helper to calculate and format the percentage change
     const getChange = (valA: number, valB: number) => {
         if (valA === 0) return { text: 'N/A', class: 'text-gray-500' };
         const change = ((valB - valA) / valA) * 100;
@@ -1029,13 +1037,12 @@ function runMonthlyComparison(summaries: any[]) {
         return { text: `${sign} ${Math.abs(change).toFixed(1)}%`, class: color };
     };
 
-    // Prepare data for the table
     const comparisonData = [
-        { metric: 'Total Omzet', valA: dataA.totalOmzet, valB: dataB.totalOmzet, format: (v) => `Rp${v.toLocaleString('id-ID')}` },
-        { metric: 'Total Transactions', valA: dataA.totalTransactions, valB: dataB.totalTransactions, format: (v) => v.toLocaleString('id-ID') },
+        { metric: 'Total Omzet', id: 'omzet', valA: dataA.totalOmzet, valB: dataB.totalOmzet, format: (v) => `Rp${Math.round(v).toLocaleString('id-ID')}` },
+        { metric: 'Total Transactions', id: 'transactions', valA: dataA.totalTransactions, valB: dataB.totalTransactions, format: (v) => v.toLocaleString('id-ID') },
+        { metric: 'Average Transaction', id: 'apc', valA: apcA, valB: apcB, format: (v) => `Rp${Math.round(v).toLocaleString('id-ID')}` }
     ];
 
-    // Populate the table
     const tbody = document.getElementById('comparison-tbody');
     tbody.innerHTML = '';
     comparisonData.forEach(item => {
@@ -1043,23 +1050,69 @@ function runMonthlyComparison(summaries: any[]) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.metric}</td>
+            <td class="px-6 py-4"><input type="text" id="target-${item.id}" data-metric-id="${item.id}" class="target-input w-32 border-gray-300 rounded-md shadow-sm text-sm p-1" placeholder="Enter target..."></td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.format(item.valA)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.format(item.valB)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold ${change.class}">${change.text}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold" id="target-result-${item.id}">-</td>
         `;
         tbody.appendChild(tr);
     });
     
-    // Update headers
     document.getElementById('month-a-header').textContent = new Date(monthAValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
     document.getElementById('month-b-header').textContent = new Date(monthBValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
 
-    // Store the full daily data for AI analysis
+    document.querySelectorAll('.target-input').forEach(input => {
+        const metricId = (input as HTMLElement).dataset.metricId;
+        const metricData = comparisonData.find(d => d.id === metricId);
+
+        // --- NEW: Function to update and save targets ---
+        const updateTarget = (targetValue) => {
+            monthlyComparisonTargets[metricId] = targetValue;
+            localStorage.setItem('monthlyComparisonTargets', JSON.stringify(monthlyComparisonTargets));
+
+            const actualValue = metricData.valB;
+            const resultCell = document.getElementById(`target-result-${metricId}`);
+            const targetChange = getChange(targetValue, actualValue);
+            
+            resultCell.textContent = targetChange.text;
+            resultCell.className = `px-6 py-4 whitespace-nowrap text-sm font-semibold ${targetChange.class}`;
+        };
+
+        // --- NEW: Load and apply saved target on initialization ---
+        const savedTarget = monthlyComparisonTargets[metricId];
+        if (savedTarget) {
+            (input as HTMLInputElement).value = metricData.format(savedTarget);
+            updateTarget(savedTarget);
+        }
+
+        input.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            let cursorPosition = target.selectionStart;
+            let originalLength = target.value.length;
+            const rawValue = target.value.replace(/[^0-9]/g, '');
+            const targetValue = parseFloat(rawValue) || 0;
+            
+            let formattedValue = "";
+            if(rawValue) {
+                formattedValue = metricData.format(targetValue);
+            }
+            target.value = formattedValue;
+            
+            let newLength = target.value.length;
+            cursorPosition += (newLength - originalLength);
+            target.setSelectionRange(cursorPosition, cursorPosition);
+            
+            // Update and save the target
+            updateTarget(targetValue);
+        });
+    });
+
     chartDataForAI['monthlyComparison'] = {
         monthA: { month: monthAValue, summary: dataA },
         monthB: { month: monthBValue, summary: dataB }
     };
-}
+} 
 
 function runAnalysis(): void {
   const currentStartDate = new Date(document.getElementById('date-start').value);
@@ -1083,12 +1136,15 @@ function runAnalysis(): void {
   generateDailyOmzetHeatmapFromSummaries(currentData);
   generateOmzetHeatmapFromSummaries(currentData);
   generateOmzetMingguanChartFromSummaries(currentData);
+  generateOmzetBulananChartFromSummaries(currentData);
   generateOmzetOutletChartFromSummaries(currentData);
   generatePenjualanBulananChartFromSummaries(currentData);
   generatePenjualanChannelChartFromSummaries(currentData);
   generateSalesTrendHourlyDailyChartFromSummaries(currentData);
   generateProductAnalysisChartsFromSummaries(currentData);
   generateCabangAnalysisFromSummaries(currentData);
+  generateMenuSalesTrendChart(currentData);
+  
   
   console.log("Analysis complete with pre-calculated summaries.");
 }
@@ -1181,6 +1237,91 @@ function generateCabangAnalysisFromSummaries(summaries: any[]) {
         tbody.appendChild(tr);
     });
     chartDataForAI['cabangDetail'] = sortedByRevenue;
+}
+
+function generateMenuSalesTrendChart(summaries: any[]) {
+    const menuSelectElement = document.getElementById('menu-select') as HTMLSelectElement;
+    
+    // 1. Get a list of all unique, non-package menu items from the summaries
+    const allMenuItems = new Set<string>();
+    summaries.forEach(s => {
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                for (const menuName in s.menuItemQuantities[category]) {
+                    if (!menuName.includes('(PACKAGE)')) {
+                        allMenuItems.add(menuName);
+                    }
+                }
+            }
+        }
+    });
+
+    const sortedMenuItems = Array.from(allMenuItems).sort();
+    
+    // 2. Populate the dropdown with all available menu items
+    menuSelectElement.innerHTML = sortedMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
+
+    // 3. Initialize the Slim Select dropdown
+    const slim = new SlimSelect({
+        select: '#menu-select',
+        settings: {
+            placeholderText: 'Choose menu items...',
+            searchPlaceholder: 'Search for a menu item',
+        },
+        // When the selection changes, redraw the chart
+        events: {
+            afterChange: () => drawChart()
+        }
+    });
+
+    // Set some initial items to display on the chart
+    slim.setSelected(sortedMenuItems.slice(0, 3)); // Select the first 3 items by default
+
+    // 4. Create the function that draws/updates the chart
+    function drawChart() {
+        const selectedMenus = slim.getSelected() as string[];
+        if (selectedMenus.length === 0) {
+            if (charts['menu-sales-trend-chart']) charts['menu-sales-trend-chart'].destroy();
+            return;
+        }
+
+        const labels = summaries.map(s => s.date.toISOString().split('T')[0]).sort();
+        const datasets = selectedMenus.map((menuName, index) => {
+            const dataPoints = labels.map(dateStr => {
+                const summaryForDay = summaries.find(s => s.date.toISOString().startsWith(dateStr));
+                let quantity = 0;
+                if (summaryForDay && summaryForDay.menuItemQuantities) {
+                    // Find the quantity for the menu item, regardless of its category
+                    for (const category in summaryForDay.menuItemQuantities) {
+                        if (summaryForDay.menuItemQuantities[category][menuName]) {
+                            quantity = summaryForDay.menuItemQuantities[category][menuName];
+                            break;
+                        }
+                    }
+                }
+                return quantity;
+            });
+            
+            const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+            return {
+                label: menuName,
+                data: dataPoints,
+                borderColor: colors[index % colors.length],
+                tension: 0.1,
+                fill: false
+            };
+        });
+        
+        chartDataForAI['menuSalesTrend'] = { selectedMenus, datasets };
+
+        createChart('menu-sales-trend-chart', 'line', {
+            labels,
+            datasets
+        }, deepmerge(
+            chartYTicks(shortenNumber),
+            chartXTicks(shortenDateTickCallback)
+        ));
+    }
 }
 
 function generateYoYAnalysisFromSummaries(summaries: any[]) {
@@ -1487,6 +1628,44 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[]) {
         chartYTicks(shortenCurrency),
         chartXTicks(shortenDateTickCallback),
     ));
+}
+
+function generateOmzetBulananChartFromSummaries(summaries: any[]) {
+    const monthlyOmzet = summaries.reduce((acc, summary) => {
+        const monthLabel = summary.date.toISOString().slice(0, 7);
+        acc[monthLabel] = (acc[monthLabel] || 0) + summary.totalOmzet;
+        return acc;
+    }, {});
+
+    const sortedMonths = Object.keys(monthlyOmzet).sort();
+    chartDataForAI['omzetBulanan'] = monthlyOmzet;
+
+    const chartLabels = sortedMonths.map(monthStr => {
+        const date = new Date(monthStr + '-02');
+        return date.toLocaleString('default', { month: 'short', year: 'numeric' });
+    });
+
+    // --- FIX: Replaced the chart options with a simpler, correct version ---
+    createChart('omzet-bulanan-chart', 'line', {
+        labels: chartLabels,
+        datasets: [{
+            label: 'Total Omzet Bulanan',
+            data: sortedMonths.map((month) => monthlyOmzet[month]),
+            borderColor: '#8B5CF6',
+            tension: 0.1,
+        }],
+    }, {
+        // This new options object correctly configures the axes.
+        scales: {
+            y: {
+                ticks: { callback: shortenCurrency } // Keep the currency formatting for the y-axis.
+            },
+            x: {
+                // By not specifying a 'type', we let Chart.js use the default 'category'
+                // scale, which will correctly display the month names from the labels.
+            }
+        }
+    });
 }
 
 function generateOmzetHeatmapFromSummaries(summaries: any[]) {
@@ -3406,27 +3585,34 @@ function generateMonthlySummary(dailySummaries: any[], fileName: string) {
  * // "Sales_Jan_2024.xlsx - Uploaded on: 1/15/2024, 2:30:00 PM [View] [Delete]"
  */
 async function loadUploadHistory(): Promise<void> {
-  if (!currentUser) return
-  const historyCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)
-  const querySnapshot = await getDocs(historyCollectionRef)
+  if (!currentUser) return;
+  const historyCollectionRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
+  const querySnapshot = await getDocs(query(historyCollectionRef, orderBy("createdAt", "desc")));
 
-  uploadHistoryList.innerHTML = ''
+  uploadHistoryList.innerHTML = '';
   if (querySnapshot.empty) {
-    uploadHistoryList.appendChild(noUploadsMsg)
+    uploadHistoryList.appendChild(noUploadsMsg);
   } else {
-    noUploadsMsg.remove()
+    noUploadsMsg.remove();
     querySnapshot.forEach((docSnap) => {
-      const upload = docSnap.data()
-      const div = document.createElement('div')
-      div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg'
+      const upload = docSnap.data();
+      const div = document.createElement('div');
+      div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg';
+      
+      // --- FIX: Use new fields to create the two-line display ---
+      const displayName = upload.branchName && upload.period 
+        ? `<p class="font-semibold">${upload.branchName}</p><p class="text-sm text-gray-500">Periode: ${upload.period}</p>`
+        : `<p class="font-semibold">${upload.name}</p><p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>`; // Fallback for old uploads
+
+      const fileNameForRecap = upload.branchName ? `${upload.branchName} - ${upload.period}` : upload.name;
+
       div.innerHTML = `
         <div>
-            <p class="font-semibold">${upload.name}</p>
-            <p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>
+            ${displayName}
         </div>
         <div>
-            <button class="monthly-summary-btn bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-purple-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Monthly Summary</button>
-            <button class="summary-history-btn bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-gray-600 mr-2" data-id="${docSnap.id}" data-name="${upload.name}">Daily Summary</button>
+            <button class="monthly-summary-btn bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-purple-600 mr-2" data-id="${docSnap.id}" data-name="${fileNameForRecap}">Monthly Summary</button>
+            <button class="summary-history-btn bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-gray-600 mr-2" data-id="${docSnap.id}" data-name="${fileNameForRecap}">Daily Summary</button>
             <button class="view-history-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
             <button class="delete-history-btn bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-red-600 ml-2" data-id="${docSnap.id}">Delete</button>
         </div>
