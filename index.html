@@ -330,7 +330,9 @@
     <h2 class="text-2xl font-semibold mb-4">P&L Report History</h2>
     <p class="text-gray-600 mb-4">View all of your saved Profit & Loss statements.</p>
     <button id="view-pnl-history-btn" class="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition duration-300">View P&L History</button>
+    <button id="pnl-comparison-btn" class="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition duration-300 ml-2">P&L Comparison</button>
 </div>
+
                 <div class="bg-white rounded-lg shadow-lg p-8">
                     <h2 class="text-2xl font-semibold mb-4">Individual Upload History</h2>
                     <div id="upload-history-list" class="space-y-4">
@@ -1225,6 +1227,55 @@
         </div>
     </div>
 </div>
+</div>
+
+<div id="pnl-comparison-view" class="hidden">
+    <div class="flex justify-between items-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-800">P&L Comparison</h2>
+        <button id="back-to-dashboard-from-pnl-comp-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Dashboard</button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Compare P&L Statements</h3>
+        <p class="text-gray-600 mb-6">Select two saved P&L reports to compare them side-by-side.</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end bg-gray-50 p-4 rounded-lg border mb-8">
+            <div>
+                <label for="pnl-a-select" class="block text-sm font-medium text-gray-700">Compare this report:</label>
+                <select id="pnl-a-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+            </div>
+            <div>
+                <label for="pnl-b-select" class="block text-sm font-medium text-gray-700">With this report:</label>
+                <select id="pnl-b-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+            </div>
+        </div>
+
+        <div id="pnl-comparison-results-container" class="mt-6">
+            <h4 class="text-xl font-semibold text-gray-700 mb-3">Comparison Results</h4>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                   <thead class="bg-gray-50">
+    <tr class="text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Metric</th>
+        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Target</th>
+        <th scope="colgroup" colspan="2" class="px-6 py-3 text-center border-l border-r" id="pnl-a-header">Report A</th>
+        <th scope="colgroup" colspan="2" class="px-6 py-3 text-center border-l border-r" id="pnl-b-header">Report B</th>
+        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Change</th>
+        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Compared to Target</th>
+    </tr>
+    <tr class="text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th scope="col" class="px-6 py-3 text-left font-normal border-l">Amount</th>
+        <th scope="col" class="px-6 py-3 text-right font-normal border-r">% of Rev</th>
+        <th scope="col" class="px-6 py-3 text-left font-normal border-l">Amount</th>
+        <th scope="col" class="px-6 py-3 text-right font-normal border-r">% of Rev</th>
+    </tr>
+</thead>
+                    <tbody id="pnl-comparison-tbody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="pnl-history-view" class="hidden">

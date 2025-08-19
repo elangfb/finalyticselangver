@@ -93,6 +93,8 @@ let monthlyComparisonTargets = {};
 let pnlStructure = null;
 let pnlExcelData = []; // To hold the data from the uploaded P&L file
 let currentPnlData = {};
+let savedPnlReports = [];
+
 
 
 const plAnalysisView = document.getElementById('pl-analysis-view');
@@ -169,6 +171,289 @@ document.getElementById('back-to-mapping-btn').addEventListener('click', () => {
     document.getElementById('pnl-upload-view').classList.remove('hidden');
 });
 
+
+// --- P&L Comparison Logic ---
+
+// Navigation listeners for the new view
+document.getElementById('pnl-comparison-btn').addEventListener('click', () => {
+    showView('pnl-comparison');
+    setupPnlComparison();
+});
+
+document.getElementById('back-to-dashboard-from-pnl-comp-btn').addEventListener('click', () => showView('dashboard'));
+
+/**
+ * Fetches saved P&L reports and sets up the comparison dropdowns.
+ */
+async function setupPnlComparison() {
+    if (!currentUser) return;
+
+    const selectA = document.getElementById('pnl-a-select') as HTMLSelectElement;
+    const selectB = document.getElementById('pnl-b-select') as HTMLSelectElement;
+    selectA.innerHTML = '<option>Loading reports...</option>';
+    selectB.innerHTML = '<option>Loading reports...</option>';
+
+    try {
+        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const q = query(pnlReportsRef, orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+
+        savedPnlReports = [];
+        querySnapshot.forEach(doc => {
+            savedPnlReports.push({ id: doc.id, ...doc.data() });
+        });
+
+        if (savedPnlReports.length < 2) {
+            selectA.innerHTML = '<option>Need at least 2 saved reports</option>';
+            selectB.innerHTML = '<option>Need at least 2 saved reports</option>';
+            document.getElementById('pnl-comparison-tbody').innerHTML = '';
+            return;
+        }
+
+        const optionsHtml = savedPnlReports.map(report => 
+            `<option value="${report.id}">${report.title}</option>`
+        ).join('');
+        
+        selectA.innerHTML = optionsHtml;
+        selectB.innerHTML = optionsHtml;
+
+        // Set default selections to the two most recent reports
+        selectA.value = savedPnlReports[1].id; // Second most recent
+        selectB.value = savedPnlReports[0].id; // Most recent
+
+        // Add event listeners to re-run comparison when selection changes
+        selectA.addEventListener('change', runPnlComparison);
+        selectB.addEventListener('change', runPnlComparison);
+        
+        runPnlComparison(); // Run initial comparison
+
+    } catch (error) {
+        console.error("Error setting up P&L comparison:", error);
+        selectA.innerHTML = '<option>Error loading reports</option>';
+        selectB.innerHTML = '<option>Error loading reports</option>';
+    }
+}
+
+/**
+ * Runs the P&L comparison and renders the results table.
+ */
+function runPnlComparison() {
+    // --- Initial Setup (unchanged) ---
+    const selectA = document.getElementById('pnl-a-select') as HTMLSelectElement;
+    const selectB = document.getElementById('pnl-b-select') as HTMLSelectElement;
+    const reportA = savedPnlReports.find(r => r.id === selectA.value);
+    const reportB = savedPnlReports.find(r => r.id === selectB.value);
+    if (!reportA || !reportB) return;
+    document.getElementById('pnl-a-header').textContent = reportA.title;
+    document.getElementById('pnl-b-header').textContent = reportB.title;
+    const tbody = document.getElementById('pnl-comparison-tbody');
+    tbody.innerHTML = '';
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+    const getChange = (valA, valB) => {
+        if (valA === 0 && valB === 0) return { text: '0.0%', class: 'text-gray-500' };
+        if (valA === 0) return { text: 'N/A', class: 'text-gray-500' };
+        const change = ((valB - valA) / valA) * 100;
+        const sign = change >= 0 ? '▲' : '▼';
+        const color = change >= 0 ? 'text-green-600' : 'text-red-600';
+        return { text: `${sign} ${Math.abs(change).toFixed(1)}%`, class: color };
+    };
+
+    // --- Data Calculation (unchanged) ---
+    const calculateAllValues = (pnlData) => {
+        const getCatTotal = (catName) => Object.values(pnlData[catName] || {}).reduce((sum: number, val: number) => sum + val, 0);
+        const revenue = getCatTotal("Pendapatan (Revenue)");
+        const hpp = getCatTotal("Harga Pokok Produksi");
+        const opex = getCatTotal("Beban Operasional (OPEX)");
+        const nonOpex = getCatTotal("Beban Non Operasional");
+        const depr = getCatTotal("Depresiasi/ Amortisasi");
+        const bunga = getCatTotal("Bunga");
+        const pajak = getCatTotal("Pajak (PB1)");
+        const grossProfit = revenue - hpp;
+        const netOpIncome = grossProfit - opex;
+        const ebitda = netOpIncome - nonOpex;
+        const netIncome = ebitda - depr - bunga - pajak;
+        return {
+            "Pendapatan (Revenue)": revenue, "Harga Pokok Produksi": hpp, "Laba Kotor (Gross Profit)": grossProfit,
+            "Beban Operasional (OPEX)": opex, "Pendapatan Bersih Operasional (Net Operating Income)": netOpIncome,
+            "Beban Non Operasional": nonOpex, "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": ebitda,
+            "Depresiasi/ Amortisasi": depr, "Bunga": bunga, "Pajak (PB1)": pajak, "Pendapatan Bersih (Net Income)": netIncome,
+        };
+    };
+    const resultsA = calculateAllValues(reportA.pnlData);
+    const resultsB = calculateAllValues(reportB.pnlData);
+    const totalRevenueA = resultsA["Pendapatan (Revenue)"];
+    const totalRevenueB = resultsB["Pendapatan (Revenue)"];
+    const structureOrder = Object.keys(resultsA);
+    const savedTargets = JSON.parse(localStorage.getItem('pnlComparisonTargets') || '{}');
+    const readOnlyItems = ["Laba Kotor (Gross Profit)", "Pendapatan Bersih Operasional (Net Operating Income)", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", "Pendapatan Bersih (Net Income)"];
+
+    // --- Render Table Rows (unchanged) ---
+    structureOrder.forEach(item => {
+        const isReadOnly = readOnlyItems.includes(item);
+        const tr = document.createElement('tr');
+        tr.className = isReadOnly ? 'bg-gray-50 font-semibold' : 'bg-white';
+        // ... (The rest of the rendering logic is identical to the previous version)
+        const valA = resultsA[item];
+        const valB = resultsB[item];
+        const change = getChange(valA, valB);
+        const percentA = totalRevenueA > 0 ? (valA / totalRevenueA) * 100 : 0;
+        const percentB = totalRevenueB > 0 ? (valB / totalRevenueB) * 100 : 0;
+        let targetCellHtml = '';
+        const safeItemName = btoa(item);
+        const isMainCategory = !isReadOnly;
+        if (item === "Pendapatan (Revenue)") {
+            targetCellHtml = `<input type="text" class="pnl-target-input w-full border-gray-300 rounded-md shadow-sm text-sm p-1 mb-1" data-item-name="${item}" data-input-type="amount" id="pnl-target-amount-${safeItemName}" placeholder="Enter target..."><div class="text-center text-gray-500 text-sm font-semibold">100%</div>`;
+        } else if (isReadOnly) {
+            targetCellHtml = `<input type="text" class="w-full border-gray-200 bg-gray-200 rounded-md shadow-sm text-sm p-1 mb-1 text-gray-500" id="pnl-target-amount-${safeItemName}" readonly><input type="text" class="w-full border-gray-200 bg-gray-200 rounded-md shadow-sm text-sm p-1 text-right text-gray-500" id="pnl-target-percent-${safeItemName}" readonly>`;
+        } else {
+            targetCellHtml = `<input type="text" class="pnl-target-input w-full border-gray-300 rounded-md shadow-sm text-sm p-1 mb-1" data-item-name="${item}" data-input-type="amount" id="pnl-target-amount-${safeItemName}" placeholder="Enter amount..."><input type="text" class="pnl-target-input w-full border-gray-300 rounded-md shadow-sm text-sm p-1 text-right" data-item-name="${item}" data-input-type="percent" id="pnl-target-percent-${safeItemName}" placeholder="% of Revenue">`;
+        }
+        const metricCellHtml = isMainCategory 
+            ? `<span class="flex items-center cursor-pointer pnl-row-toggle" data-category="${safeItemName}"><svg class="w-4 h-4 mr-2 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>${item}</span>`
+            : item;
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${isReadOnly ? 'text-gray-900' : 'text-gray-800'}">${metricCellHtml}</td>
+            <td class="px-6 py-4 min-w-48">${targetCellHtml}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono border-l">${formatCurrency(valA)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono text-right border-r">${percentA.toFixed(1)}%</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono border-l">${formatCurrency(valB)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono text-right border-r">${percentB.toFixed(1)}%</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold ${change.class}">${change.text}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold" id="pnl-target-result-${safeItemName}">-</td>`;
+        tbody.appendChild(tr);
+        if (isMainCategory) {
+            const subItemsA = reportA.pnlData[item] || {};
+            const subItemsB = reportB.pnlData[item] || {};
+            const allSubItemNames = new Set([...Object.keys(subItemsA), ...Object.keys(subItemsB)]);
+
+            allSubItemNames.forEach(subItemName => {
+                const childTr = document.createElement('tr');
+                childTr.className = `hidden pnl-subcategory-row bg-white`;
+                childTr.dataset.category = safeItemName;
+
+                const subValA = subItemsA[subItemName] || 0;
+                const subValB = subItemsB[subItemName] || 0;
+                const subPercentA = totalRevenueA > 0 ? (subValA / totalRevenueA) * 100 : 0;
+                const subPercentB = totalRevenueB > 0 ? (subValB / totalRevenueB) * 100 : 0;
+                
+                // 1. Calculate the change for the sub-item
+                const subItemChange = getChange(subValA, subValB);
+
+                // 2. Add the result to the innerHTML
+                childTr.innerHTML = `
+                    <td class="pl-12 pr-6 py-3 whitespace-nowrap text-sm text-gray-500">${subItemName}</td>
+                    <td></td> <td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValA)}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentA.toFixed(1)}%</td>
+                    <td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValB)}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentB.toFixed(1)}%</td>
+                    <td class="px-6 py-3 text-sm font-semibold ${subItemChange.class}">${subItemChange.text}</td> <td></td> `;
+                tbody.appendChild(childTr);
+            });
+        }
+    });
+    
+    // --- UPDATED and REVISED: Calculation Chain and Event Handling ---
+    const getTargetValue = (itemName) => parseFloat((document.getElementById(`pnl-target-amount-${btoa(itemName)}`) as HTMLInputElement)?.value.replace(/[^0-9-]/g, '') || '0');
+    
+    const updateTargetRow = (itemName, newAmount, revenueTarget) => {
+        const safeName = btoa(itemName);
+        const amountInput = document.getElementById(`pnl-target-amount-${safeName}`) as HTMLInputElement;
+        const percentInput = document.getElementById(`pnl-target-percent-${safeName}`) as HTMLInputElement;
+        const resultCell = document.getElementById(`pnl-target-result-${safeName}`);
+        
+        if (amountInput) amountInput.value = formatCurrency(newAmount);
+        if (percentInput) percentInput.value = revenueTarget > 0 ? `${((newAmount / revenueTarget) * 100).toFixed(1)}%` : '0.0%';
+        
+        const actualValue = resultsB[itemName];
+        const change = getChange(newAmount, actualValue);
+        if (resultCell) {
+            resultCell.textContent = change.text;
+            resultCell.className = `px-6 py-4 whitespace-nowrap text-sm font-semibold ${change.class}`;
+        }
+    };
+    
+    const runFullCalculationChain = () => {
+        const revenue = getTargetValue("Pendapatan (Revenue)");
+        const hpp = getTargetValue("Harga Pokok Produksi");
+        const opex = getTargetValue("Beban Operasional (OPEX)");
+        const nonOpex = getTargetValue("Beban Non Operasional");
+        const depr = getTargetValue("Depresiasi/ Amortisasi");
+        const bunga = getTargetValue("Bunga");
+        const pajak = getTargetValue("Pajak (PB1)");
+
+        const grossProfit = revenue - hpp;
+        updateTargetRow("Laba Kotor (Gross Profit)", grossProfit, revenue);
+        const noi = grossProfit - opex;
+        updateTargetRow("Pendapatan Bersih Operasional (Net Operating Income)", noi, revenue);
+        const ebitda = noi - nonOpex;
+        updateTargetRow("Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", ebitda, revenue);
+        const netIncome = ebitda - depr - bunga - pajak;
+        updateTargetRow("Pendapatan Bersih (Net Income)", netIncome, revenue);
+    };
+
+    tbody.addEventListener('click', (e) => {
+        const toggle = (e.target as HTMLElement).closest('.pnl-row-toggle');
+        if (toggle) {
+            const category = toggle.dataset.category;
+            const icon = toggle.querySelector('.chevron-icon');
+            icon.classList.toggle('rotate-90');
+            document.querySelectorAll(`.pnl-subcategory-row[data-category="${category}"]`).forEach(row => row.classList.toggle('hidden'));
+        }
+    });
+    
+    document.querySelectorAll('.pnl-target-input').forEach(inputEl => {
+        const input = inputEl as HTMLInputElement;
+        const itemName = input.dataset.itemName;
+        input.addEventListener('input', () => {
+            const revenueTarget = getTargetValue("Pendapatan (Revenue)");
+            const inputType = input.dataset.inputType;
+
+            let targetValue: number;
+            if (inputType === 'amount') {
+                const rawValue = input.value.replace(/[^0-9-]/g, '');
+                targetValue = parseFloat(rawValue) || 0;
+                input.value = targetValue ? formatCurrency(targetValue) : '';
+                const percentInput = document.getElementById(`pnl-target-percent-${btoa(itemName)}`) as HTMLInputElement;
+                if (percentInput && revenueTarget > 0) {
+                    percentInput.value = targetValue ? `${((targetValue / revenueTarget) * 100).toFixed(1)}%` : '';
+                }
+            } else if (inputType === 'percent') {
+                const rawPercent = input.value.replace(/[^0-9.-]/g, '');
+                const targetPercent = parseFloat(rawPercent) || 0;
+                input.value = targetPercent ? `${targetPercent}%` : '';
+                targetValue = (targetPercent / 100) * revenueTarget;
+                (document.getElementById(`pnl-target-amount-${btoa(itemName)}`) as HTMLInputElement).value = formatCurrency(targetValue);
+            }
+            
+            savedTargets[itemName] = targetValue;
+            localStorage.setItem('pnlComparisonTargets', JSON.stringify(savedTargets));
+            
+            // Update the "Compared to Target" for the edited row itself
+            updateTargetRow(itemName, targetValue, revenueTarget);
+            
+            // Trigger the full calculation chain to update all dependent subtotals
+            runFullCalculationChain();
+        });
+    });
+
+    // --- Initial Load ---
+    document.querySelectorAll('.pnl-target-input[data-input-type="amount"]').forEach(inputEl => {
+        const input = inputEl as HTMLInputElement;
+        const itemName = input.dataset.itemName;
+        if (savedTargets[itemName] !== undefined) {
+            input.value = formatCurrency(savedTargets[itemName]);
+            // Manually trigger the update logic for each loaded target
+            const targetValue = savedTargets[itemName];
+            const revenueTarget = savedTargets["Pendapatan (Revenue)"] || 0;
+            updateTargetRow(itemName, targetValue, revenueTarget);
+            const percentInput = document.getElementById(`pnl-target-percent-${btoa(itemName)}`) as HTMLInputElement;
+            if (percentInput && revenueTarget > 0) {
+                 percentInput.value = targetValue ? `${((targetValue / revenueTarget) * 100).toFixed(1)}%` : '';
+            }
+        }
+    });
+    runFullCalculationChain(); // Run all calculations once on load
+}
 
 /**
  * Renders the final, calculated P&L statement.
@@ -785,14 +1070,16 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
  */
 function showView(viewName: string): void {
   const pnlHistoryView = document.getElementById('pnl-history-view'); // Get the new view element
+  const pnlComparisonView = document.getElementById('pnl-comparison-view');
   // Add the new view to this array
-  [authView, dashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView].forEach((v) => v.classList.add('hidden'));
+  [authView, dashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView, pnlComparisonView].forEach((v) => v?.classList.add('hidden'));
 
   if (viewName === 'auth') authView.classList.remove('hidden');
   else if (viewName === 'pl-analysis') plAnalysisView.classList.remove('hidden');
   else if (viewName === 'dashboard') dashboardView.classList.remove('hidden');
   else if (viewName === 'analysis') analysisView.classList.remove('hidden');
-  else if (viewName === 'pnl-history') pnlHistoryView.classList.remove('hidden'); // Add this line
+  else if (viewName === 'pnl-history') pnlHistoryView.classList.remove('hidden');
+  else if (viewName === 'pnl-comparison') pnlComparisonView.classList.remove('hidden');
   else if (viewName === 'usermanagement') {
     if (currentUserRole === 'admin') {
       userManagementView.classList.remove('hidden');
