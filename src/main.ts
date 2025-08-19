@@ -13,6 +13,8 @@
 /* eslint-disable */
 // @ts-nocheck
 
+declare const XLSX: any;
+
 // Firebase Imports
 import { initializeApp } from 'firebase/app'
 import {
@@ -88,6 +90,12 @@ let adminCredentials = null
 let yoyYearSelectInitialized = false
 let monthlyComparisonInitialized = false;
 let monthlyComparisonTargets = {};
+let pnlStructure = null;
+let pnlExcelData = []; // To hold the data from the uploaded P&L file
+let currentPnlData = {};
+
+
+const plAnalysisView = document.getElementById('pl-analysis-view');
 
 const defaultGeminiConfig = Object.freeze({
   apiKey: '',
@@ -111,6 +119,493 @@ const userListError = document.getElementById('user-list-error')
 const createUserFeedback = document.getElementById('create-user-feedback')
 const DB_NAME = 'FinalyticsCacheDB';
 const STORE_NAME = 'compiledDataStore';
+
+document.getElementById('confirm-mapping-btn').addEventListener('click', () => {
+    const pnlResult = {};
+    const mappingSelects = document.querySelectorAll('.pnl-mapping-select');
+    
+    for (const category in pnlStructure) {
+        pnlResult[category] = {};
+    }
+    mappingSelects.forEach((select, index) => {
+        const selectedItem = (select as HTMLSelectElement).value;
+        if (selectedItem) {
+            const excelRow = pnlExcelData[index];
+            const itemName = excelRow[0];
+            const itemValue = excelRow[1];
+            for (const category in pnlStructure) {
+                if (pnlStructure[category].includes(selectedItem)) {
+                    pnlResult[category][itemName] = itemValue;
+                    break;
+                }
+            }
+        }
+    });
+
+    renderPnlResults(pnlResult);
+    document.getElementById('pnl-upload-view').classList.add('hidden');
+    document.getElementById('pnl-results-view').classList.remove('hidden');
+    
+    document.getElementById('pnl-review-mode-header').classList.remove('hidden');
+    document.getElementById('pnl-view-mode-header').classList.add('hidden');
+    document.getElementById('pnl-title-input-wrapper').classList.remove('hidden');
+    document.getElementById('save-pnl-report-btn-wrapper').classList.remove('hidden');
+    document.getElementById('back-to-mapping-btn').classList.remove('hidden');
+    
+    // --- ADD THESE LINES TO RESET THE SAVE BUTTON ---
+    const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save Report';
+    // Ensure the button has the correct active color
+    saveButton.classList.remove('bg-gray-400');
+    saveButton.classList.add('bg-green-600');
+    // Clear the title from the previous report
+    (document.getElementById('pnl-report-title') as HTMLInputElement).value = '';
+});
+
+// Add this new event listener as well
+document.getElementById('back-to-mapping-btn').addEventListener('click', () => {
+    document.getElementById('pnl-results-view').classList.add('hidden');
+    document.getElementById('pnl-upload-view').classList.remove('hidden');
+});
+
+
+/**
+ * Renders the final, calculated P&L statement.
+ * @param {object} pnlData - The mapped P&L data, categorized.
+ */
+/**
+ * Renders the final, calculated P&L statement with all subtotals.
+ * @param {object} pnlData - The mapped P&L data, categorized.
+ */
+function renderPnlResults(pnlData) {
+    currentPnlData = pnlData;
+    const container = document.getElementById('pnl-results-container');
+    container.innerHTML = '';
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+    // Initialize all total variables we'll need for calculations
+    let totalRevenue = 0;
+    let totalHPP = 0;
+    let totalOpex = 0;
+    let totalNonOpex = 0;
+    let totalDepresiasi = 0;
+    let totalBunga = 0;
+    let totalPajak = 0;
+
+    // Helper function to render a category section and update its total
+    const renderCategory = (categoryName) => {
+        const data = pnlData[categoryName] || {};
+        const categoryTotal = Object.values(data).reduce((sum, value) => sum + (value as number), 0);
+
+        // Update the corresponding total variable based on the category name
+        if (categoryName === "Pendapatan (Revenue)") totalRevenue = categoryTotal;
+        if (categoryName === "Harga Pokok Produksi") totalHPP = categoryTotal;
+        if (categoryName === "Beban Operasional (OPEX)") totalOpex = categoryTotal;
+        if (categoryName === "Beban Non Operasional") totalNonOpex = categoryTotal;
+        if (categoryName === "Depresiasi/ Amortisasi") totalDepresiasi = categoryTotal;
+        if (categoryName === "Bunga") totalBunga = categoryTotal;
+        if (categoryName === "Pajak (PB1)") totalPajak = categoryTotal;
+
+        const itemsHtml = Object.entries(data).map(([name, value]) => `
+            <div class="flex justify-between text-sm text-gray-600 pl-4">
+                <span>${name}</span>
+                <span class="font-mono">${formatCurrency(value as number)}</span>
+            </div>
+        `).join('');
+        
+        // Don't show a total line if there are no items
+        const totalHtml = Object.keys(data).length > 0 ? `
+            <div class="flex justify-between font-semibold pt-1 border-t mt-1">
+                <span>Total ${categoryName}</span>
+                <span class="font-mono">${formatCurrency(categoryTotal)}</span>
+            </div>
+        ` : '';
+
+        return `
+            <div class="mb-4">
+                <h4 class="font-bold text-md text-gray-800">${categoryName}</h4>
+                <div class="space-y-1 mt-2">${itemsHtml}</div>
+                ${totalHtml}
+            </div>
+        `;
+    };
+
+    // Helper function to render a calculated subtotal row with highlighting
+    const renderSubtotal = (label, value, colorClass) => {
+        return `
+            <div class="flex justify-between font-bold text-lg py-2 my-2 ${colorClass} rounded-md px-4">
+                <span>${label}</span>
+                <span class="font-mono">${formatCurrency(value)}</span>
+            </div>
+        `;
+    };
+
+    // --- Build the HTML string in the correct financial statement order ---
+    let finalHtml = '';
+
+    finalHtml += renderCategory("Pendapatan (Revenue)");
+    finalHtml += renderCategory("Harga Pokok Produksi");
+    const grossProfit = totalRevenue - totalHPP;
+    finalHtml += renderSubtotal("Laba Kotor (Gross Profit)", grossProfit, "bg-yellow-100");
+
+    finalHtml += renderCategory("Beban Operasional (OPEX)");
+    const netOperatingIncome = grossProfit - totalOpex;
+    finalHtml += renderSubtotal("Pendapatan Bersih Operasional (Net Operating Income)", netOperatingIncome, "bg-blue-100");
+
+    finalHtml += renderCategory("Beban Non Operasional");
+    const ebitda = netOperatingIncome - totalNonOpex;
+    finalHtml += renderSubtotal("Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", ebitda, "bg-orange-100");
+
+    finalHtml += renderCategory("Depresiasi/ Amortisasi");
+    finalHtml += renderCategory("Bunga");
+    finalHtml += renderCategory("Pajak (PB1)");
+
+    const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
+    finalHtml += renderSubtotal("Pendapatan Bersih (Net Income)", netIncome, "bg-green-200");
+
+    container.innerHTML = finalHtml;
+}
+
+document.getElementById('save-pnl-report-btn').addEventListener('click', async () => {
+    const titleInput = document.getElementById('pnl-report-title') as HTMLInputElement;
+    const title = titleInput.value.trim();
+    const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
+
+    if (!title) {
+        alert('Please enter a title for the report before saving.');
+        titleInput.focus();
+        return;
+    }
+    if (!currentUser || Object.keys(currentPnlData).length === 0) {
+        alert('No data available to save.');
+        return;
+    }
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+
+    try {
+        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        await addDoc(pnlReportsRef, {
+            title: title,
+            createdAt: new Date(),
+            pnlData: currentPnlData
+        });
+        saveButton.textContent = 'Saved!';
+        saveButton.classList.replace('bg-green-600', 'bg-gray-400');
+        alert('Report saved successfully!');
+    } catch (error) {
+        console.error("Error saving P&L report:", error);
+        alert('Failed to save the report. Please try again.');
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Report';
+    }
+});
+
+// Add listeners for the new navigation buttons
+document.getElementById('view-pnl-history-btn').addEventListener('click', () => {
+    showView('pnl-history'); // We will add 'pnl-history' to showView next
+    loadPnlHistory();
+});
+
+document.getElementById('back-to-dashboard-from-pnl-history-btn').addEventListener('click', () => showView('dashboard'));
+
+
+// New function to load and display the list of saved P&L reports
+async function loadPnlHistory() {
+    if (!currentUser) return;
+    const historyList = document.getElementById('pnl-history-list');
+    const noReportsMsg = document.getElementById('no-pnl-reports-msg');
+    historyList.innerHTML = '<p>Loading history...</p>';
+
+    try {
+        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const q = query(pnlReportsRef, orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            historyList.innerHTML = '';
+            historyList.appendChild(noReportsMsg);
+            return;
+        }
+
+        historyList.innerHTML = '';
+        querySnapshot.forEach(docSnap => {
+            const report = docSnap.data();
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg';
+            div.innerHTML = `
+                <div>
+                    <p class="font-semibold text-gray-800">${report.title}</p>
+                    <p class="text-sm text-gray-500">Saved on: ${report.createdAt.toDate().toLocaleString()}</p>
+                </div>
+                <button class="view-saved-pnl-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
+            `;
+            historyList.appendChild(div);
+        });
+    } catch (error) {
+        console.error("Error loading P&L history:", error);
+        historyList.innerHTML = '<p class="text-red-500">Could not load history.</p>';
+    }
+}
+
+// Add a listener to the history list for the dynamically created "View" buttons
+document.getElementById('pnl-history-list').addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('view-saved-pnl-btn')) {
+        const reportId = target.dataset.id;
+        showLoading({ message: 'Loading report...', value: 50 });
+        try {
+            const reportRef = doc(db, `users/${currentUser.uid}/pnlReports`, reportId);
+            const docSnap = await getDoc(reportRef);
+            if (docSnap.exists()) {
+                const report = docSnap.data();
+                // Reuse the existing P&L review UI to show the saved data
+                showView('pl-analysis');
+                document.getElementById('pnl-template-view').classList.add('hidden');
+                document.getElementById('pnl-upload-view').classList.add('hidden');
+                const resultsView = document.getElementById('pnl-results-view');
+                resultsView.classList.remove('hidden');
+
+                (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
+                renderPnlResults(report.pnlData);
+                document.getElementById('pnl-review-mode-header').classList.add('hidden');
+                document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
+                document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
+                document.getElementById('back-to-mapping-btn').classList.add('hidden');
+
+                // Disable save button for already saved reports to avoid duplicates
+                const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
+                saveButton.disabled = true;
+                saveButton.textContent = 'Saved';
+                saveButton.classList.replace('bg-green-600', 'bg-gray-400');
+                document.getElementById('back-to-mapping-btn').classList.add('hidden');
+            }
+        } catch (error) {
+            console.error("Error loading saved report:", error);
+            alert("Could not load the selected report.");
+        } finally {
+            hideLoading();
+        }
+    }
+});
+
+async function handlePnlFileUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    showLoading({ message: 'Reading P&L file...', value: 50 });
+
+    try {
+        const data = await file.arrayBuffer();
+        // FIX: Changed xlsx -> XLSX
+        const workbook = XLSX.read(data); 
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Assuming P&L data is in the first two columns
+        // FIX: Changed xlsx -> XLSX
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        // Filter for rows that have a description (col A) and a number (col B)
+          pnlExcelData = jsonData.filter(row =>
+            typeof row[0] === 'string' &&
+            typeof row[1] === 'number' &&
+            !row[0].toLowerCase().startsWith('total')
+        );
+
+        renderPnlMappingUI();
+        document.getElementById('pnl-mapping-container').classList.remove('hidden');
+    } catch (error) {
+        console.error("Error reading P&L file:", error);
+        alert("Failed to read the Excel file. Please ensure it's a valid format.");
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Renders the smart mapping interface to match Excel items to the P&L template.
+ */
+function renderPnlMappingUI() {
+    const container = document.getElementById('pnl-mapping-table');
+    container.innerHTML = '';
+
+    // Flatten the template structure for easier searching
+    const allTemplateItems = Object.values(pnlStructure).flat();
+
+    pnlExcelData.forEach(([itemName, itemValue]) => {
+        // Try to find a smart match
+        const smartMatch = allTemplateItems.find(templateItem => 
+            templateItem.toLowerCase().includes(itemName.toLowerCase()) || 
+            itemName.toLowerCase().includes(templateItem.toLowerCase())
+        );
+
+        const optionsHtml = Object.keys(pnlStructure).map(category => {
+            const items = pnlStructure[category].map(item => 
+                `<option value="${item}" ${item === smartMatch ? 'selected' : ''}>${item}</option>`
+            ).join('');
+            return `<optgroup label="${category}">${items}</optgroup>`;
+        }).join('');
+
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-2 gap-4 items-center';
+        row.innerHTML = `
+            <div class="bg-gray-100 p-2 rounded-md">
+                <p class="text-sm font-semibold text-gray-800">${itemName}</p>
+                <p class="text-xs text-gray-500">Rp${itemValue.toLocaleString('id-ID')}</p>
+            </div>
+            <select class="pnl-mapping-select border-gray-300 rounded-md shadow-sm text-sm p-2">
+                <option value="">-- Unmapped --</option>
+                ${optionsHtml}
+            </select>
+        `;
+        container.appendChild(row);
+    });
+}
+
+// MODIFY the #pl-analysis-btn listener
+document.getElementById('pl-analysis-btn').addEventListener('click', () => setupPnlView());
+
+// ADD these new event listeners
+document.getElementById('save-pnl-template-btn').addEventListener('click', savePnlStructure);
+document.getElementById('go-to-upload-btn').addEventListener('click', () => {
+    document.getElementById('pnl-template-view').classList.add('hidden');
+    document.getElementById('pnl-upload-view').classList.remove('hidden');
+});
+
+document.getElementById('back-to-template-btn').addEventListener('click', () => {
+    document.getElementById('pnl-upload-view').classList.add('hidden');
+    document.getElementById('pnl-template-view').classList.remove('hidden');
+});
+
+document.getElementById('pnl-file-input').addEventListener('change', handlePnlFileUpload);
+document.getElementById('pnl-form-container').addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+
+    // Handle adding a new item
+    if (target.classList.contains('add-item-btn')) {
+        const input = target.previousElementSibling as HTMLInputElement;
+        const newItemName = input.value.trim();
+        if (newItemName) {
+            const list = input.parentElement.previousElementSibling as HTMLUListElement;
+            const newItemLi = document.createElement('li');
+            newItemLi.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md';
+            newItemLi.innerHTML = `<span class="item-name">${newItemName}</span><button class="remove-item-btn text-red-500 hover:text-red-700 text-xl">&times;</button>`;
+            list.appendChild(newItemLi);
+            input.value = ''; // Clear input
+        }
+    }
+
+    // Handle removing an item
+    if (target.classList.contains('remove-item-btn')) {
+        target.parentElement.remove();
+    }
+});
+
+async function setupPnlView() {
+    showView('pl-analysis');
+
+    // ADD THESE LINES to reset the P&L views to their initial state
+    document.getElementById('pnl-template-view').classList.remove('hidden');
+    document.getElementById('pnl-upload-view').classList.add('hidden');
+    document.getElementById('pnl-results-view').classList.add('hidden');
+
+    const container = document.getElementById('pnl-form-container');
+    container.innerHTML = '<div class="text-center p-8"><div class="loader"></div><p class="mt-2 text-gray-500">Loading your P&L template...</p></div>';
+
+    if (!currentUser) return;
+
+    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
+    const docSnap = await getDoc(pnlDocRef);
+
+    if (docSnap.exists()) {
+        pnlStructure = docSnap.data().structure;
+    } else {
+        // Default structure if one doesn't exist
+        pnlStructure = {
+            "Pendapatan (Revenue)": ["Penjualan Langsung", "Potongan Penjualan"],
+            "Harga Pokok Produksi": ["Persediaan Barang Awal", "Pembelian Bahan Baku", "Beban Angkut", "Persediaan Akhir"],
+            "Beban Operasional (OPEX)": ["Beban Karyawan", "Beban Sewa", "Beban Listrik & Air"],
+            "Beban Non Operasional": ["Beban Marketing", "Beban Administrasi"],
+            "Depresiasi/ Amortisasi": [],
+            "Bunga": [],
+            "Pajak (PB1)": [],
+        };
+    }
+    renderPnlForm();
+}
+
+/**
+ * Renders the interactive P&L form based on the current structure.
+ */
+function renderPnlForm() {
+    const container = document.getElementById('pnl-form-container');
+    container.innerHTML = '';
+
+    // Define the correct display order for the categories
+    const categoryOrder = [
+        "Pendapatan (Revenue)",
+        "Harga Pokok Produksi",
+        "Beban Operasional (OPEX)",
+        "Beban Non Operasional",
+        "Depresiasi/ Amortisasi",
+        "Bunga",
+        "Pajak (PB1)"
+    ];
+
+    // Loop over the ordered array instead of the object directly
+    categoryOrder.forEach(category => {
+        // Ensure the category exists in our structure before trying to render it
+        if (!pnlStructure[category]) return;
+
+        const itemsHtml = pnlStructure[category].map(item => `
+            <li class="flex items-center justify-between bg-gray-100 p-2 rounded-md">
+                <span class="item-name">${item}</span>
+                <button class="remove-item-btn text-red-500 hover:text-red-700 text-xl">&times;</button>
+            </li>
+        `).join('');
+
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'p-4 border rounded-lg';
+        categoryDiv.innerHTML = `
+            <h4 class="text-lg font-semibold text-gray-800 mb-3">${category}</h4>
+            <ul class="space-y-2 mb-3">${itemsHtml}</ul>
+            <div class="flex items-center gap-2">
+                <input type="text" class="new-item-input flex-grow border-gray-300 rounded-md shadow-sm text-sm p-1" placeholder="Add new item...">
+                <button class="add-item-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600">+</button>
+            </div>
+        `;
+        container.appendChild(categoryDiv);
+    });
+}
+
+/**
+ * Saves the current P&L form structure to Firestore.
+ */
+async function savePnlStructure() {
+    if (!currentUser) return;
+
+    const newStructure = {};
+    document.querySelectorAll('#pnl-form-container .p-4').forEach(categoryDiv => {
+        const categoryName = categoryDiv.querySelector('h4').textContent;
+        const items = [];
+        categoryDiv.querySelectorAll('.item-name').forEach(itemSpan => {
+            items.push(itemSpan.textContent);
+        });
+        newStructure[categoryName] = items;
+    });
+
+    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
+    try {
+        await setDoc(pnlDocRef, { structure: newStructure });
+        pnlStructure = newStructure; // Update global state
+        alert('P&L template saved successfully!');
+    } catch (error) {
+        console.error("Error saving P&L structure:", error);
+        alert('Failed to save template. Please try again.');
+    }
+}
 
 // Function to save data and metadata to IndexedDB
 async function saveCompiledData(data: any[], uploadCount: number): Promise<void> {
@@ -289,23 +784,31 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
  * // Shows user management if admin, otherwise shows "Access Denied" alert and returns to dashboard
  */
 function showView(viewName: string): void {
-  [authView, dashboardView, analysisView, userManagementView, konfigurasiView].forEach((v) => v.classList.add('hidden'))
-  if (viewName === 'auth') authView.classList.remove('hidden')
-  else if (viewName === 'dashboard') dashboardView.classList.remove('hidden')
-  else if (viewName === 'analysis') analysisView.classList.remove('hidden')
+  const pnlHistoryView = document.getElementById('pnl-history-view'); // Get the new view element
+  // Add the new view to this array
+  [authView, dashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView].forEach((v) => v.classList.add('hidden'));
+
+  if (viewName === 'auth') authView.classList.remove('hidden');
+  else if (viewName === 'pl-analysis') plAnalysisView.classList.remove('hidden');
+  else if (viewName === 'dashboard') dashboardView.classList.remove('hidden');
+  else if (viewName === 'analysis') analysisView.classList.remove('hidden');
+  else if (viewName === 'pnl-history') pnlHistoryView.classList.remove('hidden'); // Add this line
   else if (viewName === 'usermanagement') {
     if (currentUserRole === 'admin') {
-      userManagementView.classList.remove('hidden')
-      loadUsersForAdmin()
+      userManagementView.classList.remove('hidden');
+      loadUsersForAdmin();
     } else {
-      alert('Access Denied')
-      showView('dashboard')
+      alert('Access Denied');
+      showView('dashboard');
     }
   } else if (viewName === 'konfigurasi') {
-    konfigurasiView.classList.remove('hidden')
-    setupConfigurationTab()
+    konfigurasiView.classList.remove('hidden');
+    setupConfigurationTab();
   }
 }
+
+document.getElementById('pl-analysis-btn').addEventListener('click', () => showView('pl-analysis'));
+document.getElementById('back-to-dashboard-from-pl-btn').addEventListener('click', () => showView('dashboard'));
 
 // --- Authentication ---
 document.getElementById('show-signup-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-form').classList.add('hidden'); document.getElementById('signup-form').classList.remove('hidden') })
