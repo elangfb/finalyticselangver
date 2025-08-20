@@ -1014,17 +1014,17 @@ function showView(viewName: string): void {
   // Add all the new view variables here
   const mainMenuview = document.getElementById('main-menu-view');
   const salesDashboardView = document.getElementById('sales-dashboard-view');
-  const pnlDashboardView = document.getElementById('pnl-dashboard-view');
+  // The pnlDashboardView is now removed
   const pnlHistoryView = document.getElementById('pnl-history-view');
   const pnlComparisonView = document.getElementById('pnl-comparison-view');
-  
-  // Add the new views to this array to be hidden
-  [authView, mainMenuview, salesDashboardView, pnlDashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView, pnlComparisonView].forEach((v) => v?.classList.add('hidden'));
+
+  // The pnlDashboardView is removed from this array
+  [authView, mainMenuview, salesDashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView, pnlComparisonView].forEach((v) => v?.classList.add('hidden'));
 
   if (viewName === 'auth') authView.classList.remove('hidden');
-  else if (viewName === 'main-menu') mainMenuview.classList.remove('hidden'); // <-- New
-  else if (viewName === 'sales-dashboard') salesDashboardView.classList.remove('hidden'); // <-- New
-  else if (viewName === 'pnl-dashboard') pnlDashboardView.classList.remove('hidden'); // <-- New
+  else if (viewName === 'main-menu') mainMenuview.classList.remove('hidden');
+  else if (viewName === 'sales-dashboard') salesDashboardView.classList.remove('hidden');
+  // The condition for 'pnl-dashboard' is now removed
   else if (viewName === 'pl-analysis') plAnalysisView.classList.remove('hidden');
   else if (viewName === 'analysis') analysisView.classList.remove('hidden');
   else if (viewName === 'pnl-history') pnlHistoryView.classList.remove('hidden');
@@ -1057,12 +1057,189 @@ document.getElementById('logout-btn').addEventListener('click', () => signOut(au
 document.getElementById('user-management-btn').addEventListener('click', () => showView('usermanagement'))
 document.getElementById('back-to-dashboard-from-admin-btn').addEventListener('click', () => showView('dashboard'))
 
-document.getElementById('goto-sales-dashboard-btn').addEventListener('click', () => showView('sales-dashboard'));
-document.getElementById('goto-pnl-dashboard-btn').addEventListener('click', () => showView('pnl-dashboard'));
-document.getElementById('back-to-main-menu-from-sales-btn').addEventListener('click', () => showView('main-menu'));
-document.getElementById('back-to-main-menu-from-pnl-btn').addEventListener('click', () => showView('main-menu'));
+document.getElementById('goto-upload-data-btn').addEventListener('click', () => showView('sales-dashboard'));
+document.getElementById('goto-view-data-btn').addEventListener('click', viewCompiledAnalysis);
+// This new button is on our combined Data Management Hub page
+document.getElementById('back-to-main-menu-from-data-hub-btn').addEventListener('click', () => showView('main-menu'));
+
+/**
+ * Handles the upload of a MONTHLY sales target Excel file.
+ * It prompts the user for the target month, parses the file,
+ * and saves the targets as a structured object in Firestore.
+ */
+async function handleSalesTargetUpload() {
+    if (!currentUser) {
+        alert('You must be logged in to upload a target.');
+        return;
+    }
+
+    const fileInput = document.getElementById('sales-target-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+        alert('Please select a sales target file to upload.');
+        return;
+    }
+
+    // NEW: Prompt the user for the target month.
+    // This is crucial for knowing which month's sales data to compare against.
+    const targetMonth = prompt("Please enter the target month and year in YYYY-MM format (e.g., 2025-08 for August 2025).");
+    if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
+        alert("Invalid format. Please enter the month and year as YYYY-MM. Upload cancelled.");
+        return;
+    }
+
+    const uploadButton = document.getElementById('upload-sales-target-btn') as HTMLButtonElement;
+    const originalButtonText = uploadButton.textContent;
+    uploadButton.disabled = true;
+    uploadButton.textContent = 'Uploading...';
+    
+    showLoading({ message: 'Processing target file...', value: 20 });
+
+    try {
+        // Step 1: Upload the raw Excel file to Storage for backup.
+        const storageRef = ref(storage, `targets/sales/${currentUser.uid}/${file.name}`);
+        await uploadBytesResumable(storageRef, file);
+        showLoading({ message: 'File uploaded, saving target data...', value: 50 });
+
+        // Step 2: Parse the Excel file.
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const parsedData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (!parsedData || parsedData.length === 0) {
+            throw new Error("The Excel file is empty or does not contain valid data.");
+        }
+
+        // Step 3: Transform the array of rows into a structured object (a map).
+        // This is much more efficient for looking up targets later.
+        const targetObject = parsedData.reduce((acc, row) => {
+            if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
+                // Ensure the metric name is a clean, consistent key.
+                const key = String(row.Metric).trim();
+                acc[key] = row.Target;
+            }
+            return acc;
+        }, {});
+
+        if (Object.keys(targetObject).length === 0) {
+            throw new Error("Could not find valid 'Metric' and 'Target' columns in the Excel file. Please check the format.");
+        }
+
+        // Step 4: Save to Firestore using the month (e.g., "2025-08") as the document ID.
+        // This makes fetching the target for a specific month incredibly easy and fast.
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetMonth);
+        await setDoc(targetDocRef, {
+            fileName: file.name,
+            lastUpdatedAt: new Date(),
+            targets: targetObject // Save the structured object.
+        }, { merge: true }); // Use { merge: true } to update/overwrite if a target for this month already exists.
+        
+        hideLoading();
+        alert(`Sales targets for ${targetMonth} have been successfully saved!`);
+
+    } catch (error) {
+        console.error("Error uploading sales target:", error);
+        hideLoading();
+        alert(`Failed to upload sales target. Error: ${error.message}`);
+    } finally {
+        // Reset the button and file input.
+        uploadButton.disabled = false;
+        uploadButton.textContent = originalButtonText;
+        fileInput.value = ''; 
+    }
+}
+
+async function handlePnlTargetUpload() {
+    if (!currentUser) {
+        alert('Authentication error: You must be logged in to upload a target.');
+        return;
+    }
+
+    const fileInput = document.getElementById('pnl-target-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+        alert('Please select a P&L target file to upload.');
+        return;
+    }
+
+    // Prompt the user for the target month to associate the data correctly.
+    const targetMonth = prompt("Please enter the target month and year in YYYY-MM format (e.g., 2025-08 for August 2025).");
+    if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
+        alert("Invalid format. Please enter the month and year as YYYY-MM. Upload cancelled.");
+        return;
+    }
+
+    const uploadButton = document.getElementById('upload-pnl-target-btn') as HTMLButtonElement;
+    const originalButtonText = uploadButton.textContent;
+    uploadButton.disabled = true;
+    uploadButton.textContent = 'Uploading...';
+    
+    showLoading({ message: 'Processing P&L target file...', value: 20 });
+
+    try {
+        // Step 1: Upload the raw Excel file to Storage for backup.
+        const storageRef = ref(storage, `targets/pnl/${currentUser.uid}/${file.name}`);
+        await uploadBytesResumable(storageRef, file);
+        showLoading({ message: 'File uploaded, saving target data...', value: 50 });
+
+        // Step 2: Parse the Excel file.
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const parsedData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (!parsedData || parsedData.length === 0) {
+            throw new Error("The Excel file is empty or does not contain valid data.");
+        }
+
+        // Step 3: Transform the data into a structured object for efficient lookups.
+        const targetObject = parsedData.reduce((acc, row) => {
+            if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
+                const key = String(row.Metric).trim();
+                acc[key] = row.Target;
+            }
+            return acc;
+        }, {});
+
+        if (Object.keys(targetObject).length === 0) {
+            throw new Error("Could not find valid 'Metric' and 'Target' columns. Please check the Excel file format.");
+        }
+
+        // Step 4: Save to Firestore using the month (e.g., "2025-08") as the document ID.
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetMonth);
+        await setDoc(targetDocRef, {
+            fileName: file.name,
+            lastUpdatedAt: new Date(),
+            targets: targetObject
+        }, { merge: true }); // Use { merge: true } to update if a target for this month already exists.
+        
+        hideLoading();
+        alert(`P&L targets for ${targetMonth} have been successfully saved!`);
+
+    } catch (error) {
+        console.error("Error uploading P&L target:", error);
+        hideLoading();
+        alert(`Failed to upload P&L target. Error: ${error.message}`);
+    } finally {
+        // Reset the button and file input.
+        uploadButton.disabled = false;
+        uploadButton.textContent = originalButtonText;
+        fileInput.value = ''; 
+    }
+}
+
+// Attach the function to the button's click event.
+document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
 
 
+// Attach the function to the button's click event.
+document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
+
+// Attach the function to the button's click event.
+document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
 
 /**
  * Load and display user list for admin user management interface.
@@ -4498,10 +4675,9 @@ document.getElementById('monthly-summary-modal-close').addEventListener('click',
  * If no bills exist, displays a warning message.
  * @returns {void}
  */
-document.getElementById('view-compiled-btn').addEventListener('click', async () => {
+async function viewCompiledAnalysis() {
     if (!currentUser) return;
 
-    const startTime = performance.now();
     showLoading({ message: 'Fetching all daily summaries...', value: 10 });
 
     try {
@@ -4514,33 +4690,34 @@ document.getElementById('view-compiled-btn').addEventListener('click', async () 
         const allSummaries = [];
         querySnapshot.forEach(doc => {
             const summary = doc.data();
-            summary.date = new Date(summary.date);
+            summary.date = new Date(summary.date); // Convert Firestore timestamp to JS Date
             allSummaries.push(summary);
         });
 
-        // --- FIX STARTS HERE ---
-        // Filter out any summaries that might have an invalid date before proceeding.
+        // Filter out any summaries that might have an invalid date
         const validSummaries = allSummaries.filter(summary => summary.date instanceof Date && !isNaN(summary.date.getTime()));
 
         if (validSummaries.length === 0) {
-            alert('No valid summarized data found. Please ensure your files have been processed correctly.');
+            alert('No valid summarized data found to analyze. Please upload a file first.');
             hideLoading();
             return;
         }
-        // --- FIX ENDS HERE ---
         
-        // Sort all summaries from all files by date
+        // Sort all summaries chronologically
         validSummaries.sort((a, b) => a.date - b.date);
 
-        // Pass the cleaned data to the analysis view
+        // Pass the complete, sorted dataset to the analysis view
         setupAndShowAnalysisView(validSummaries, 'Compiled Analysis of All Uploads');
 
     } catch (error) {
         console.error("Failed to compile analysis from summaries:", error);
         hideLoading();
-        alert(`An error occurred: ${error.message}`);
+        alert(`An error occurred while fetching your data: ${error.message}`);
     }
-});
+}
+
+// Attach the new function to the button on the sales dashboard page
+document.getElementById('view-compiled-btn').addEventListener('click', viewCompiledAnalysis);
 
 // --- PDF Export Function ---
 // Replace the old generatePdfReport function with this new one
