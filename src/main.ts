@@ -259,6 +259,19 @@ function runPnlComparison() {
         else { color = change >= 0 ? 'text-green-600' : 'text-red-600'; }
         return { text: `${sign} ${Math.abs(change).toFixed(1)}%`, class: color };
     };
+
+    const getContributionChange = (subValA, subValB, totalValA, invertColors = false) => {
+        if (totalValA === 0) return { text: 'N/A', class: 'text-gray-500' };
+        const changeAmount = subValB - subValA;
+        const contributionPercent = (changeAmount / totalValA) * 100;
+        const sign = changeAmount >= 0 ? '▲' : '▼';
+        let color;
+        if (invertColors) { color = changeAmount >= 0 ? 'text-red-600' : 'text-green-600'; }
+        else { color = changeAmount >= 0 ? 'text-green-600' : 'text-red-600'; }
+        return { text: `${sign} ${Math.abs(contributionPercent).toFixed(1)}%`, class: color };
+    };
+
+    // --- Data Calculation ---
     const calculateAllValues = (pnlData) => {
         const getCatTotal = (catName) => Object.values(pnlData[catName] || {}).reduce((sum: number, val: number) => sum + val, 0);
         const revenue = getCatTotal("Pendapatan (Revenue)"), hpp = getCatTotal("Harga Pokok Produksi"), opex = getCatTotal("Beban Operasional (OPEX)"), nonOpex = getCatTotal("Beban Non Operasional"), depr = getCatTotal("Depresiasi/ Amortisasi"), bunga = getCatTotal("Bunga"), pajak = getCatTotal("Pajak (PB1)"), grossProfit = revenue - hpp, netOpIncome = grossProfit - opex, ebitda = netOpIncome - nonOpex, netIncome = ebitda - depr - bunga - pajak;
@@ -267,9 +280,15 @@ function runPnlComparison() {
     const resultsA = calculateAllValues(reportA.pnlData), resultsB = calculateAllValues(reportB.pnlData), totalRevenueA = resultsA["Pendapatan (Revenue)"], totalRevenueB = resultsB["Pendapatan (Revenue)"], structureOrder = Object.keys(resultsA), savedTargets = JSON.parse(localStorage.getItem('pnlComparisonTargets') || '{}'), readOnlyItems = ["Laba Kotor (Gross Profit)", "Pendapatan Bersih Operasional (Net Operating Income)", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", "Pendapatan Bersih (Net Income)"], expenseCategories = ["Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
 
     structureOrder.forEach(item => {
-        const isReadOnly = readOnlyItems.includes(item), tr = document.createElement('tr');
+        const isReadOnly = readOnlyItems.includes(item);
+        const tr = document.createElement('tr');
         tr.className = isReadOnly ? 'bg-gray-50 font-semibold' : 'bg-white';
-        const valA = resultsA[item], valB = resultsB[item], shouldInvertColors = expenseCategories.includes(item), change = getChange(valA, valB, shouldInvertColors), percentA = totalRevenueA > 0 ? (valA / totalRevenueA) * 100 : 0, percentB = totalRevenueB > 0 ? (valB / totalRevenueB) * 100 : 0;
+        const valA = resultsA[item];
+        const valB = resultsB[item];
+        const shouldInvertColors = expenseCategories.includes(item);
+        const change = getChange(valA, valB, shouldInvertColors);
+        const percentA = totalRevenueA > 0 ? (valA / totalRevenueA) * 100 : 0;
+        const percentB = totalRevenueB > 0 ? (valB / totalRevenueB) * 100 : 0;
         let targetCellHtml = '';
         const safeItemName = btoa(item);
         const isMainCategory = !isReadOnly;
@@ -283,7 +302,21 @@ function runPnlComparison() {
         const metricCellHtml = isMainCategory ? `<span class="flex items-center cursor-pointer pnl-row-toggle" data-category="${safeItemName}"><svg class="w-4 h-4 mr-2 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>${item}</span>` : item;
         tr.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isReadOnly ? 'text-gray-900' : 'text-gray-800'}">${metricCellHtml}</td><td class="px-6 py-4 min-w-48">${targetCellHtml}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono border-l">${formatCurrency(valA)}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono text-right border-r">${percentA.toFixed(1)}%</td><td class="px-6 py-4 text-sm text-gray-500 font-mono border-l">${formatCurrency(valB)}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono text-right border-r">${percentB.toFixed(1)}%</td><td class="px-6 py-4 text-sm font-semibold ${change.class}">${change.text}</td><td class="px-6 py-4 text-sm font-semibold" id="pnl-target-result-${safeItemName}">-</td>`;
         tbody.appendChild(tr);
-        if (isMainCategory) { /* Sub-row rendering unchanged */ }
+
+        if (isMainCategory) {
+            const subItemsA = reportA.pnlData[item] || {}, subItemsB = reportB.pnlData[item] || {};
+            const allSubItemNames = new Set([...Object.keys(subItemsA), ...Object.keys(subItemsB)]);
+            allSubItemNames.forEach(subItemName => {
+                const childTr = document.createElement('tr');
+                childTr.className = `hidden pnl-subcategory-row bg-white`;
+                childTr.dataset.category = safeItemName;
+                const subValA = subItemsA[subItemName] || 0, subValB = subItemsB[subItemName] || 0;
+                const subPercentA = totalRevenueA > 0 ? (subValA / totalRevenueA) * 100 : 0, subPercentB = totalRevenueB > 0 ? (subValB / totalRevenueB) * 100 : 0;
+                const subItemChange = getContributionChange(subValA, subValB, valA, shouldInvertColors);
+                childTr.innerHTML = `<td class="pl-12 pr-6 py-3 whitespace-nowrap text-sm text-gray-500">${subItemName}</td><td></td><td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValA)}</td><td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentA.toFixed(1)}%</td><td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValB)}</td><td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentB.toFixed(1)}%</td><td class="px-6 py-3 text-sm font-semibold ${subItemChange.class}">${subItemChange.text}</td><td></td>`;
+                tbody.appendChild(childTr);
+            });
+        }
     });
     
     const getTargetValue = (itemName) => {
@@ -315,7 +348,17 @@ function runPnlComparison() {
         updateTargetRow("Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", ebitda, revenue);
         updateTargetRow("Pendapatan Bersih (Net Income)", netIncome, revenue);
     };
-    tbody.addEventListener('click', (e) => { /* Unchanged */ });
+    tbody.addEventListener('click', (e) => {
+        const toggle = (e.target as HTMLElement).closest('.pnl-row-toggle');
+        if (toggle) {
+            const category = toggle.dataset.category;
+            const icon = toggle.querySelector('.chevron-icon');
+            icon.classList.toggle('rotate-90');
+            document.querySelectorAll(`.pnl-subcategory-row[data-category="${category}"]`).forEach(row => {
+                row.classList.toggle('hidden');
+            });
+        }
+    });
     
     document.querySelectorAll('.pnl-target-input').forEach(inputEl => {
         const input = inputEl as HTMLInputElement, itemName = input.dataset.itemName;
@@ -343,18 +386,14 @@ function runPnlComparison() {
         });
     });
     
-    // --- CORRECTED INITIAL LOAD LOGIC ---
     document.querySelectorAll('.pnl-target-input[data-input-type="amount"]').forEach(inputEl => {
         const input = inputEl as HTMLInputElement;
         const itemName = input.dataset.itemName;
         if (savedTargets[itemName] !== undefined) {
-            // 1. Set the input value from saved data first.
             input.value = formatCurrency(savedTargets[itemName]);
-            // 2. Then, dispatch the event to trigger all related calculations.
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
     });
-    // Finally, run the full calculation chain to populate all read-only fields.
     runFullCalculationChain();
 }
 
