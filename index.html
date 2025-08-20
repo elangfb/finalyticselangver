@@ -288,58 +288,73 @@
             </div>
 
             <!-- Main Dashboard View -->
-            <div id="dashboard-view" class="hidden">
-                <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-4xl font-bold text-gray-800">Sales Dashboard</h2>
-                    <div>
-                        <button id="pl-analysis-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition duration-300 mr-2">P&L Analysis</button>
-                        <button id="konfigurasi-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300 mr-2">Konfigurasi</button>
-                        <button id="user-management-btn" class="hidden bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300 mr-2">User Management</button>
-                        <button id="logout-btn" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300">Logout</button>
-                    </div>
-                </div>
-                <div id="upload-section" class="bg-white rounded-lg shadow-lg p-8 mb-8">
-                    <h2 class="text-2xl font-semibold mb-4">Upload New Sales Data</h2>
-                    <p class="text-gray-600 mb-4">Upload an Excel (.xlsx) file to begin analysis. Data should start on row 12.</p>
-                    <input
-                        type="file"
-                        id="file-input"
-                        accept=".xlsx, .xls"
-                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                    >
-                    <div id="upload-error" class="text-red-500 text-sm mt-2 hidden"></div>
-                    <div class="flex items-center gap-4 mt-4">
-                        <button id="upload-btn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Process & Save File</button>
-                        <div id="progress-container" class="w-full max-w-md hidden mt-4">
-                            <div class="flex justify-between mb-1">
-                                <span id="progress-text" class="text-sm font-medium text-gray-700">Starting...</span>
-                                <span id="progress-percent" class="text-sm font-medium text-gray-700">0%</span>
-                            </div>
-                            <div class="progress-bar-container">
-                                <div id="progress-bar" class="progress-bar"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-                    <h2 class="text-2xl font-semibold mb-4">Compiled Data Analysis</h2>
-                    <p class="text-gray-600 mb-4">Analyze all of your uploaded data together to see the big picture.</p>
-                    <button id="view-compiled-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">View Compiled Analysis</button>
-                </div>
-                <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-    <h2 class="text-2xl font-semibold mb-4">P&L Report History</h2>
-    <p class="text-gray-600 mb-4">View all of your saved Profit & Loss statements.</p>
-    <button id="view-pnl-history-btn" class="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition duration-300">View P&L History</button>
-    <button id="pnl-comparison-btn" class="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition duration-300 ml-2">P&L Comparison</button>
+            <div id="main-menu-view" class="hidden">
+    <div class="flex justify-between items-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-800">Sales Dashboard</h2>
+        <div>
+            <button id="konfigurasi-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300 mr-2">Konfigurasi</button>
+            <button id="user-management-btn" class="hidden bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300 mr-2">User Management</button>
+            <button id="logout-btn" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300">Logout</button>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16">
+        <div class="bg-white rounded-lg shadow-xl p-8 text-center hover:scale-105 transition-transform duration-300">
+            <h3 class="text-3xl font-semibold text-gray-800 mb-4">Sales Analysis</h3>
+            <p class="text-gray-600 mb-6">Analyze operational sales data, view trends, get AI insights, and see upload history.</p>
+            <button id="goto-sales-dashboard-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 transition duration-300">Go to Sales</button>
+        </div>
+        <div class="bg-white rounded-lg shadow-xl p-8 text-center hover:scale-105 transition-transform duration-300">
+            <h3 class="text-3xl font-semibold text-gray-800 mb-4">P&L Analysis</h3>
+            <p class="text-gray-600 mb-6">Manage P&L templates, view saved reports, and compare financial statements over time.</p>
+            <button id="goto-pnl-dashboard-btn" class="bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 transition duration-300">Go to P&L</button>
+        </div>
+    </div>
 </div>
 
-                <div class="bg-white rounded-lg shadow-lg p-8">
-                    <h2 class="text-2xl font-semibold mb-4">Individual Upload History</h2>
-                    <div id="upload-history-list" class="space-y-4">
-                        <p id="no-uploads-msg" class="text-gray-500">No uploads yet. Process a file to see it here.</p>
-                    </div>
-                </div>
-            </div>
+<div id="sales-dashboard-view" class="hidden">
+    <div class="flex justify-between items-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-800">Sales Analysis</h2>
+        <button id="back-to-main-menu-from-sales-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Main Menu</button>
+    </div>
+    <div id="upload-section" class="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">Upload New Sales Data</h2>
+        <p class="text-gray-600 mb-4">Upload an Excel (.xlsx) file to begin analysis.</p>
+        <input type="file" id="file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+        <div id="upload-error" class="text-red-500 text-sm mt-2 hidden"></div>
+        <div class="flex items-center gap-4 mt-4">
+            <button id="upload-btn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Process & Save File</button>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">Compiled Data Analysis</h2>
+        <p class="text-gray-600 mb-4">Analyze all of your uploaded data together to see the big picture.</p>
+        <button id="view-compiled-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">View Compiled Analysis</button>
+    </div>
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <h2 class="text-2xl font-semibold mb-4">Individual Upload History</h2>
+        <div id="upload-history-list" class="space-y-4">
+            <p id="no-uploads-msg" class="text-gray-500">No uploads yet. Process a file to see it here.</p>
+        </div>
+    </div>
+</div>
+
+<div id="pnl-dashboard-view" class="hidden">
+    <div class="flex justify-between items-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-800">P&L Analysis</h2>
+        <button id="back-to-main-menu-from-pnl-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Main Menu</button>
+    </div>
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">P&L Statement Tool</h2>
+        <p class="text-gray-600 mb-4">Create, map, review, and save your P&L statements.</p>
+        <button id="pl-analysis-btn" class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300">Open P&L Tool</button>
+    </div>
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <h2 class="text-2xl font-semibold mb-4">P&L Report History</h2>
+        <p class="text-gray-600 mb-4">View all of your saved Profit & Loss statements.</p>
+        <button id="view-pnl-history-btn" class="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition duration-300">View P&L History</button>
+        <button id="pnl-comparison-btn" class="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition duration-300 ml-2">P&L Comparison</button>
+    </div>
+</div>
 
             <!-- Analysis View -->
             <div id="analysis-view" class="hidden">

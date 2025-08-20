@@ -949,7 +949,7 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
     currentUserRole = 'user'
   }
   document.getElementById('user-management-btn').classList.toggle('hidden', currentUserRole !== 'admin')
-  showView('dashboard')
+  showView('main-menu')
   await loadUploadHistory()
   loadGeminiConfig()
 }
@@ -1011,14 +1011,21 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
  * // Shows user management if admin, otherwise shows "Access Denied" alert and returns to dashboard
  */
 function showView(viewName: string): void {
-  const pnlHistoryView = document.getElementById('pnl-history-view'); // Get the new view element
+  // Add all the new view variables here
+  const mainMenuview = document.getElementById('main-menu-view');
+  const salesDashboardView = document.getElementById('sales-dashboard-view');
+  const pnlDashboardView = document.getElementById('pnl-dashboard-view');
+  const pnlHistoryView = document.getElementById('pnl-history-view');
   const pnlComparisonView = document.getElementById('pnl-comparison-view');
-  // Add the new view to this array
-  [authView, dashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView, pnlComparisonView].forEach((v) => v?.classList.add('hidden'));
+  
+  // Add the new views to this array to be hidden
+  [authView, mainMenuview, salesDashboardView, pnlDashboardView, analysisView, userManagementView, konfigurasiView, plAnalysisView, pnlHistoryView, pnlComparisonView].forEach((v) => v?.classList.add('hidden'));
 
   if (viewName === 'auth') authView.classList.remove('hidden');
+  else if (viewName === 'main-menu') mainMenuview.classList.remove('hidden'); // <-- New
+  else if (viewName === 'sales-dashboard') salesDashboardView.classList.remove('hidden'); // <-- New
+  else if (viewName === 'pnl-dashboard') pnlDashboardView.classList.remove('hidden'); // <-- New
   else if (viewName === 'pl-analysis') plAnalysisView.classList.remove('hidden');
-  else if (viewName === 'dashboard') dashboardView.classList.remove('hidden');
   else if (viewName === 'analysis') analysisView.classList.remove('hidden');
   else if (viewName === 'pnl-history') pnlHistoryView.classList.remove('hidden');
   else if (viewName === 'pnl-comparison') pnlComparisonView.classList.remove('hidden');
@@ -1028,7 +1035,7 @@ function showView(viewName: string): void {
       loadUsersForAdmin();
     } else {
       alert('Access Denied');
-      showView('dashboard');
+      showView('main-menu'); // Go back to main menu on error
     }
   } else if (viewName === 'konfigurasi') {
     konfigurasiView.classList.remove('hidden');
@@ -1049,6 +1056,13 @@ document.getElementById('logout-btn').addEventListener('click', () => signOut(au
 // --- User Management (Admin) ---
 document.getElementById('user-management-btn').addEventListener('click', () => showView('usermanagement'))
 document.getElementById('back-to-dashboard-from-admin-btn').addEventListener('click', () => showView('dashboard'))
+
+document.getElementById('goto-sales-dashboard-btn').addEventListener('click', () => showView('sales-dashboard'));
+document.getElementById('goto-pnl-dashboard-btn').addEventListener('click', () => showView('pnl-dashboard'));
+document.getElementById('back-to-main-menu-from-sales-btn').addEventListener('click', () => showView('main-menu'));
+document.getElementById('back-to-main-menu-from-pnl-btn').addEventListener('click', () => showView('main-menu'));
+
+
 
 /**
  * Load and display user list for admin user management interface.
@@ -4407,7 +4421,7 @@ uploadHistoryList.addEventListener('click', async (e) => {
     showLoading({ message: 'Fetching data for daily recap...', value: 50 });
     const dailySummaries = await fetchDailySummariesForUpload(uploadId);
     hideLoading();
-    generateDailyRecap(dailySummaries, fileName); // This function now receives summaries
+    generateDailyRecap(dailySummaries, fileName);
   }
 
   if (target.classList.contains('monthly-summary-btn')) {
@@ -4427,7 +4441,6 @@ uploadHistoryList.addEventListener('click', async (e) => {
     if (docSnap.exists()) {
         const upload = docSnap.data();
         const dailySummaries = await fetchDailySummariesForUpload(uploadId);
-        // The analysis view now works with summaries, not raw bills
         setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
     }
   }
@@ -4435,14 +4448,37 @@ uploadHistoryList.addEventListener('click', async (e) => {
   if (target.classList.contains('delete-history-btn')) {
     const uploadId = target.dataset.id;
     if (confirm('Are you sure you want to delete this uploaded dataset? This action cannot be undone.')) {
+        // --- NEW UI FEEDBACK LOGIC STARTS HERE ---
+        const row = target.closest('.flex');
+        const buttons = row.querySelectorAll('button');
+        const originalDeleteHTML = target.innerHTML; // Save original button content
+
+        // Disable all buttons on the row and show a loading state on the delete button
+        buttons.forEach(btn => (btn as HTMLButtonElement).disabled = true);
+        target.innerHTML = `
+            <div class="flex items-center justify-center w-20">
+                <div class="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
+                Deleting...
+            </div>
+        `;
+        target.classList.replace('bg-red-500', 'bg-red-700');
+        // --- UI FEEDBACK LOGIC ENDS HERE ---
+        
       try {
         const deleteUploadFunction = httpsCallable(functions, 'deleteUpload');
         const result = await deleteUploadFunction({ uploadId });
         console.log(`Deleted ${result.data.deletedBills} bills and upload document`);
+        
+        // Refreshing the list will automatically remove the row
         await loadUploadHistory();
       } catch (error: any) {
         console.error('Error deleting upload:', error);
         alert('Failed to delete upload. Please try again.');
+        
+        // --- NEW: Revert UI on failure ---
+        buttons.forEach(btn => (btn as HTMLButtonElement).disabled = false);
+        target.innerHTML = originalDeleteHTML;
+        target.classList.replace('bg-red-700', 'bg-red-500');
       }
     }
   }
@@ -6738,9 +6774,12 @@ function generateApcTrendChannelMonthChart(data: any[]): void {
 }
 
 // --- Navigation ---
-document.getElementById('back-to-dashboard-btn').addEventListener('click', () => showView('dashboard'))
-document.getElementById('konfigurasi-btn').addEventListener('click', () => showView('konfigurasi'))
-document.getElementById('back-to-dashboard-from-konfigurasi-btn').addEventListener('click', () => showView('dashboard'))
+document.getElementById('back-to-dashboard-btn').addEventListener('click', () => showView('main-menu'));
+document.getElementById('back-to-dashboard-from-admin-btn').addEventListener('click', () => showView('main-menu'));
+document.getElementById('back-to-dashboard-from-konfigurasi-btn').addEventListener('click', () => showView('main-menu'));
+document.getElementById('back-to-dashboard-from-pl-btn').addEventListener('click', () => showView('pnl-dashboard')); // This one should go to the P&L dashboard
+document.getElementById('back-to-dashboard-from-pnl-history-btn').addEventListener('click', () => showView('pnl-dashboard')); // This one also
+document.getElementById('back-to-dashboard-from-pnl-comp-btn').addEventListener('click', () => showView('pnl-dashboard')); // And this one
 
 /**
  * Generate donut chart showing revenue distribution across business branches.
