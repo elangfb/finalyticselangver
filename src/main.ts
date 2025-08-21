@@ -121,6 +121,7 @@ const userListError = document.getElementById('user-list-error')
 const createUserFeedback = document.getElementById('create-user-feedback')
 const DB_NAME = 'FinalyticsCacheDB';
 const STORE_NAME = 'compiledDataStore';
+const periodError = document.getElementById('period-error');
 
 document.getElementById('confirm-mapping-btn').addEventListener('click', () => {
     const pnlResult = {};
@@ -181,6 +182,23 @@ document.getElementById('pnl-comparison-btn').addEventListener('click', () => {
 });
 
 document.getElementById('back-to-dashboard-from-pnl-comp-btn').addEventListener('click', () => showView('dashboard'));
+
+function getSelectedPeriod(): string | null {
+    const monthSelect = document.getElementById('period-month') as HTMLSelectElement;
+    const yearInput = document.getElementById('period-year') as HTMLInputElement;
+    const year = parseInt(yearInput.value, 10);
+
+    if (!year || year < 2000 || year > 2100) {
+        periodError.classList.remove('hidden');
+        return null;
+    }
+    periodError.classList.add('hidden');
+
+    // Month value is 0-11, so add 1 for "YYYY-MM" format. Pad with '0' if needed.
+    const month = (parseInt(monthSelect.value, 10) + 1).toString().padStart(2, '0');
+    return `${year}-${month}`;
+}
+
 
 /**
  * Fetches saved P&L reports and sets up the comparison dropdowns.
@@ -509,6 +527,12 @@ document.getElementById('save-pnl-report-btn').addEventListener('click', async (
         return;
     }
 
+    const period = getSelectedPeriod();
+    if (!period) {
+        alert('Please select a valid month and year for the P&L report.');
+        return;
+    }
+
     saveButton.disabled = true;
     saveButton.textContent = 'Saving...';
 
@@ -516,6 +540,7 @@ document.getElementById('save-pnl-report-btn').addEventListener('click', async (
         const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
         await addDoc(pnlReportsRef, {
             title: title,
+            period: period, // Add the period tag here
             createdAt: new Date(),
             pnlData: currentPnlData
         });
@@ -894,12 +919,46 @@ async function getCachedData(): Promise<{ data: any[], uploadCount: number, time
 
 // --- App Initialization ---
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    currentUser = user
-    if (!adminCredentials) {
-      await fetchUserRoleAndSetupUI(user)
-    }
-  } else {
+   if (user) {
+        currentUser = user;
+        if (!adminCredentials) {
+            await fetchUserRoleAndSetupUI(user);
+
+             const monthSelect = document.getElementById('period-month') as HTMLSelectElement;
+      const yearInput = document.getElementById('period-year') as HTMLInputElement;
+
+      /**
+       * Saves the current period selection to localStorage.
+       */
+      function savePeriodSelection() {
+          const monthValue = monthSelect.value;
+          const yearValue = yearInput.value;
+          if (monthValue && yearValue) {
+              localStorage.setItem('selectedPeriodMonth', monthValue);
+              localStorage.setItem('selectedPeriodYear', yearValue);
+          }
+      }
+
+      const savedMonth = localStorage.getItem('selectedPeriodMonth');
+      const savedYear = localStorage.getItem('selectedPeriodYear');
+
+      if (savedMonth && savedYear) {
+          // If values are saved in localStorage, use them.
+          monthSelect.value = savedMonth;
+          yearInput.value = savedYear;
+      } else {
+          // Otherwise, default to the current date and save it.
+          const today = new Date();
+          monthSelect.value = today.getMonth().toString();
+          yearInput.value = today.getFullYear().toString();
+          savePeriodSelection(); // Save the initial default
+      }
+
+      // Add event listeners to save any future changes.
+      monthSelect.addEventListener('change', savePeriodSelection);
+      yearInput.addEventListener('change', savePeriodSelection);
+        }
+    } else {
     if (adminCredentials) {
       signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password)
         .then(async (userCredential) => {
@@ -1081,11 +1140,9 @@ async function handleSalesTargetUpload() {
         return;
     }
 
-    // NEW: Prompt the user for the target month.
-    // This is crucial for knowing which month's sales data to compare against.
-    const targetMonth = prompt("Please enter the target month and year in YYYY-MM format (e.g., 2025-08 for August 2025).");
-    if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
-        alert("Invalid format. Please enter the month and year as YYYY-MM. Upload cancelled.");
+    const targetMonth = getSelectedPeriod();
+    if (!targetMonth) {
+        alert("Invalid period selected. Please select a valid month and year. Upload cancelled.");
         return;
     }
 
@@ -1165,10 +1222,9 @@ async function handlePnlTargetUpload() {
         return;
     }
 
-    // Prompt the user for the target month to associate the data correctly.
-    const targetMonth = prompt("Please enter the target month and year in YYYY-MM format (e.g., 2025-08 for August 2025).");
-    if (!targetMonth || !/^\d{4}-\d{2}$/.test(targetMonth)) {
-        alert("Invalid format. Please enter the month and year as YYYY-MM. Upload cancelled.");
+    const targetMonth = getSelectedPeriod();
+    if (!targetMonth) {
+        alert("Invalid period selected. Please select a valid month and year. Upload cancelled.");
         return;
     }
 
@@ -1495,6 +1551,12 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
     uploadError.classList.remove('hidden');
     return;
   }
+
+  const period = getSelectedPeriod();
+  if (!period) {
+      alert('Please select a valid month and year for the data.');
+      return;
+  }
   uploadError.classList.add('hidden');
 
   const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
@@ -1519,7 +1581,13 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
 
   try {
     const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
-    const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, { customMetadata: { userId: currentUser.uid } });
+    const metadata = {
+        customMetadata: { 
+            userId: currentUser.uid,
+            period: period 
+        }
+    };
+    const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     const cancelUpload = () => uploadTask.cancel();
     cancelBtn.addEventListener('click', cancelUpload, { once: true });
