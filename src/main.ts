@@ -547,6 +547,7 @@ document.getElementById('save-pnl-report-btn').addEventListener('click', async (
         saveButton.textContent = 'Saved!';
         saveButton.classList.replace('bg-green-600', 'bg-gray-400');
         alert('Report saved successfully!');
+        await populateCompiledDataTable();
     } catch (error) {
         console.error("Error saving P&L report:", error);
         alert('Failed to save the report. Please try again.');
@@ -1010,8 +1011,152 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
   document.getElementById('user-management-btn').classList.toggle('hidden', currentUserRole !== 'admin')
   showView('main-menu')
   await loadUploadHistory()
+  await populateCompiledDataTable(); // Load the new compiled table
   loadGeminiConfig()
 }
+
+async function populateCompiledDataTable() {
+    if (!currentUser) return;
+    const tbody = document.getElementById('compiled-data-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">Loading data...</td></tr>';
+
+    try {
+        // 1. Fetch all data types in parallel
+        const salesDataPromise = getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`));
+        const salesTargetPromise = getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`));
+        const pnlDataPromise = getDocs(collection(db, `users/${currentUser.uid}/pnlReports`));
+        const pnlTargetPromise = getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`));
+        
+        const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
+            salesDataPromise, salesTargetPromise, pnlDataPromise, pnlTargetPromise
+        ]);
+
+        // 2. Aggregate data by period (YYYY-MM)
+        const aggregatedData = {};
+
+        const processSnap = (snap, type) => {
+            snap.forEach(doc => {
+                const data = doc.data();
+                const period = data.period || doc.id; // doc.id is the period for targets
+                if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
+
+                if (!aggregatedData[period]) aggregatedData[period] = {};
+                aggregatedData[period][type] = { 
+                    id: doc.id, 
+                    name: data.name || data.title || data.fileName 
+                };
+            });
+        };
+
+        processSnap(salesSnap, 'salesData');
+        processSnap(salesTargetSnap, 'salesTarget');
+        processSnap(pnlSnap, 'pnlData');
+        processSnap(pnlTargetSnap, 'pnlTarget');
+        
+        // 3. Render the table
+        tbody.innerHTML = '';
+        const sortedPeriods = Object.keys(aggregatedData).sort().reverse();
+
+        if (sortedPeriods.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">No data uploaded yet. Select a period and upload a file to begin.</td></tr>';
+            return;
+        }
+
+        sortedPeriods.forEach(period => {
+            const data = aggregatedData[period];
+            const [year, month] = period.split('-');
+            const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+            const formattedPeriod = periodDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            const createCell = (type) => {
+                if (data[type]) {
+                    return `
+                        <td class="px-6 py-4 text-center">
+                            <button class="view-compiled-btn bg-blue-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${data[type].id}" data-type="${type}">
+                                View
+                            </button>
+                        </td>`;
+                } else {
+                    return `
+                        <td class="px-6 py-4 text-center">
+                            <button class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full cursor-not-allowed" disabled>
+                                Not Yet Uploaded
+                            </button>
+                        </td>`;
+                }
+            };
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formattedPeriod}</td>
+                ${createCell('salesData')}
+                ${createCell('salesTarget')}
+                ${createCell('pnlData')}
+                ${createCell('pnlTarget')}
+            `;
+            tbody.appendChild(row);
+        });
+
+    } catch (error) {
+        console.error("Error populating compiled data table:", error);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-red-500">Could not load data.</td></tr>';
+    }
+}
+
+// Add event listener for the new table
+document.getElementById('compiled-data-tbody').addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains('view-compiled-btn')) return;
+
+    const id = target.dataset.id;
+    const type = target.dataset.type;
+
+    try {
+        switch (type) {
+            case 'salesData': {
+                showLoading({ message: 'Fetching report summaries...', value: 10 });
+                const salesDocRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, id);
+                const salesDocSnap = await getDoc(salesDocRef);
+                if (salesDocSnap.exists()) {
+                    const upload = salesDocSnap.data();
+                    const dailySummaries = await fetchDailySummariesForUpload(id);
+                    setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
+                }
+                break;
+            }
+            case 'pnlData': {
+                showLoading({ message: 'Loading report...', value: 50 });
+                const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
+                const pnlDocSnap = await getDoc(pnlDocRef);
+                if (pnlDocSnap.exists()) {
+                    const report = pnlDocSnap.data();
+                    showView('pl-analysis');
+                    document.getElementById('pnl-template-view').classList.add('hidden');
+                    document.getElementById('pnl-upload-view').classList.add('hidden');
+                    document.getElementById('pnl-results-view').classList.remove('hidden');
+                    (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
+                    renderPnlResults(report.pnlData);
+                    document.getElementById('pnl-review-mode-header').classList.add('hidden');
+                    document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
+                    document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
+                    document.getElementById('back-to-mapping-btn').classList.add('hidden');
+                }
+                break;
+            }
+            case 'salesTarget':
+            case 'pnlTarget':
+                alert('Viewing target data directly is not yet implemented.');
+                break;
+        }
+    } catch (error) {
+        console.error(`Error viewing compiled data for type ${type}:`, error);
+        alert('Could not load the selected item.');
+    } finally {
+        if (type !== 'salesTarget' && type !== 'pnlTarget') {
+            hideLoading();
+        }
+    }
+});
 
 /**
  * Ensure a user document exists in Firestore with basic profile information.
@@ -1195,6 +1340,7 @@ async function handleSalesTargetUpload() {
         
         hideLoading();
         alert(`Sales targets for ${targetMonth} have been successfully saved!`);
+        await populateCompiledDataTable();
 
     } catch (error) {
         console.error("Error uploading sales target:", error);
@@ -1274,6 +1420,7 @@ async function handlePnlTargetUpload() {
         
         hideLoading();
         alert(`P&L targets for ${targetMonth} have been successfully saved!`);
+        await populateCompiledDataTable();
 
     } catch (error) {
         console.error("Error uploading P&L target:", error);
@@ -1494,9 +1641,10 @@ function listenForProcessingStatus(fileName: string) {
         progressContainer.classList.remove('show');
         setTimeout(() => progressContainer.classList.add('hidden'), 300);
         loadUploadHistory();
+        populateCompiledDataTable(); // Also refresh here on timeout
       }, 5000);
     }
-  }, 25000); // Increased timeout to 25 seconds for longer processing jobs
+  }, 25000);
 
   unsubscribeFinder = onSnapshot(q, (querySnapshot) => {
     if (!querySnapshot.empty) {
@@ -1512,7 +1660,10 @@ function listenForProcessingStatus(fileName: string) {
 
           if (status.state === 'complete') {
             processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
+            // START: Add the missing function call here
             loadUploadHistory();
+            populateCompiledDataTable(); // This line was missing
+            // END: Add the missing function call here
             unsubscribeProcessor();
             setTimeout(() => {
                 progressContainer.classList.remove('show');
@@ -1551,12 +1702,13 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
     uploadError.classList.remove('hidden');
     return;
   }
-
+  
   const period = getSelectedPeriod();
   if (!period) {
       alert('Please select a valid month and year for the data.');
       return;
   }
+  
   uploadError.classList.add('hidden');
 
   const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
@@ -1615,17 +1767,18 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
         cancelBtn.removeEventListener('click', cancelUpload);
       },
       () => {
-        // ---- THIS IS THE KEY CHANGE ----
-        // On completion, transition to the processing listener
         statusText.textContent = 'Upload Complete! Waiting for server...';
         progressBar.classList.remove('bg-blue-600');
         progressBar.classList.add('bg-green-500');
         progressPercent.textContent = '100%';
         uploadButton.disabled = false;
         cancelBtn.removeEventListener('click', cancelUpload);
-
-        // Start listening for the background processing status
+        
         listenForProcessingStatus(file.name);
+        
+        // START: The unreliable setTimeout has been removed from here
+        // The refresh is now handled correctly by listenForProcessingStatus
+        // END: The unreliable setTimeout has been removed from here
       }
     );
 
