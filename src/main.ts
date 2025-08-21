@@ -94,6 +94,7 @@ let pnlStructure = null;
 let pnlExcelData = []; // To hold the data from the uploaded P&L file
 let currentPnlData = {};
 let savedPnlReports = [];
+let omzetComparisonSelect: SlimSelect | null = null;
 
 
 
@@ -250,6 +251,94 @@ async function setupPnlComparison() {
         selectA.innerHTML = '<option>Error loading reports</option>';
         selectB.innerHTML = '<option>Error loading reports</option>';
     }
+}
+
+function drawMonthlyOmzetComparisonChart() {
+    if (!omzetComparisonSelect) return;
+
+    const selectedMonths = omzetComparisonSelect.getSelected() as string[];
+    
+    // The X-axis will be days 1 through 31
+    const labels = Array.from({ length: 31 }, (_, i) => i + 1);
+    
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#F59E0B'];
+
+    const datasets = selectedMonths.map((monthStr, index) => {
+        // Filter the main data for summaries belonging to the selected month
+        const monthSummaries = allSalesData.filter(s => s.date.toISOString().startsWith(monthStr));
+        
+        // Create an array to hold the revenue for each day (1-31)
+        const dailyData = Array(31).fill(null); // Use null for days with no data
+        
+        monthSummaries.forEach(summary => {
+            const dayOfMonth = summary.date.getDate(); // getDate() returns 1-31
+            dailyData[dayOfMonth - 1] = summary.totalOmzet; // Array is 0-indexed
+        });
+
+        const dateLabel = new Date(monthStr + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+
+        return {
+            label: dateLabel,
+            data: dailyData,
+            borderColor: colors[index % colors.length],
+            tension: 0.1,
+            fill: false,
+            spanGaps: true, // This connects lines over days with no data (nulls)
+        };
+    });
+
+    createChart('waktu-omzet-harian-chart', 'line', {
+        labels,
+        datasets
+    }, {
+        scales: {
+            y: { ticks: { callback: shortenCurrency } },
+            x: { title: { display: true, text: 'Day of Month' } }
+        }
+    });
+}
+
+/**
+ * Sets up the multi-select dropdown for the monthly Omzet comparison chart.
+ */
+function setupMonthlyOmzetComparisonChart() {
+    // Prevent re-initializing the dropdown if it already exists
+    if (omzetComparisonSelect) {
+        drawMonthlyOmzetComparisonChart(); // Just redraw the chart with current data
+        return;
+    }
+
+    const selectEl = document.getElementById('waktu-omzet-harian-select') as HTMLSelectElement;
+
+    // Get all unique months (YYYY-MM) from the data and sort them
+    const availableMonths = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    
+    if (availableMonths.length === 0) {
+        selectEl.innerHTML = '<option disabled>No data available</option>';
+        return;
+    }
+
+    // Populate the select element with options
+    selectEl.innerHTML = availableMonths.map(month => 
+        `<option value="${month}">${new Date(month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`
+    ).join('');
+
+    // Initialize Slim Select
+    omzetComparisonSelect = new SlimSelect({
+        select: '#waktu-omzet-harian-select',
+        settings: { placeholderText: 'Select months...' },
+        events: {
+            afterChange: () => {
+                // Redraw the chart whenever the selection changes
+                drawMonthlyOmzetComparisonChart();
+            }
+        }
+    });
+
+    // Set a default selection (e.g., the two most recent months)
+    omzetComparisonSelect.setSelected(availableMonths.slice(0, 2));
+
+    // Initial drawing of the chart is handled by the afterChange event from setSelected
 }
 
 /**
@@ -2288,6 +2377,8 @@ function runAnalysis(): void {
   generateProductAnalysisChartsFromSummaries(currentData);
   generateCabangAnalysisFromSummaries(currentData);
   generateMenuSalesTrendChart(currentData);
+  generatePnlAnalysisTable(currentStartDate, currentEndDate);
+  setupMonthlyOmzetComparisonChart();
   
   
   console.log("Analysis complete with pre-calculated summaries.");
@@ -2382,6 +2473,216 @@ function generateCabangAnalysisFromSummaries(summaries: any[]) {
     });
     chartDataForAI['cabangDetail'] = sortedByRevenue;
 }
+
+/**
+ * Fetches, aggregates, and renders a comparative P&L analysis table.
+ * @param {Date} startDate - The start of the filter date range.
+ * @param {Date} endDate - The end of the filter date range.
+ */
+async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
+    if (!currentUser) return;
+    const thead = document.getElementById('pnl-analysis-thead');
+    const tbody = document.getElementById('pnl-analysis-tbody');
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-gray-500">Loading P&L reports...</td></tr>';
+
+    try {
+        // 1. Fetch P&L Structure, Reports, and Targets in parallel
+        const structureRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const targetsRef = collection(db, `users/${currentUser.uid}/monthlyPnlTargets`);
+
+        const [structureSnap, reportsSnap, targetsSnap] = await Promise.all([
+            getDoc(structureRef),
+            getDocs(reportsRef),
+            getDocs(targetsRef)
+        ]);
+
+        const pnlTemplate = structureSnap.exists() ? structureSnap.data().structure : {};
+        
+        // 2. Filter reports by the selected date range and sort them
+        const filteredReports = reportsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(report => {
+                const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
+                return reportDate >= startDate && reportDate <= endDate;
+            })
+            .sort((a, b) => a.period.localeCompare(b.period));
+
+        if (filteredReports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-gray-500">No P&L reports found for the selected period.</td></tr>';
+            thead.innerHTML = '';
+            return;
+        }
+
+        // 3. Prepare targets for easy lookup
+        const targetsByPeriod = {};
+        targetsSnap.forEach(doc => {
+            targetsByPeriod[doc.id] = doc.data().targets;
+        });
+        const lastPeriodTarget = targetsByPeriod[endDate.toISOString().slice(0, 7)] || {};
+        
+        // 4. Render Table Header
+        const periodHeaders = filteredReports.map(r => {
+            const date = new Date(r.period + '-02');
+            return `<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${date.toLocaleString('default', { month: 'long', year: 'numeric' })}</th>`;
+        }).join('');
+        thead.innerHTML = `<tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+            ${periodHeaders}
+        </tr>`;
+
+        // 5. Render Table Body
+        tbody.innerHTML = '';
+        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
+
+        const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+        const subtotals = {
+            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+        };
+
+        const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
+        let aiData = {};
+
+        allMetrics.forEach(metricName => {
+            const isSubtotal = !!subtotals[metricName];
+            const tr = document.createElement('tr');
+            tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
+
+            let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
+            rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(lastPeriodTarget[metricName])}</td>`;
+            
+            aiData[metricName] = { Target: lastPeriodTarget[metricName] || 0 };
+
+            filteredReports.forEach(report => {
+                let value = 0;
+                if (isSubtotal) {
+                    const categoryTotals = {};
+                    categoryOrder.forEach(cat => {
+                       categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                    });
+                    value = subtotals[metricName](categoryTotals);
+                } else {
+                    value = Object.values(report.pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                }
+                rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(value)}</td>`;
+                aiData[metricName][report.period] = value;
+            });
+            tr.innerHTML = rowHtml;
+            tbody.appendChild(tr);
+        });
+
+        chartDataForAI['pnlAnalysis'] = aiData;
+
+    } catch (error) {
+        console.error("Error generating P&L analysis table:", error);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-red-500">Error: Could not load P&L data. ${error.message}</td></tr>`;
+    }
+}
+
+async function generateAllTimePnlTable() {
+    if (!currentUser) return;
+    const thead = document.getElementById('waktu-pnl-thead');
+    const tbody = document.getElementById('waktu-pnl-tbody');
+    tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">Loading all P&L reports...</td></tr>';
+
+    try {
+        // 1. Fetch P&L Structure and all Reports
+        const structureRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+
+        const [structureSnap, reportsSnap] = await Promise.all([
+            getDoc(structureRef),
+            getDocs(reportsRef)
+        ]);
+
+        const pnlTemplate = structureSnap.exists() ? structureSnap.data().structure : {};
+        
+        // 2. Sort all reports by period
+        const allReports = reportsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            // START: Add this line to fix the error
+            .filter(report => report.period && typeof report.period === 'string') // This ensures we only process reports that have a period
+            // END: Add this line to fix the error
+            .sort((a, b) => a.period.localeCompare(b.period));
+
+        if (allReports.length === 0) {
+            thead.innerHTML = '';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
+            return;
+        }
+        
+        // 3. Render Table Header
+        const periodHeaders = allReports.map(r => {
+            const date = new Date(r.period + '-02');
+            return `<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${date.toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`;
+        }).join('');
+        thead.innerHTML = `<tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+            ${periodHeaders}
+        </tr>`;
+
+        // 4. Render Table Body
+        tbody.innerHTML = '';
+        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
+
+        const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+        const subtotals = {
+            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+        };
+
+        const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
+
+        allMetrics.forEach(metricName => {
+            const isSubtotal = !!subtotals[metricName];
+            const tr = document.createElement('tr');
+            tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
+
+            let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
+            
+            allReports.forEach(report => {
+                let value = 0;
+                if (isSubtotal) {
+                    const categoryTotals = {};
+                    categoryOrder.forEach(cat => {
+                       categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                    });
+                    value = subtotals[metricName](categoryTotals);
+                } else {
+                    value = Object.values(report.pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                }
+                rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(value)}</td>`;
+            });
+            tr.innerHTML = rowHtml;
+            tbody.appendChild(tr);
+        });
+
+    } catch (error) {
+        console.error("Error generating all-time P&L table:", error);
+        tbody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
+    }
+}
+
+document.getElementById('waktu-select').addEventListener('change', (e) => {
+    const selectedValue = (e.target as HTMLSelectElement).value;
+    const penjualanContent = document.getElementById('waktu-penjualan-content');
+    const pnlContent = document.getElementById('waktu-pnl-content');
+
+    if (selectedValue === 'pnl') {
+        penjualanContent.classList.add('hidden');
+        pnlContent.classList.remove('hidden');
+        generateAllTimePnlTable(); // Generate the table when P&L is selected
+    } else { // 'penjualan'
+        pnlContent.classList.add('hidden');
+        penjualanContent.classList.remove('hidden');
+    }
+});
 
 function generateMenuSalesTrendChart(summaries: any[]) {
     const menuSelectElement = document.getElementById('menu-select') as HTMLSelectElement;
