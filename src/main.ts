@@ -1110,39 +1110,28 @@ async function populateCompiledDataTable() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">Loading data...</td></tr>';
 
     try {
-        // 1. Fetch all data types in parallel
-        const salesDataPromise = getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`));
-        const salesTargetPromise = getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`));
-        const pnlDataPromise = getDocs(collection(db, `users/${currentUser.uid}/pnlReports`));
-        const pnlTargetPromise = getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`));
-        
         const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
-            salesDataPromise, salesTargetPromise, pnlDataPromise, pnlTargetPromise
+            getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
+            getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
+            getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
+            getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`))
         ]);
 
-        // 2. Aggregate data by period (YYYY-MM)
         const aggregatedData = {};
-
         const processSnap = (snap, type) => {
             snap.forEach(doc => {
                 const data = doc.data();
-                const period = data.period || doc.id; // doc.id is the period for targets
+                const period = data.period || doc.id;
                 if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
-
                 if (!aggregatedData[period]) aggregatedData[period] = {};
-                aggregatedData[period][type] = { 
-                    id: doc.id, 
-                    name: data.name || data.title || data.fileName 
-                };
+                aggregatedData[period][type] = { id: doc.id, name: data.name || data.title || data.fileName };
             });
         };
-
         processSnap(salesSnap, 'salesData');
         processSnap(salesTargetSnap, 'salesTarget');
         processSnap(pnlSnap, 'pnlData');
         processSnap(pnlTargetSnap, 'pnlTarget');
         
-        // 3. Render the table
         tbody.innerHTML = '';
         const sortedPeriods = Object.keys(aggregatedData).sort().reverse();
 
@@ -1154,23 +1143,36 @@ async function populateCompiledDataTable() {
         sortedPeriods.forEach(period => {
             const data = aggregatedData[period];
             const [year, month] = period.split('-');
-            const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-            const formattedPeriod = periodDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+            const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
 
             const createCell = (type) => {
                 if (data[type]) {
                     return `
                         <td class="px-6 py-4 text-center">
-                            <button class="view-compiled-btn bg-blue-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${data[type].id}" data-type="${type}">
-                                View
-                            </button>
+                            <div class="flex items-center justify-center space-x-2">
+                                <button class="view-compiled-btn bg-blue-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${data[type].id}" data-type="${type}">View</button>
+                                <button class="delete-compiled-btn text-gray-400 hover:text-red-600 p-1 rounded-full" data-id="${data[type].id}" data-type="${type}" title="Delete this item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
                         </td>`;
                 } else {
+                    // --- MODIFICATION: Added the Upload button here ---
+                    const isPnlData = type === 'pnlData';
+                    const disabled = isPnlData ? 'disabled' : '';
+                    const title = isPnlData ? 'Please use the P&L Tool for this upload.' : `Upload ${type.replace(/([A-Z])/g, ' $1').toLowerCase()}`;
                     return `
                         <td class="px-6 py-4 text-center">
-                            <button class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full cursor-not-allowed" disabled>
-                                Not Yet Uploaded
-                            </button>
+                            <div class="flex items-center justify-center space-x-2">
+                                <span class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full">Not Yet Uploaded</span>
+                                <button class="upload-compiled-btn bg-green-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-green-600 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                    data-period="${period}" 
+                                    data-type="${type}" 
+                                    title="${title}"
+                                    ${disabled}>
+                                    Upload
+                                </button>
+                            </div>
                         </td>`;
                 }
             };
@@ -1195,57 +1197,253 @@ async function populateCompiledDataTable() {
 // Add event listener for the new table
 document.getElementById('compiled-data-tbody').addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
-    if (!target.classList.contains('view-compiled-btn')) return;
+    // Use .closest() to correctly find the button, even if the icon inside is clicked
+    const viewBtn = target.closest('.view-compiled-btn');
+    const deleteBtn = target.closest('.delete-compiled-btn');
+    const uploadBtn = target.closest('.upload-compiled-btn');
 
-    const id = target.dataset.id;
-    const type = target.dataset.type;
-
-    try {
-        switch (type) {
-            case 'salesData': {
-                showLoading({ message: 'Fetching report summaries...', value: 10 });
-                const salesDocRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, id);
-                const salesDocSnap = await getDoc(salesDocRef);
-                if (salesDocSnap.exists()) {
-                    const upload = salesDocSnap.data();
-                    const dailySummaries = await fetchDailySummariesForUpload(id);
-                    setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
+    // --- Logic for the VIEW button ---
+    if (viewBtn) {
+        const id = (viewBtn as HTMLElement).dataset.id;
+        const type = (viewBtn as HTMLElement).dataset.type;
+        
+        try {
+            switch (type) {
+                case 'salesData': {
+                    showLoading({ message: 'Fetching report summaries...', value: 10 });
+                    const salesDocRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, id);
+                    const salesDocSnap = await getDoc(salesDocRef);
+                    if (salesDocSnap.exists()) {
+                        const upload = salesDocSnap.data();
+                        const dailySummaries = await fetchDailySummariesForUpload(id);
+                        setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
+                    }
+                    break;
                 }
-                break;
-            }
-            case 'pnlData': {
-                showLoading({ message: 'Loading report...', value: 50 });
-                const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
-                const pnlDocSnap = await getDoc(pnlDocRef);
-                if (pnlDocSnap.exists()) {
-                    const report = pnlDocSnap.data();
-                    showView('pl-analysis');
-                    document.getElementById('pnl-template-view').classList.add('hidden');
-                    document.getElementById('pnl-upload-view').classList.add('hidden');
-                    document.getElementById('pnl-results-view').classList.remove('hidden');
-                    (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
-                    renderPnlResults(report.pnlData);
-                    document.getElementById('pnl-review-mode-header').classList.add('hidden');
-                    document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
-                    document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
-                    document.getElementById('back-to-mapping-btn').classList.add('hidden');
+                case 'pnlData': {
+                    showLoading({ message: 'Loading report...', value: 50 });
+                    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
+                    const pnlDocSnap = await getDoc(pnlDocRef);
+                    if (pnlDocSnap.exists()) {
+                        const report = pnlDocSnap.data();
+                        showView('pl-analysis');
+                        document.getElementById('pnl-template-view').classList.add('hidden');
+                        document.getElementById('pnl-upload-view').classList.add('hidden');
+                        document.getElementById('pnl-results-view').classList.remove('hidden');
+                        (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
+                        renderPnlResults(report.pnlData);
+                        document.getElementById('pnl-review-mode-header').classList.add('hidden');
+                        document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
+                        document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
+                        document.getElementById('back-to-mapping-btn').classList.add('hidden');
+                    }
+                    break;
                 }
-                break;
+                case 'salesTarget':
+                case 'pnlTarget':
+                    alert('Viewing target data directly is not yet implemented.');
+                    break;
             }
-            case 'salesTarget':
-            case 'pnlTarget':
-                alert('Viewing target data directly is not yet implemented.');
-                break;
-        }
-    } catch (error) {
-        console.error(`Error viewing compiled data for type ${type}:`, error);
-        alert('Could not load the selected item.');
-    } finally {
-        if (type !== 'salesTarget' && type !== 'pnlTarget') {
-            hideLoading();
+        } catch (error) {
+            console.error(`Error viewing compiled data for type ${type}:`, error);
+            alert('Could not load the selected item.');
+        } finally {
+            if (type !== 'salesTarget' && type !== 'pnlTarget') {
+                hideLoading();
+            }
         }
     }
+
+    // --- Logic for the DELETE button ---
+    if (deleteBtn) {
+        const id = (deleteBtn as HTMLElement).dataset.id;
+        const type = (deleteBtn as HTMLElement).dataset.type;
+        const typeName = type.replace(/([A-Z])/g, ' $1').toLowerCase();
+
+        if (!confirm(`Are you sure you want to permanently delete this ${typeName} record? This action cannot be undone.`)) {
+            return;
+        }
+
+        (deleteBtn as HTMLButtonElement).disabled = true;
+        deleteBtn.innerHTML = `<div class="w-4 h-4 border-2 border-t-transparent border-blue-500 rounded-full animate-spin"></div>`;
+
+        try {
+            let result;
+            switch (type) {
+                case 'salesData':
+                    const deleteUploadFunction = httpsCallable(functions, 'deleteUpload');
+                    result = await deleteUploadFunction({ uploadId: id });
+                    break;
+                case 'pnlData':
+                    const deletePnlReportFunction = httpsCallable(functions, 'deletePnlReport');
+                    result = await deletePnlReportFunction({ reportId: id });
+                    break;
+                case 'salesTarget':
+                    const deleteSalesTargetFunction = httpsCallable(functions, 'deleteSalesTarget');
+                    result = await deleteSalesTargetFunction({ period: id });
+                    break;
+                case 'pnlTarget':
+                    const deletePnlTargetFunction = httpsCallable(functions, 'deletePnlTarget');
+                    result = await deletePnlTargetFunction({ period: id });
+                    break;
+                default:
+                    throw new Error('Unknown data type to delete.');
+            }
+            console.log('Deletion successful:', result.data);
+            await populateCompiledDataTable(); // Refresh the table
+        } catch (error) {
+            console.error(`Error deleting ${type}:`, error);
+            alert(`Failed to delete the ${typeName}. Please try again.`);
+            // Re-enable the button on failure
+            (deleteBtn as HTMLButtonElement).disabled = false;
+            deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`;
+        }
+    }
+
+    if (uploadBtn) {
+        const period = (uploadBtn as HTMLElement).dataset.period;
+        const type = (uploadBtn as HTMLElement).dataset.type;
+        openQuickUploadModal(period, type);
+    }
+
 });
+
+const quickUploadModal = document.getElementById('quick-upload-modal');
+
+/**
+ * Opens the quick upload modal and sets its context.
+ * @param {string} period - The period for the upload (e.g., "2025-08").
+ * @param {string} dataType - The type of data being uploaded.
+ */
+function openQuickUploadModal(period: string, dataType: string) {
+    const formattedPeriod = new Date(period + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+    const formattedType = dataType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+    
+    (document.getElementById('quick-upload-title') as HTMLElement).textContent = `Upload ${formattedType} for ${formattedPeriod}`;
+    (document.getElementById('quick-upload-period') as HTMLInputElement).value = period;
+    (document.getElementById('quick-upload-data-type') as HTMLInputElement).value = dataType;
+    (document.getElementById('quick-upload-file-input') as HTMLInputElement).value = '';
+    
+    document.getElementById('quick-upload-error').classList.add('hidden');
+    document.getElementById('quick-upload-progress-container').classList.add('hidden');
+    (document.getElementById('quick-upload-submit-btn') as HTMLButtonElement).disabled = false;
+    
+    quickUploadModal.classList.remove('hidden');
+}
+
+/** Closes the quick upload modal. */
+function closeQuickUploadModal() {
+    quickUploadModal.classList.add('hidden');
+}
+
+// Event listeners for closing the modal
+document.getElementById('quick-upload-close-btn').addEventListener('click', closeQuickUploadModal);
+document.getElementById('quick-upload-cancel-btn').addEventListener('click', closeQuickUploadModal);
+
+// Event listener for the modal's final upload button
+document.getElementById('quick-upload-submit-btn').addEventListener('click', async () => {
+    const period = (document.getElementById('quick-upload-period') as HTMLInputElement).value;
+    const dataType = (document.getElementById('quick-upload-data-type') as HTMLInputElement).value;
+    const fileInput = document.getElementById('quick-upload-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    const errorDiv = document.getElementById('quick-upload-error');
+    const submitBtn = document.getElementById('quick-upload-submit-btn') as HTMLButtonElement;
+
+    if (!file) {
+        errorDiv.textContent = 'Please select a file.';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    errorDiv.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Uploading...';
+
+    try {
+        switch (dataType) {
+            case 'salesData':
+                await handleModalSalesDataUpload(file, period);
+                break;
+            case 'salesTarget':
+                await handleModalTargetUpload(file, period, 'sales');
+                break;
+            case 'pnlTarget':
+                await handleModalTargetUpload(file, period, 'pnl');
+                break;
+        }
+        await populateCompiledDataTable(); // Refresh the main table
+        closeQuickUploadModal();
+    } catch (error) {
+        console.error(`Modal upload error for ${dataType}:`, error);
+        errorDiv.textContent = `Upload failed: ${error.message}`;
+        errorDiv.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Upload File';
+    }
+});
+
+/**
+ * Handles the upload of the main Sales Data file from the modal.
+ */
+async function handleModalSalesDataUpload(file: File, period: string) {
+    const progressContainer = document.getElementById('quick-upload-progress-container');
+    const progressBar = document.getElementById('quick-upload-progress-bar');
+    progressContainer.classList.remove('hidden');
+
+    return new Promise((resolve, reject) => {
+        const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
+        const metadata = { customMetadata: { userId: currentUser.uid, period: period } };
+        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                progressBar.style.width = `${progress}%`;
+            },
+            (error) => {
+                console.error("Modal Sales Data upload failed:", error);
+                reject(error);
+            },
+            () => {
+                // We don't need to wait for processing here, just for the upload to finish.
+                // The main listener will eventually catch the processing completion.
+                console.log('Modal Sales Data upload complete.');
+                resolve(true);
+            }
+        );
+    });
+}
+
+/**
+ * Handles the upload of Target files (Sales or P&L) from the modal.
+ */
+async function handleModalTargetUpload(file: File, period: string, type: 'sales' | 'pnl') {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const parsedData = XLSX.utils.sheet_to_json(worksheet);
+
+    if (!parsedData || parsedData.length === 0) {
+        throw new Error("The Excel file is empty or does not contain valid data.");
+    }
+    const targetObject = parsedData.reduce((acc, row) => {
+        if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
+            acc[String(row.Metric).trim()] = row.Target;
+        }
+        return acc;
+    }, {});
+    if (Object.keys(targetObject).length === 0) {
+        throw new Error("Could not find 'Metric' and 'Target' columns.");
+    }
+
+    const collectionPath = type === 'sales' ? 'monthlySalesTargets' : 'monthlyPnlTargets';
+    const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, period);
+    await setDoc(targetDocRef, {
+        fileName: file.name,
+        lastUpdatedAt: new Date(),
+        targets: targetObject
+    }, { merge: true });
+}
 
 /**
  * Ensure a user document exists in Firestore with basic profile information.
