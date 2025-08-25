@@ -121,22 +121,6 @@ const DB_NAME = 'FinalyticsCacheDB';
 const STORE_NAME = 'compiledDataStore';
 const periodError = document.getElementById('period-error');
 
-function getSelectedPeriod(): string | null {
-    const monthSelect = document.getElementById('period-month') as HTMLSelectElement;
-    const yearInput = document.getElementById('period-year') as HTMLInputElement;
-    const year = parseInt(yearInput.value, 10);
-
-    if (!year || year < 2000 || year > 2100) {
-        periodError.classList.remove('hidden');
-        return null;
-    }
-    periodError.classList.add('hidden');
-
-    // Month value is 0-11, so add 1 for "YYYY-MM" format. Pad with '0' if needed.
-    const month = (parseInt(monthSelect.value, 10) + 1).toString().padStart(2, '0');
-    return `${year}-${month}`;
-}
-
 
 function drawMonthlyOmzetComparisonChart() {
     if (!omzetComparisonSelect) return;
@@ -387,42 +371,7 @@ onAuthStateChanged(auth, async (user) => {
    if (user) {
         currentUser = user;
         if (!adminCredentials) {
-            await fetchUserRoleAndSetupUI(user);
-
-             const monthSelect = document.getElementById('period-month') as HTMLSelectElement;
-      const yearInput = document.getElementById('period-year') as HTMLInputElement;
-
-      /**
-       * Saves the current period selection to localStorage.
-       */
-      function savePeriodSelection() {
-          const monthValue = monthSelect.value;
-          const yearValue = yearInput.value;
-          if (monthValue && yearValue) {
-              localStorage.setItem('selectedPeriodMonth', monthValue);
-              localStorage.setItem('selectedPeriodYear', yearValue);
-          }
-      }
-
-      const savedMonth = localStorage.getItem('selectedPeriodMonth');
-      const savedYear = localStorage.getItem('selectedPeriodYear');
-
-      if (savedMonth && savedYear) {
-          // If values are saved in localStorage, use them.
-          monthSelect.value = savedMonth;
-          yearInput.value = savedYear;
-      } else {
-          // Otherwise, default to the current date and save it.
-          const today = new Date();
-          monthSelect.value = today.getMonth().toString();
-          yearInput.value = today.getFullYear().toString();
-          savePeriodSelection(); // Save the initial default
-      }
-
-      // Add event listeners to save any future changes.
-      monthSelect.addEventListener('change', savePeriodSelection);
-      yearInput.addEventListener('change', savePeriodSelection);
-        }
+            await fetchUserRoleAndSetupUI(user)}
     } else {
     if (adminCredentials) {
       signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password)
@@ -933,11 +882,6 @@ async function handleSalesTargetUpload() {
         alert('Please select a sales target file.');
         return;
     }
-    const period = getSelectedPeriod();
-    if (!period) {
-        alert("Please select a valid month and year before uploading.");
-        return;
-    }
 
     showLoading({ message: 'Processing sales target...' });
     try {
@@ -946,24 +890,29 @@ async function handleSalesTargetUpload() {
         const worksheet = workbook.Sheets["Sales Target Data"];
         if (!worksheet) throw new Error("Sheet 'Sales Target Data' not found. Please use the template.");
 
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Simplified logic to read the new list of metrics and values
-        const targets = {};
+        const period = getPeriodFromFile(worksheet);
+        if (!period) throw new Error("Could not determine the period from the file.");
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
+
+        const targets = {
+            Sales: {},
+            Produk: {},
+            Channel: {}
+        };
+        let currentCategory = "";
+
         jsonData.forEach(row => {
-            if (row.Metric && typeof row.Value === 'number') {
-                targets[row.Metric] = row.Value;
+            const metric = row.Metric ? String(row.Metric).trim() : null;
+            const targetValue = row.Target;
+
+            if (metric === 'Sales' || metric === 'Produk' || metric === 'Channel') {
+                currentCategory = metric;
+            } 
+            else if (currentCategory && metric && typeof targetValue === 'number') {
+                targets[currentCategory][metric] = targetValue;
             }
         });
-
-        // Validation to ensure all required metrics from the new template are present
-        const requiredMetrics = ["Target Omzet", "Target Total Transaction", "Target Average Check", "Target Total Items Sold"];
-        const uploadedMetrics = Object.keys(targets);
-        const allMetricsFound = requiredMetrics.every(metric => uploadedMetrics.includes(metric));
-
-        if (!allMetricsFound) {
-            throw new Error("The uploaded file is missing one or more required metrics. Please use the template.");
-        }
 
         const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, period);
         await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
@@ -978,52 +927,38 @@ async function handleSalesTargetUpload() {
     }
 }
 
+
 document.getElementById('download-sales-target-template-btn').addEventListener('click', downloadSalesTargetTemplate);
 document.getElementById('download-pnl-target-template-btn').addEventListener('click', downloadPnlTargetTemplate);
 document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
-document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
-
 /**
  * Generates and triggers a download for the Sales Target Excel template.
  */
 function downloadSalesTargetTemplate() {
-    const periodString = getSelectedPeriod();
-    if (!periodString) {
-        alert("Please select a valid month and year before downloading the template.");
-        return;
-    }
-
-    // Get and format the selected period
-    const [year, month] = periodString.split('-');
-    const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const formattedPeriod = periodDate.toLocaleDateString('id-ID', {
-        month: 'long',
-        year: 'numeric'
-    });
-
     const instructions = [
-        { Step: 1, Instruction: "Fill your monthly sales targets in the 'Sales Target Data' sheet." },
-        { Step: 2, Instruction: "The 'Metric' names must match the template exactly." },
-        { Step: 3, Instruction: "The 'Value' must be a number without commas or currency symbols." }
+        { Step: 1, Instruction: "In the 'Sales Target Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
+        { Step: 2, Instruction: "Fill in the target values in the 'Target' column for each metric." },
     ];
-
-    // New data structure with headers
     const sheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: formattedPeriod },
-        {}, // Blank row for spacing
-        { A: "Metric", B: "Value" }, // Table headers
-        { A: "Target Sales", B: 250000000 },
-        { A: "Target Transaction", B: 5000 },
-        { A: "Target Average Check", B: 50000 },
+        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
+        {}, 
+        { A: "Metric", B: "Target" }, 
+        { A: "Omzet", B: 300000000 },
+        { A: "Total Check", B: 6000 },
+        { A: "APC (Average Per Check)", B: 50000 },
+        { A: "Qty Makanan", B: 4500 },
+        { A: "Qty Minuman", B: 5500 },
+        { A: "Dine In", B: 150000000 },
+        { A: "GoFood", B: 75000000 },
+        { A: "GrabFood", B: 60000000 },
+        { A: "ShopeeFood", B: 15000000 },
     ];
-    
+
     const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
-    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true }); // Use skipHeader
-
-    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 80 }];
-    wsData['!cols'] = [{ wch: 25 }, { wch: 20 }];
-
+    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true });
+    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 100 }];
+    wsData['!cols'] = [{ wch: 30 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
     XLSX.utils.book_append_sheet(wb, wsData, "Sales Target Data");
@@ -1035,43 +970,24 @@ function downloadSalesTargetTemplate() {
  * Generates and triggers a download for the P&L Target Excel template.
  */
 function downloadPnlTargetTemplate() {
-    const periodString = getSelectedPeriod();
-    if (!periodString) {
-        alert("Please select a valid month and year before downloading the template.");
-        return;
-    }
-
-    // Get and format the selected period
-    const [year, month] = periodString.split('-');
-    const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const formattedPeriod = periodDate.toLocaleDateString('id-ID', {
-        month: 'long',
-        year: 'numeric'
-    });
-
     const instructions = [
-        { Step: 1, Instruction: "Fill your P&L targets in the 'P&L Target Data' sheet." },
-        { Step: 2, Instruction: "The 'Metric' name must be exact." },
-        { Step: 3, Instruction: "For percentages (like COGS), use decimal format (e.g., enter 0.35 for 35%)." }
+        { Step: 1, Instruction: "In the 'P&L Target Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
+        { Step: 2, Instruction: "For percentages, use decimal format (e.g., enter 0.35 for 35%)." }
     ];
-
-    // New data structure with headers
     const sheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: formattedPeriod },
-        {}, // Blank row for spacing
-        { A: "Metric", B: "Value" }, // Table headers
+        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
+        {}, 
+        { A: "Metric", B: "Value" },
         { A: "Target Revenue", B: 150000000 },
         { A: "Target COGS %", B: 0.35 },
         { A: "Target Net Profit %", B: 0.20 }
     ];
-    
+
     const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
-    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true }); // Use skipHeader
-
-    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 80 }];
+    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true });
+    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 100 }];
     wsData['!cols'] = [{ wch: 25 }, { wch: 20 }];
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
     XLSX.utils.book_append_sheet(wb, wsData, "P&L Target Data");
@@ -1170,57 +1086,63 @@ async function handlePnlDataUpload() {
     }
 }
 
-async function handlePnlTargetUpload() {
+async function handlePnlDataUpload() {
     if (!currentUser) return;
-    const fileInput = document.getElementById('pnl-target-file-input') as HTMLInputElement;
+    const fileInput = document.getElementById('pnl-data-file-input');
     const file = fileInput.files?.[0];
-    if (!file) {
-        alert('Please select a P&L target file.');
-        return;
-    }
-    const period = getSelectedPeriod();
-    if (!period) {
-        alert("Please select a valid month and year before uploading.");
-        return;
+    if (!file) { 
+        alert('Please select a P&L data file.'); 
+        return; 
     }
 
-    showLoading({ message: 'Processing P&L target...' });
+    showLoading({ message: 'Processing P&L file...' });
     try {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
-        const worksheet = workbook.Sheets["P&L Target Data"];
-        if (!worksheet) throw new Error("Sheet 'P&L Target Data' not found. Please use the template.");
+        const worksheet = workbook.Sheets["P&L Data"];
+        if (!worksheet) throw new Error("Sheet 'P&L Data' not found. Please use the template.");
 
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        const targets = {};
-        jsonData.forEach(row => {
-            if (row.Metric && typeof row.Value === 'number') {
-                targets[row.Metric] = row.Value;
+        const period = getPeriodFromFile(worksheet);
+        if (!period) throw new Error("Could not determine the period from the file.");
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 3 }); // Start reading from row 4
+        
+        const validMainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+        const pnlData = {};
+        for (const row of jsonData) {
+            const mainCategory = row["Main Category"];
+            const subCategory = row["Sub-Category"];
+            const amount = row["Amount"];
+            if (mainCategory && subCategory && typeof amount === 'number') {
+                if (!validMainCategories.includes(mainCategory)) {
+                    throw new Error(`Invalid Main Category found in file: "${mainCategory}".`);
+                }
+                if (!pnlData[mainCategory]) {
+                    pnlData[mainCategory] = {};
+                }
+                pnlData[mainCategory][String(subCategory).trim()] = amount;
             }
+        }
+
+        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
+        await setDoc(pnlDocRef, { 
+            title: `${file.name} (from template)`, 
+            fileName: file.name, 
+            period: period, 
+            lastUpdatedAt: new Date(), 
+            pnlData: pnlData 
         });
         
-        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
-        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
-
         hideLoading();
-        alert('P&L target file uploaded successfully!');
+        alert(`P&L Report for ${period} has been successfully created!`);
         await populateCompiledDataTable();
     } catch (error) {
-        console.error('Error uploading P&L target:', error);
+        console.error("Error processing P&L data upload:", error);
         hideLoading();
-        alert(`Error: ${error.message}`);
+        alert(`Failed to process P&L file. Error: ${error.message}`);
     }
 }
 
-// Attach the function to the button's click event.
-document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
-
-
-// Attach the function to the button's click event.
-document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
-
-// Attach the function to the button's click event.
-document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
 
 /**
  * Load and display user list for admin user management interface.
@@ -1471,103 +1393,141 @@ function listenForProcessingStatus(fileName: string) {
   });
 }
 
-// --- Excel Processing & Data Storage ---
+function getPeriodFromSalesData(worksheet) {
+    const periodCell = worksheet['B5'];
+    if (!periodCell || !periodCell.v) {
+        throw new Error("Period data range not found in cell B5. Please ensure it is filled out correctly.");
+    }
+
+    const dateRangeString = periodCell.v.toString();
+    const startDateString = dateRangeString.split(' - ')[0];
+    if (!startDateString) {
+        throw new Error(`Invalid date range format in cell B5: "${dateRangeString}".`);
+    }
+
+    const parts = startDateString.split('-');
+    if (parts.length !== 3) {
+        throw new Error(`Invalid date format for the start date: "${startDateString}". Expected "DD-MM-YYYY".`);
+    }
+
+    const month = parts[1];
+    const year = parts[2];
+
+    if (!/^\d{4}$/.test(year) || !/^\d{2}$/.test(month)) {
+         throw new Error(`Could not correctly parse the year and month from "${startDateString}".`);
+    }
+    
+    return `${year}-${month}`;
+}
+
+
+// Replace your old event listener with this entire block
 document.getElementById('upload-btn').addEventListener('click', async () => {
-  const fileInput = document.getElementById('file-input') as HTMLInputElement;
-  const file = fileInput.files?.[0];
-  if (!file) {
-    uploadError.textContent = 'Please select a file to upload.';
-    uploadError.classList.remove('hidden');
-    return;
-  }
-  
-  const period = getSelectedPeriod();
-  if (!period) {
-      alert('Please select a valid month and year for the data.');
-      return;
-  }
-  
-  uploadError.classList.add('hidden');
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    const uploadError = document.getElementById('upload-error');
+    const file = fileInput.files?.[0];
 
-  const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
-  uploadButton.disabled = true;
-
-  const progressContainer = document.getElementById('upload-progress-container');
-  const progressBar = document.getElementById('upload-progress-bar');
-  const progressPercent = document.getElementById('upload-progress-percent');
-  const statusText = document.getElementById('upload-status-text');
-  const filenameText = document.getElementById('upload-filename');
-  const cancelBtn = document.getElementById('cancel-upload-btn');
-
-  filenameText.textContent = file.name;
-  statusText.textContent = 'Uploading...';
-  progressBar.style.width = '0%';
-  progressBar.classList.remove('bg-green-500', 'bg-red-500');
-  progressBar.classList.add('bg-blue-600');
-  progressPercent.textContent = '0%';
-
-  progressContainer.classList.remove('hidden');
-  setTimeout(() => progressContainer.classList.add('show'), 10);
-
-  try {
-    const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
-    const metadata = {
-        customMetadata: { 
-            userId: currentUser.uid,
-            period: period 
-        }
-    };
-    const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, metadata);
-
-    const cancelUpload = () => uploadTask.cancel();
-    cancelBtn.addEventListener('click', cancelUpload, { once: true });
-
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        const percent = Math.round(progress);
-        progressBar.style.width = `${percent}%`;
-        progressPercent.textContent = `${percent}%`;
-        statusText.textContent = `Uploading... (${(snapshot.bytesTransferred / 1024 / 1024).toFixed(2)} MB of ${(snapshot.totalBytes / 1024 / 1024).toFixed(2)} MB)`;
-      },
-      (error) => {
-        console.error("Upload failed:", error);
-        statusText.textContent = 'Upload Failed!';
-        progressBar.classList.remove('bg-blue-600');
-        progressBar.classList.add('bg-red-500');
-        uploadError.textContent = `Upload failed: ${error.message}`;
+    if (!file) {
+        uploadError.textContent = 'Please select a file to upload.';
         uploadError.classList.remove('hidden');
+        return;
+    }
+    uploadError.classList.add('hidden');
+
+    const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
+    uploadButton.disabled = true;
+
+    // --- All your progress bar UI elements ---
+    const progressContainer = document.getElementById('upload-progress-container');
+    const progressBar = document.getElementById('upload-progress-bar');
+    const progressPercent = document.getElementById('upload-progress-percent');
+    const statusText = document.getElementById('upload-status-text');
+    const filenameText = document.getElementById('upload-filename');
+    const cancelBtn = document.getElementById('cancel-upload-btn');
+
+    filenameText.textContent = file.name;
+    statusText.textContent = 'Analyzing file...';
+    progressBar.style.width = '0%';
+    progressBar.classList.remove('bg-green-500', 'bg-red-500');
+    progressBar.classList.add('bg-blue-600');
+    progressPercent.textContent = '0%';
+    progressContainer.classList.remove('hidden');
+    setTimeout(() => progressContainer.classList.add('show'), 10);
+
+    try {
+        // --- START: NEW LOGIC to get period from the file ---
+        const fileData = await file.arrayBuffer();
+        const workbook = XLSX.read(fileData);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const period = getPeriodFromSalesData(worksheet);
+        // --- END: NEW LOGIC ---
+
+        statusText.textContent = `Period ${period} found. Uploading...`;
+
+        // UPDATED: The storage path is now more organized
+        const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const metadata = {
+            customMetadata: { 
+                userId: currentUser.uid,
+                period: period 
+            }
+        };
+        const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+        const cancelUpload = () => uploadTask.cancel();
+        cancelBtn.addEventListener('click', cancelUpload, { once: true });
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                const percent = Math.round(progress);
+                progressBar.style.width = `${percent}%`;
+                progressPercent.textContent = `${percent}%`;
+                statusText.textContent = `Uploading... (${(snapshot.bytesTransferred / 1024 / 1024).toFixed(2)} MB of ${(snapshot.totalBytes / 1024 / 1024).toFixed(2)} MB)`;
+            },
+            (error) => {
+                console.error("Upload failed:", error);
+                statusText.textContent = 'Upload Failed!';
+                progressBar.classList.add('bg-red-500');
+                uploadButton.disabled = false;
+                setTimeout(() => {
+                    progressContainer.classList.remove('show');
+                    setTimeout(() => progressContainer.classList.add('hidden'), 300);
+                }, 5000);
+                cancelBtn.removeEventListener('click', cancelUpload);
+            },
+            async () => {
+                statusText.textContent = 'Upload Complete! Waiting for server...';
+                progressBar.classList.add('bg-green-500');
+                progressPercent.textContent = '100%';
+                uploadButton.disabled = false;
+                cancelBtn.removeEventListener('click', cancelUpload);
+                
+                // --- CORRECTED: Trigger processing using the period, not the file name ---
+                const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
+                await setDoc(docRef, {
+                    fileName: file.name,
+                    status: 'uploaded',
+                    period: period,
+                    storagePath: storagePath,
+                    uploadedAt: new Date(),
+                });
+                
+                listenForProcessingStatus(period);
+            }
+        );
+
+    } catch (error) {
+        console.error("Upload initialization failed:", error);
+        statusText.textContent = `Error: ${error.message}`;
+        progressBar.classList.add('bg-red-500');
         uploadButton.disabled = false;
         setTimeout(() => {
             progressContainer.classList.remove('show');
             setTimeout(() => progressContainer.classList.add('hidden'), 300);
         }, 5000);
-        cancelBtn.removeEventListener('click', cancelUpload);
-      },
-      () => {
-        statusText.textContent = 'Upload Complete! Waiting for server...';
-        progressBar.classList.remove('bg-blue-600');
-        progressBar.classList.add('bg-green-500');
-        progressPercent.textContent = '100%';
-        uploadButton.disabled = false;
-        cancelBtn.removeEventListener('click', cancelUpload);
-        
-        listenForProcessingStatus(file.name);
-        
-        // START: The unreliable setTimeout has been removed from here
-        // The refresh is now handled correctly by listenForProcessingStatus
-        // END: The unreliable setTimeout has been removed from here
-      }
-    );
-
-  } catch (error) {
-    console.error("Upload initialization failed:", error);
-    uploadError.textContent = `Upload failed: ${error.message}`;
-    uploadError.classList.remove('hidden');
-    uploadButton.disabled = false;
-    progressContainer.classList.remove('show');
-    setTimeout(() => progressContainer.classList.add('hidden'), 300);
-  }
+    }
 });
 
 // --- AI Analysis & Configuration ---
@@ -9818,71 +9778,98 @@ function hideLoading() {
 }
 
 function downloadPnlTemplate() {
-    // --- START: New logic to get and format the selected period ---
-    const periodString = getSelectedPeriod(); // Gets "YYYY-MM"
-    let formattedPeriod = "No Period Selected";
-    if (periodString) {
-        const [year, month] = periodString.split('-');
-        // Create a date object (month is 0-indexed, so subtract 1)
-        const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        // Format to "Month Year" in Indonesian (e.g., "Maret 2025")
-        formattedPeriod = periodDate.toLocaleDateString('id-ID', {
-            month: 'long',
-            year: 'numeric'
-        });
-    }
-    // --- END: New logic ---
-
-    const mainCategories = [
-        "Pendapatan (Revenue)",
-        "Harga Pokok Produksi", // COGS
-        "Beban Operasional (OPEX)",
-        "Beban Non Operasional",
-        "Depresiasi/ Amortisasi",
-        "Bunga",
-        "Pajak (PB1)"
-    ];
-
     const instructions = [
-        { Step: 1, Instruction: "Fill your P&L data into the 'P&L Data' sheet." },
-        { Step: 2, Instruction: "For the 'Main Category' column, you MUST use one of the exact values listed below." },
-        { Step: 3, Instruction: "The 'Sub-Category' is your specific account name (e.g., 'Gaji Karyawan', 'Penjualan Kopi')." },
-        { Step: 4, Instruction: "Ensure the 'Amount' column contains only numbers." },
-        {},
-        { Step: "Valid Main Categories:" },
-        ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))
+        { Step: 1, Instruction: "In the 'P&L Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
+        { Step: 2, Instruction: "For the 'Main Category' column, you MUST use the exact values from the list provided in these instructions." }
     ];
-
-    // --- START: Updated data structure for the "P&L Data" sheet ---
     const pnlSheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: formattedPeriod },
-        {}, // Blank row for spacing
-        // These are now the actual headers for the data table
-        { A: "Main Category", B: "Sub-Category", C: "Amount" }, 
-        // Example rows
+        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
+        {},
+        { A: "Main Category", B: "Sub-Category", C: "Amount" },
         { A: "Pendapatan (Revenue)", B: "Penjualan Kopi Susu", C: 5000000 },
-        { A: "Harga Pokok Produksi", B: "Bahan Baku Kopi", C: 1200000 },
         { A: "Beban Operasional (OPEX)", B: "Gaji Barista", C: 1500000 },
-        { A: "Beban Operasional (OPEX)", B: "Biaya Sewa Tempat", C: 1000000 },
     ];
-    // --- END: Updated data structure ---
-
-    const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
-    
-    // Create the P&L sheet from the new data structure, skipping default headers
+    const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+    const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
-
-    // Set column widths for better readability
-    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 80 }];
+    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 100 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
     XLSX.utils.book_append_sheet(wb, wsData, "P&L Data");
-
     XLSX.writeFile(wb, "Finalytics_P&L_Template.xlsx");
 }
 
 // Attach the function to the new download button
 document.getElementById('download-pnl-template-btn').addEventListener('click', downloadPnlTemplate);
+
+function getPeriodFromFile(worksheet) {
+    // The period is in cell B2 (row 2, column B).
+    const periodCell = worksheet['B2'];
+    if (!periodCell || !periodCell.v) {
+        throw new Error("Period not found in cell B2. Please use the template and fill in the period.");
+    }
+
+    const periodString = periodCell.v.toString(); // e.g., "Agustus 2025"
+    const monthNames = {
+        "januari": "01", "februari": "02", "maret": "03", "april": "04", "mei": "05", "juni": "06",
+        "juli": "07", "agustus": "08", "september": "09", "oktober": "10", "november": "11", "desember": "12"
+    };
+
+    const parts = periodString.toLowerCase().split(' ');
+    if (parts.length !== 2) return null;
+
+    const month = monthNames[parts[0]];
+    const year = parts[1];
+
+    if (!month || !/^\d{4}$/.test(year)) {
+        throw new Error(`Invalid period format: "${periodString}". Expected "Month Year", e.g., "Agustus 2025".`);
+    }
+
+    return `${year}-${month}`;
+}
+
+async function handlePnlTargetUpload() {
+    if (!currentUser) return;
+    const fileInput = document.getElementById('pnl-target-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (!file) {
+        alert('Please select a P&L target file.');
+        return;
+    }
+
+    showLoading({ message: 'Processing P&L target...' });
+    try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets["P&L Target Data"];
+        if (!worksheet) throw new Error("Sheet 'P&L Target Data' not found. Please use the template.");
+
+        const period = getPeriodFromFile(worksheet);
+        if (!period) throw new Error("Could not determine the period from the file.");
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 3 });
+        
+        const targets = {};
+        jsonData.forEach(row => {
+            if (row.Metric && typeof row.Value === 'number') {
+                targets[row.Metric] = row.Value;
+            }
+        });
+        
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
+        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
+
+        hideLoading();
+        alert('P&L target file uploaded successfully!');
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error('Error uploading P&L target:', error);
+        hideLoading();
+        alert(`Error: ${error.message}`);
+    }
+}
+
+document.getElementById('upload-pnl-data-btn').addEventListener('click', handlePnlDataUpload);
+document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
