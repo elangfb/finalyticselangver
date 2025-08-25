@@ -355,7 +355,12 @@
         
         <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
             <h2 class="text-2xl font-semibold mb-4">Upload Sales Target</h2>
-            <p class="text-gray-600 mb-4">Upload an Excel file with your sales targets (e.g., daily, weekly, or monthly goals).</p>
+            <p class="text-gray-600 mb-4">Download the template, fill it with your sales targets, and upload it here.</p>
+            
+            <button id="download-sales-target-template-btn" class="mb-4 bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300">
+                Download Sales Target Template
+            </button>
+            
             <input type="file" id="sales-target-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
             <div class="flex items-center gap-4 mt-4">
                 <button id="upload-sales-target-btn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Upload Target File</button>
@@ -365,15 +370,32 @@
 
     <div class="mb-12">
         <h3 class="text-3xl font-semibold text-gray-700 mb-6 border-b pb-2">P&L (Profit & Loss) Data</h3>
+
         <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <h2 class="text-2xl font-semibold mb-4">P&L Statement Tool</h2>
-            <p class="text-gray-600 mb-4">Create, map, review, and save your P&L statements.</p>
-            <button id="pl-analysis-btn" class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300">Open P&L Tool</button>
+            <h2 class="text-2xl font-semibold mb-4">Upload P&L Data File</h2>
+            <p class="text-gray-600 mb-4">
+                Download the template, fill it with your data, and then upload it here. 
+                The system will automatically generate the report from the template.
+            </p>
+            
+            <button id="download-pnl-template-btn" class="mb-4 bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300">
+                Download P&L Template
+            </button>
+            
+            <input type="file" id="pnl-data-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+            <div class="flex items-center gap-4 mt-4">
+                <button id="upload-pnl-data-btn" class="bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-emerald-700 transition duration-300">Upload & Generate P&L Report</button>
+            </div>
         </div>
         
         <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
             <h2 class="text-2xl font-semibold mb-4">Upload P&L Target</h2>
-            <p class="text-gray-600 mb-4">Upload an Excel file with your P&L targets (e.g., target revenue, COGS %, net profit %).</p>
+            <p class="text-gray-600 mb-4">Download the template, fill it with your P&L targets, and upload it here.</p>
+
+            <button id="download-pnl-target-template-btn" class="mb-4 bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300">
+                Download P&L Target Template
+            </button>
+            
             <input type="file" id="pnl-target-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
             <div class="flex items-center gap-4 mt-4">
                 <button id="upload-pnl-target-btn" class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300">Upload Target File</button>
@@ -418,12 +440,6 @@
                 <p id="no-uploads-msg" class="text-gray-500">No uploads yet. Process a file to see it here.</p>
             </div>
         </div>
-        <div class="bg-white rounded-lg shadow-lg p-8">
-            <h2 class="text-2xl font-semibold mb-4">P&L Report History</h2>
-            <p class="text-gray-600 mb-4">View all of your saved Profit & Loss statements.</p>
-            <button id="view-pnl-history-btn" class="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-cyan-700 transition duration-300">View P&L History</button>
-            <button id="pnl-comparison-btn" class="bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition duration-300 ml-2">P&L Comparison</button>
-        </div>
     </div>
 </div>
 
@@ -455,9 +471,7 @@
                             >
                                 Analisa Penjualan
                             </a>
-                            <a href="#" class="sidebar-link p-3 rounded-md" data-target="pnl">
-        Analisa P&L
-    </a>
+                            
     <a href="#" class="sidebar-link p-3 rounded-md" data-target="waktu">
         Pebandingan Waktu
     </a>
@@ -877,28 +891,6 @@
     </div>
 </div>
                         </section>
-
-                        <section id="pnl-section" class="analysis-section space-y-6">
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Analisa Profit & Loss (P&L) Lintas Periode</h3>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead id="pnl-analysis-thead" class="bg-gray-50">
-                    </thead>
-                <tbody id="pnl-analysis-tbody" class="bg-white divide-y divide-gray-200">
-                    <tr>
-                        <td colspan="3" class="text-center p-4 text-gray-500">Loading P&L data...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="mt-4 flex justify-end">
-            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="pnlAnalysis">Analyze with AI</button>
-        </div>
-        <div id="analysis-result-pnlAnalysis" class="analysis-result-container hidden"></div>
-    </div>
-</section>
-
 <section id="waktu-section" class="analysis-section space-y-6">
     <div class="bg-white rounded-lg shadow-md p-6">
         <h3 class="text-xl font-semibold text-gray-700 mb-4">Pebandingan Waktu</h3>
@@ -1304,151 +1296,6 @@
                     </div>
                 </div>
             </div>
-
-            <div id="pl-analysis-view" class="hidden">
-    <div class="flex justify-between items-center mb-8">
-        <h2 class="text-4xl font-bold text-gray-800">Profit & Loss (P&L) Analysis</h2>
-        <button id="back-to-dashboard-from-pl-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300">&larr; Back to Dashboard</button>
-    </div>
-
-    <!-- Step 1: P&L Template Setup View -->
-    <div id="pnl-template-view" class="bg-white rounded-lg shadow-lg p-8">
-        <div class="max-w-4xl mx-auto">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-2xl font-semibold mb-2">P&L Template Setup</h3>
-                    <p class="text-gray-600 mb-6">Customize the line items for your P&L statement here.</p>
-                </div>
-                <button id="go-to-upload-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">Next: Upload Data &rarr;</button>
-            </div>
-            
-            <div id="pnl-form-container" class="space-y-6 mt-4">
-                <!-- The P&L form will be dynamically generated here -->
-            </div>
-
-            <div class="mt-8 border-t pt-6 flex justify-end">
-                <button id="save-pnl-template-btn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Save Template</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Step 2: P&L Upload and Mapping View -->
-    <div id="pnl-upload-view" class="hidden bg-white rounded-lg shadow-lg p-8">
-        <div class="max-w-4xl mx-auto">
-             <div class="flex justify-between items-center">
-                <h3 class="text-2xl font-semibold mb-2">Upload & Map P&L Data</h3>
-                <button id="back-to-template-btn" class="text-sm text-indigo-600 hover:underline">&larr; Back to Template</button>
-            </div>
-            <p class="text-gray-600 mb-6">Upload your monthly P&L Excel file. We'll help you match the items to your template.</p>
-
-            <!-- Upload Input -->
-            <div class="bg-gray-50 p-4 rounded-lg border">
-                <label for="pnl-file-input" class="block text-sm font-medium text-gray-700 mb-1">Select P&L Excel File:</label>
-                <input type="file" id="pnl-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-            </div>
-
-            <!-- Mapping UI -->
-            <div id="pnl-mapping-container" class="mt-6 hidden">
-                <h4 class="text-lg font-semibold text-gray-800 mb-3">Map Your Data</h4>
-                <p class="text-sm text-gray-500 mb-4">Match the items from your Excel file (left) to the categories in your template (right). We've made some guesses for you.</p>
-                <div id="pnl-mapping-table" class="space-y-2">
-                    <!-- Mapping rows will be injected here -->
-                </div>
-                <div class="mt-6 flex justify-end">
-                    <button id="confirm-mapping-btn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700">Confirm & Review</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="pnl-results-view" class="hidden bg-white rounded-lg shadow-lg p-8">
-    <div class="max-w-4xl mx-auto">
-        <div id="pnl-review-mode-header">
-            <div class="flex justify-between items-center">
-                <h3 class="text-2xl font-semibold mb-2">P&L Review</h3>
-                <button id="back-to-mapping-btn" class="text-sm text-indigo-600 hover:underline">&larr; Back to Mapping</button>
-            </div>
-            <p class="text-gray-600 mb-6">Here is your calculated Profit & Loss statement based on your mapping.</p>
-        </div>
-
-        <div id="pnl-view-mode-header" class="hidden">
-            <h3 class="text-2xl font-semibold mb-6"></h3>
-        </div>
-
-        <div id="pnl-title-input-wrapper" class="mb-6">
-            <label for="pnl-report-title" class="block text-sm font-medium text-gray-700 mb-1">Report Title</label>
-            <input type="text" id="pnl-report-title" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., P&L Maret 2025">
-        </div>
-
-        <div id="pnl-results-container" class="space-y-4">
-            </div>
-
-        <div id="save-pnl-report-btn-wrapper" class="mt-8 flex justify-end">
-            <button id="save-pnl-report-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">Save Report</button>
-        </div>
-    </div>
-</div>
-</div>
-
-<div id="pnl-comparison-view" class="hidden">
-    <div class="flex justify-between items-center mb-8">
-        <h2 class="text-4xl font-bold text-gray-800">P&L Comparison</h2>
-        <button id="back-to-dashboard-from-pnl-comp-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Dashboard</button>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-lg p-8">
-        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Compare P&L Statements</h3>
-        <p class="text-gray-600 mb-6">Select two saved P&L reports to compare them side-by-side.</p>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end bg-gray-50 p-4 rounded-lg border mb-8">
-            <div>
-                <label for="pnl-a-select" class="block text-sm font-medium text-gray-700">Compare this report:</label>
-                <select id="pnl-a-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
-            </div>
-            <div>
-                <label for="pnl-b-select" class="block text-sm font-medium text-gray-700">With this report:</label>
-                <select id="pnl-b-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
-            </div>
-        </div>
-
-        <div id="pnl-comparison-results-container" class="mt-6">
-            <h4 class="text-xl font-semibold text-gray-700 mb-3">Comparison Results</h4>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                   <thead class="bg-gray-50">
-    <tr class="text-xs font-medium text-gray-500 uppercase tracking-wider">
-        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Metric</th>
-        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Target</th>
-        <th scope="colgroup" colspan="2" class="px-6 py-3 text-center border-l border-r" id="pnl-a-header">Report A</th>
-        <th scope="colgroup" colspan="2" class="px-6 py-3 text-center border-l border-r" id="pnl-b-header">Report B</th>
-        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Change</th>
-        <th scope="col" rowspan="2" class="px-6 py-3 text-left align-bottom">Compared to Target</th>
-    </tr>
-    <tr class="text-xs font-medium text-gray-500 uppercase tracking-wider">
-        <th scope="col" class="px-6 py-3 text-left font-normal border-l">Amount</th>
-        <th scope="col" class="px-6 py-3 text-right font-normal border-r">% of Rev</th>
-        <th scope="col" class="px-6 py-3 text-left font-normal border-l">Amount</th>
-        <th scope="col" class="px-6 py-3 text-right font-normal border-r">% of Rev</th>
-    </tr>
-</thead>
-                    <tbody id="pnl-comparison-tbody" class="bg-white divide-y divide-gray-200">
-                        </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div id="pnl-history-view" class="hidden">
-    <div class="flex justify-between items-center mb-8">
-        <h2 class="text-4xl font-bold text-gray-800">P&L Report History</h2>
-        <button id="back-to-dashboard-from-pnl-history-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Dashboard</button>
-    </div>
-    <div class="bg-white rounded-lg shadow-lg p-8">
-        <div id="pnl-history-list" class="space-y-4">
-            <p id="no-pnl-reports-msg" class="text-gray-500">No saved reports yet. Save a P&L report to see it here.</p>
-        </div>
-    </div>
-</div>
 
             <!-- Konfigurasi View -->
             <div id="konfigurasi-view" class="hidden">

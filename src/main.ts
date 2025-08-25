@@ -90,11 +90,8 @@ let adminCredentials = null
 let yoyYearSelectInitialized = false
 let monthlyComparisonInitialized = false;
 let monthlyComparisonTargets = {};
-let pnlStructure = null;
-let pnlExcelData = []; // To hold the data from the uploaded P&L file
-let currentPnlData = {};
-let savedPnlReports = [];
 let omzetComparisonSelect: SlimSelect | null = null;
+let currentPnlPeriod: string | null = null;
 
 
 
@@ -124,66 +121,6 @@ const DB_NAME = 'FinalyticsCacheDB';
 const STORE_NAME = 'compiledDataStore';
 const periodError = document.getElementById('period-error');
 
-document.getElementById('confirm-mapping-btn').addEventListener('click', () => {
-    const pnlResult = {};
-    const mappingSelects = document.querySelectorAll('.pnl-mapping-select');
-    
-    for (const category in pnlStructure) {
-        pnlResult[category] = {};
-    }
-    mappingSelects.forEach((select, index) => {
-        const selectedItem = (select as HTMLSelectElement).value;
-        if (selectedItem) {
-            const excelRow = pnlExcelData[index];
-            const itemName = excelRow[0];
-            const itemValue = excelRow[1];
-            for (const category in pnlStructure) {
-                if (pnlStructure[category].includes(selectedItem)) {
-                    pnlResult[category][itemName] = itemValue;
-                    break;
-                }
-            }
-        }
-    });
-
-    renderPnlResults(pnlResult);
-    document.getElementById('pnl-upload-view').classList.add('hidden');
-    document.getElementById('pnl-results-view').classList.remove('hidden');
-    
-    document.getElementById('pnl-review-mode-header').classList.remove('hidden');
-    document.getElementById('pnl-view-mode-header').classList.add('hidden');
-    document.getElementById('pnl-title-input-wrapper').classList.remove('hidden');
-    document.getElementById('save-pnl-report-btn-wrapper').classList.remove('hidden');
-    document.getElementById('back-to-mapping-btn').classList.remove('hidden');
-    
-    // --- ADD THESE LINES TO RESET THE SAVE BUTTON ---
-    const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
-    saveButton.disabled = false;
-    saveButton.textContent = 'Save Report';
-    // Ensure the button has the correct active color
-    saveButton.classList.remove('bg-gray-400');
-    saveButton.classList.add('bg-green-600');
-    // Clear the title from the previous report
-    (document.getElementById('pnl-report-title') as HTMLInputElement).value = '';
-});
-
-// Add this new event listener as well
-document.getElementById('back-to-mapping-btn').addEventListener('click', () => {
-    document.getElementById('pnl-results-view').classList.add('hidden');
-    document.getElementById('pnl-upload-view').classList.remove('hidden');
-});
-
-
-// --- P&L Comparison Logic ---
-
-// Navigation listeners for the new view
-document.getElementById('pnl-comparison-btn').addEventListener('click', () => {
-    showView('pnl-comparison');
-    setupPnlComparison();
-});
-
-document.getElementById('back-to-dashboard-from-pnl-comp-btn').addEventListener('click', () => showView('dashboard'));
-
 function getSelectedPeriod(): string | null {
     const monthSelect = document.getElementById('period-month') as HTMLSelectElement;
     const yearInput = document.getElementById('period-year') as HTMLInputElement;
@@ -200,58 +137,6 @@ function getSelectedPeriod(): string | null {
     return `${year}-${month}`;
 }
 
-
-/**
- * Fetches saved P&L reports and sets up the comparison dropdowns.
- */
-async function setupPnlComparison() {
-    if (!currentUser) return;
-
-    const selectA = document.getElementById('pnl-a-select') as HTMLSelectElement;
-    const selectB = document.getElementById('pnl-b-select') as HTMLSelectElement;
-    selectA.innerHTML = '<option>Loading reports...</option>';
-    selectB.innerHTML = '<option>Loading reports...</option>';
-
-    try {
-        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-        const q = query(pnlReportsRef, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-
-        savedPnlReports = [];
-        querySnapshot.forEach(doc => {
-            savedPnlReports.push({ id: doc.id, ...doc.data() });
-        });
-
-        if (savedPnlReports.length < 2) {
-            selectA.innerHTML = '<option>Need at least 2 saved reports</option>';
-            selectB.innerHTML = '<option>Need at least 2 saved reports</option>';
-            document.getElementById('pnl-comparison-tbody').innerHTML = '';
-            return;
-        }
-
-        const optionsHtml = savedPnlReports.map(report => 
-            `<option value="${report.id}">${report.title}</option>`
-        ).join('');
-        
-        selectA.innerHTML = optionsHtml;
-        selectB.innerHTML = optionsHtml;
-
-        // Set default selections to the two most recent reports
-        selectA.value = savedPnlReports[1].id; // Second most recent
-        selectB.value = savedPnlReports[0].id; // Most recent
-
-        // Add event listeners to re-run comparison when selection changes
-        selectA.addEventListener('change', runPnlComparison);
-        selectB.addEventListener('change', runPnlComparison);
-        
-        runPnlComparison(); // Run initial comparison
-
-    } catch (error) {
-        console.error("Error setting up P&L comparison:", error);
-        selectA.innerHTML = '<option>Error loading reports</option>';
-        selectB.innerHTML = '<option>Error loading reports</option>';
-    }
-}
 
 function drawMonthlyOmzetComparisonChart() {
     if (!omzetComparisonSelect) return;
@@ -341,168 +226,6 @@ function setupMonthlyOmzetComparisonChart() {
     // Initial drawing of the chart is handled by the afterChange event from setSelected
 }
 
-/**
- * Runs the P&L comparison and renders the results table.
- */
-function runPnlComparison() {
-    // --- Initial Setup ---
-    const selectA = document.getElementById('pnl-a-select') as HTMLSelectElement;
-    const selectB = document.getElementById('pnl-b-select') as HTMLSelectElement;
-    const reportA = savedPnlReports.find(r => r.id === selectA.value);
-    const reportB = savedPnlReports.find(r => r.id === selectB.value);
-    if (!reportA || !reportB) return;
-    document.getElementById('pnl-a-header').textContent = reportA.title;
-    document.getElementById('pnl-b-header').textContent = reportB.title;
-    const tbody = document.getElementById('pnl-comparison-tbody');
-    tbody.innerHTML = '';
-    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-    const getChange = (valA, valB, invertColors = false) => {
-        if (valA === 0 && valB === 0) return { text: '0.0%', class: 'text-gray-500' };
-        if (valA === 0) return { text: 'N/A', class: 'text-gray-500' };
-        const change = ((valB - valA) / valA) * 100;
-        const sign = change >= 0 ? '▲' : '▼';
-        let color;
-        if (invertColors) { color = change >= 0 ? 'text-red-600' : 'text-green-600'; } 
-        else { color = change >= 0 ? 'text-green-600' : 'text-red-600'; }
-        return { text: `${sign} ${Math.abs(change).toFixed(1)}%`, class: color };
-    };
-
-    const getContributionChange = (subValA, subValB, totalValA, invertColors = false) => {
-        if (totalValA === 0) return { text: 'N/A', class: 'text-gray-500' };
-        const changeAmount = subValB - subValA;
-        const contributionPercent = (changeAmount / totalValA) * 100;
-        const sign = changeAmount >= 0 ? '▲' : '▼';
-        let color;
-        if (invertColors) { color = changeAmount >= 0 ? 'text-red-600' : 'text-green-600'; }
-        else { color = changeAmount >= 0 ? 'text-green-600' : 'text-red-600'; }
-        return { text: `${sign} ${Math.abs(contributionPercent).toFixed(1)}%`, class: color };
-    };
-
-    // --- Data Calculation ---
-    const calculateAllValues = (pnlData) => {
-        const getCatTotal = (catName) => Object.values(pnlData[catName] || {}).reduce((sum: number, val: number) => sum + val, 0);
-        const revenue = getCatTotal("Pendapatan (Revenue)"), hpp = getCatTotal("Harga Pokok Produksi"), opex = getCatTotal("Beban Operasional (OPEX)"), nonOpex = getCatTotal("Beban Non Operasional"), depr = getCatTotal("Depresiasi/ Amortisasi"), bunga = getCatTotal("Bunga"), pajak = getCatTotal("Pajak (PB1)"), grossProfit = revenue - hpp, netOpIncome = grossProfit - opex, ebitda = netOpIncome - nonOpex, netIncome = ebitda - depr - bunga - pajak;
-        return { "Pendapatan (Revenue)": revenue, "Harga Pokok Produksi": hpp, "Laba Kotor (Gross Profit)": grossProfit, "Beban Operasional (OPEX)": opex, "Pendapatan Bersih Operasional (Net Operating Income)": netOpIncome, "Beban Non Operasional": nonOpex, "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": ebitda, "Depresiasi/ Amortisasi": depr, "Bunga": bunga, "Pajak (PB1)": pajak, "Pendapatan Bersih (Net Income)": netIncome };
-    };
-    const resultsA = calculateAllValues(reportA.pnlData), resultsB = calculateAllValues(reportB.pnlData), totalRevenueA = resultsA["Pendapatan (Revenue)"], totalRevenueB = resultsB["Pendapatan (Revenue)"], structureOrder = Object.keys(resultsA), savedTargets = JSON.parse(localStorage.getItem('pnlComparisonTargets') || '{}'), readOnlyItems = ["Laba Kotor (Gross Profit)", "Pendapatan Bersih Operasional (Net Operating Income)", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", "Pendapatan Bersih (Net Income)"], expenseCategories = ["Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-
-    structureOrder.forEach(item => {
-        const isReadOnly = readOnlyItems.includes(item);
-        const tr = document.createElement('tr');
-        tr.className = isReadOnly ? 'bg-gray-50 font-semibold' : 'bg-white';
-        const valA = resultsA[item];
-        const valB = resultsB[item];
-        const shouldInvertColors = expenseCategories.includes(item);
-        const change = getChange(valA, valB, shouldInvertColors);
-        const percentA = totalRevenueA > 0 ? (valA / totalRevenueA) * 100 : 0;
-        const percentB = totalRevenueB > 0 ? (valB / totalRevenueB) * 100 : 0;
-        let targetCellHtml = '';
-        const safeItemName = btoa(item);
-        const isMainCategory = !isReadOnly;
-        if (item === "Pendapatan (Revenue)") {
-            targetCellHtml = `<input type="text" class="pnl-target-input w-full border-gray-300 rounded-md shadow-sm text-sm p-1 mb-1" data-item-name="${item}" data-input-type="amount" id="pnl-target-amount-${safeItemName}" placeholder="Enter target..."><div class="text-center text-gray-500 text-sm font-semibold">100%</div>`;
-        } else if (isReadOnly) {
-            targetCellHtml = `<div class="w-full border border-gray-200 bg-gray-200 rounded-md shadow-sm text-sm p-1 mb-1 text-gray-500 font-mono" id="pnl-target-amount-${safeItemName}"></div><div class="w-full border border-gray-200 bg-gray-200 rounded-md shadow-sm text-sm p-1 text-right text-gray-500 font-mono" id="pnl-target-percent-${safeItemName}"></div>`;
-        } else {
-            targetCellHtml = `<input type="text" class="pnl-target-input w-full border-gray-300 rounded-md shadow-sm text-sm p-1 mb-1" data-item-name="${item}" data-input-type="amount" id="pnl-target-amount-${safeItemName}" placeholder="Enter amount..."><div class="flex items-center shadow-sm"><input type="text" class="pnl-target-input w-full border border-r-0 border-gray-300 rounded-l-md text-sm p-1 text-right focus:ring-0 focus:outline-none focus:border-gray-300" data-item-name="${item}" data-input-type="percent" id="pnl-target-percent-${safeItemName}" placeholder="% of Rev"><span class="inline-flex items-center px-2 py-1 border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-r-md">%</span></div>`;
-        }
-        const metricCellHtml = isMainCategory ? `<span class="flex items-center cursor-pointer pnl-row-toggle" data-category="${safeItemName}"><svg class="w-4 h-4 mr-2 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>${item}</span>` : item;
-        tr.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isReadOnly ? 'text-gray-900' : 'text-gray-800'}">${metricCellHtml}</td><td class="px-6 py-4 min-w-48">${targetCellHtml}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono border-l">${formatCurrency(valA)}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono text-right border-r">${percentA.toFixed(1)}%</td><td class="px-6 py-4 text-sm text-gray-500 font-mono border-l">${formatCurrency(valB)}</td><td class="px-6 py-4 text-sm text-gray-500 font-mono text-right border-r">${percentB.toFixed(1)}%</td><td class="px-6 py-4 text-sm font-semibold ${change.class}">${change.text}</td><td class="px-6 py-4 text-sm font-semibold" id="pnl-target-result-${safeItemName}">-</td>`;
-        tbody.appendChild(tr);
-
-        if (isMainCategory) {
-            const subItemsA = reportA.pnlData[item] || {}, subItemsB = reportB.pnlData[item] || {};
-            const allSubItemNames = new Set([...Object.keys(subItemsA), ...Object.keys(subItemsB)]);
-            allSubItemNames.forEach(subItemName => {
-                const childTr = document.createElement('tr');
-                childTr.className = `hidden pnl-subcategory-row bg-white`;
-                childTr.dataset.category = safeItemName;
-                const subValA = subItemsA[subItemName] || 0, subValB = subItemsB[subItemName] || 0;
-                const subPercentA = totalRevenueA > 0 ? (subValA / totalRevenueA) * 100 : 0, subPercentB = totalRevenueB > 0 ? (subValB / totalRevenueB) * 100 : 0;
-                const subItemChange = getContributionChange(subValA, subValB, valA, shouldInvertColors);
-                childTr.innerHTML = `<td class="pl-12 pr-6 py-3 whitespace-nowrap text-sm text-gray-500">${subItemName}</td><td></td><td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValA)}</td><td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentA.toFixed(1)}%</td><td class="px-6 py-3 text-sm text-gray-500 font-mono border-l">${formatCurrency(subValB)}</td><td class="px-6 py-3 text-sm text-gray-500 font-mono text-right border-r">${subPercentB.toFixed(1)}%</td><td class="px-6 py-3 text-sm font-semibold ${subItemChange.class}">${subItemChange.text}</td><td></td>`;
-                tbody.appendChild(childTr);
-            });
-        }
-    });
-    
-    const getTargetValue = (itemName) => {
-        const element = document.getElementById(`pnl-target-amount-${btoa(itemName)}`);
-        if (!element) return 0;
-        const rawValue = 'value' in element ? (element as HTMLInputElement).value : element.textContent;
-        return parseFloat(rawValue.replace(/[^0-9-]/g, '') || '0');
-    };
-    const updateTargetRow = (itemName, newAmount, revenueTarget) => {
-        const safeName = btoa(itemName);
-        const amountEl = document.getElementById(`pnl-target-amount-${safeName}`);
-        const percentEl = document.getElementById(`pnl-target-percent-${safeName}`);
-        const resultCell = document.getElementById(`pnl-target-result-${safeName}`);
-        const shouldInvert = expenseCategories.includes(itemName);
-        if (amountEl) { 'value' in amountEl ? (amountEl as HTMLInputElement).value = formatCurrency(newAmount) : amountEl.textContent = formatCurrency(newAmount); }
-        if (percentEl) { 
-            const percentValue = revenueTarget > 0 ? ((newAmount / revenueTarget) * 100) : 0;
-            const cleanPercent = Number(percentValue.toFixed(1));
-            'value' in percentEl ? (percentEl as HTMLInputElement).value = cleanPercent.toString() : percentEl.textContent = `${cleanPercent}%`; 
-        }
-        const actualValue = resultsB[itemName];
-        const change = getChange(newAmount, actualValue, shouldInvert);
-        if (resultCell) { resultCell.textContent = change.text; resultCell.className = `px-6 py-4 whitespace-nowrap text-sm font-semibold ${change.class}`; }
-    };
-    const runFullCalculationChain = () => {
-        const revenue = getTargetValue("Pendapatan (Revenue)"), hpp = getTargetValue("Harga Pokok Produksi"), opex = getTargetValue("Beban Operasional (OPEX)"), nonOpex = getTargetValue("Beban Non Operasional"), depr = getTargetValue("Depresiasi/ Amortisasi"), bunga = getTargetValue("Bunga"), pajak = getTargetValue("Pajak (PB1)"), grossProfit = revenue - hpp, noi = grossProfit - opex, ebitda = noi - nonOpex, netIncome = ebitda - depr - bunga - pajak;
-        updateTargetRow("Laba Kotor (Gross Profit)", grossProfit, revenue);
-        updateTargetRow("Pendapatan Bersih Operasional (Net Operating Income)", noi, revenue);
-        updateTargetRow("Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", ebitda, revenue);
-        updateTargetRow("Pendapatan Bersih (Net Income)", netIncome, revenue);
-    };
-    tbody.addEventListener('click', (e) => {
-        const toggle = (e.target as HTMLElement).closest('.pnl-row-toggle');
-        if (toggle) {
-            const category = toggle.dataset.category;
-            const icon = toggle.querySelector('.chevron-icon');
-            icon.classList.toggle('rotate-90');
-            document.querySelectorAll(`.pnl-subcategory-row[data-category="${category}"]`).forEach(row => {
-                row.classList.toggle('hidden');
-            });
-        }
-    });
-    
-    document.querySelectorAll('.pnl-target-input').forEach(inputEl => {
-        const input = inputEl as HTMLInputElement, itemName = input.dataset.itemName;
-        input.addEventListener('input', () => {
-            const revenueTarget = getTargetValue("Pendapatan (Revenue)"), inputType = input.dataset.inputType;
-            let targetValue: number;
-            if (inputType === 'amount') {
-                const rawValue = input.value.replace(/[^0-9-]/g, '');
-                targetValue = parseFloat(rawValue) || 0;
-                input.value = targetValue ? formatCurrency(targetValue) : '';
-                const percentInput = document.getElementById(`pnl-target-percent-${btoa(itemName)}`) as HTMLInputElement;
-                if (percentInput && revenueTarget > 0) {
-                    const percentValue = targetValue ? (targetValue / revenueTarget) * 100 : 0;
-                    percentInput.value = targetValue ? Number(percentValue.toFixed(1)).toString() : '';
-                }
-            } else if (inputType === 'percent') {
-                const rawPercent = input.value.replace(/[^0-9.]/g, ''), targetPercent = parseFloat(rawPercent) || 0;
-                targetValue = (targetPercent / 100) * revenueTarget;
-                (document.getElementById(`pnl-target-amount-${btoa(itemName)}`) as HTMLInputElement).value = formatCurrency(targetValue);
-            }
-            savedTargets[itemName] = targetValue;
-            localStorage.setItem('pnlComparisonTargets', JSON.stringify(savedTargets));
-            updateTargetRow(itemName, targetValue, revenueTarget);
-            runFullCalculationChain();
-        });
-    });
-    
-    document.querySelectorAll('.pnl-target-input[data-input-type="amount"]').forEach(inputEl => {
-        const input = inputEl as HTMLInputElement;
-        const itemName = input.dataset.itemName;
-        if (savedTargets[itemName] !== undefined) {
-            input.value = formatCurrency(savedTargets[itemName]);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    });
-    runFullCalculationChain();
-}
 
 /**
  * Renders the final, calculated P&L statement.
@@ -599,354 +322,6 @@ function renderPnlResults(pnlData) {
     finalHtml += renderSubtotal("Pendapatan Bersih (Net Income)", netIncome, "bg-green-200");
 
     container.innerHTML = finalHtml;
-}
-
-document.getElementById('save-pnl-report-btn').addEventListener('click', async () => {
-    const titleInput = document.getElementById('pnl-report-title') as HTMLInputElement;
-    const title = titleInput.value.trim();
-    const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
-
-    if (!title) {
-        alert('Please enter a title for the report before saving.');
-        titleInput.focus();
-        return;
-    }
-    if (!currentUser || Object.keys(currentPnlData).length === 0) {
-        alert('No data available to save.');
-        return;
-    }
-
-    const period = getSelectedPeriod();
-    if (!period) {
-        alert('Please select a valid month and year for the P&L report.');
-        return;
-    }
-
-    saveButton.disabled = true;
-    saveButton.textContent = 'Saving...';
-
-    try {
-        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-        await addDoc(pnlReportsRef, {
-            title: title,
-            period: period, // Add the period tag here
-            createdAt: new Date(),
-            pnlData: currentPnlData
-        });
-        saveButton.textContent = 'Saved!';
-        saveButton.classList.replace('bg-green-600', 'bg-gray-400');
-        alert('Report saved successfully!');
-        await populateCompiledDataTable();
-    } catch (error) {
-        console.error("Error saving P&L report:", error);
-        alert('Failed to save the report. Please try again.');
-        saveButton.disabled = false;
-        saveButton.textContent = 'Save Report';
-    }
-});
-
-// Add listeners for the new navigation buttons
-document.getElementById('view-pnl-history-btn').addEventListener('click', () => {
-    showView('pnl-history'); // We will add 'pnl-history' to showView next
-    loadPnlHistory();
-});
-
-document.getElementById('back-to-dashboard-from-pnl-history-btn').addEventListener('click', () => showView('dashboard'));
-
-
-// New function to load and display the list of saved P&L reports
-async function loadPnlHistory() {
-    if (!currentUser) return;
-    const historyList = document.getElementById('pnl-history-list');
-    const noReportsMsg = document.getElementById('no-pnl-reports-msg');
-    historyList.innerHTML = '<p>Loading history...</p>';
-
-    try {
-        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-        const q = query(pnlReportsRef, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            historyList.innerHTML = '';
-            historyList.appendChild(noReportsMsg);
-            return;
-        }
-
-        historyList.innerHTML = '';
-        querySnapshot.forEach(docSnap => {
-            const report = docSnap.data();
-            const div = document.createElement('div');
-            div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg';
-            div.innerHTML = `
-                <div>
-                    <p class="font-semibold text-gray-800">${report.title}</p>
-                    <p class="text-sm text-gray-500">Saved on: ${report.createdAt.toDate().toLocaleString()}</p>
-                </div>
-                <button class="view-saved-pnl-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600" data-id="${docSnap.id}">View</button>
-            `;
-            historyList.appendChild(div);
-        });
-    } catch (error) {
-        console.error("Error loading P&L history:", error);
-        historyList.innerHTML = '<p class="text-red-500">Could not load history.</p>';
-    }
-}
-
-// Add a listener to the history list for the dynamically created "View" buttons
-document.getElementById('pnl-history-list').addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('view-saved-pnl-btn')) {
-        const reportId = target.dataset.id;
-        showLoading({ message: 'Loading report...', value: 50 });
-        try {
-            const reportRef = doc(db, `users/${currentUser.uid}/pnlReports`, reportId);
-            const docSnap = await getDoc(reportRef);
-            if (docSnap.exists()) {
-                const report = docSnap.data();
-                // Reuse the existing P&L review UI to show the saved data
-                showView('pl-analysis');
-                document.getElementById('pnl-template-view').classList.add('hidden');
-                document.getElementById('pnl-upload-view').classList.add('hidden');
-                const resultsView = document.getElementById('pnl-results-view');
-                resultsView.classList.remove('hidden');
-
-                (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
-                renderPnlResults(report.pnlData);
-                document.getElementById('pnl-review-mode-header').classList.add('hidden');
-                document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
-                document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
-                document.getElementById('back-to-mapping-btn').classList.add('hidden');
-
-                // Disable save button for already saved reports to avoid duplicates
-                const saveButton = document.getElementById('save-pnl-report-btn') as HTMLButtonElement;
-                saveButton.disabled = true;
-                saveButton.textContent = 'Saved';
-                saveButton.classList.replace('bg-green-600', 'bg-gray-400');
-                document.getElementById('back-to-mapping-btn').classList.add('hidden');
-            }
-        } catch (error) {
-            console.error("Error loading saved report:", error);
-            alert("Could not load the selected report.");
-        } finally {
-            hideLoading();
-        }
-    }
-});
-
-async function handlePnlFileUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-
-    const file = input.files[0];
-    showLoading({ message: 'Reading P&L file...', value: 50 });
-
-    try {
-        const data = await file.arrayBuffer();
-        // FIX: Changed xlsx -> XLSX
-        const workbook = XLSX.read(data); 
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        // Assuming P&L data is in the first two columns
-        // FIX: Changed xlsx -> XLSX
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        // Filter for rows that have a description (col A) and a number (col B)
-          pnlExcelData = jsonData.filter(row =>
-            typeof row[0] === 'string' &&
-            typeof row[1] === 'number' &&
-            !row[0].toLowerCase().startsWith('total')
-        );
-
-        renderPnlMappingUI();
-        document.getElementById('pnl-mapping-container').classList.remove('hidden');
-    } catch (error) {
-        console.error("Error reading P&L file:", error);
-        alert("Failed to read the Excel file. Please ensure it's a valid format.");
-    } finally {
-        hideLoading();
-    }
-}
-
-/**
- * Renders the smart mapping interface to match Excel items to the P&L template.
- */
-function renderPnlMappingUI() {
-    const container = document.getElementById('pnl-mapping-table');
-    container.innerHTML = '';
-
-    // Flatten the template structure for easier searching
-    const allTemplateItems = Object.values(pnlStructure).flat();
-
-    pnlExcelData.forEach(([itemName, itemValue]) => {
-        // Try to find a smart match
-        const smartMatch = allTemplateItems.find(templateItem => 
-            templateItem.toLowerCase().includes(itemName.toLowerCase()) || 
-            itemName.toLowerCase().includes(templateItem.toLowerCase())
-        );
-
-        const optionsHtml = Object.keys(pnlStructure).map(category => {
-            const items = pnlStructure[category].map(item => 
-                `<option value="${item}" ${item === smartMatch ? 'selected' : ''}>${item}</option>`
-            ).join('');
-            return `<optgroup label="${category}">${items}</optgroup>`;
-        }).join('');
-
-        const row = document.createElement('div');
-        row.className = 'grid grid-cols-2 gap-4 items-center';
-        row.innerHTML = `
-            <div class="bg-gray-100 p-2 rounded-md">
-                <p class="text-sm font-semibold text-gray-800">${itemName}</p>
-                <p class="text-xs text-gray-500">Rp${itemValue.toLocaleString('id-ID')}</p>
-            </div>
-            <select class="pnl-mapping-select border-gray-300 rounded-md shadow-sm text-sm p-2">
-                <option value="">-- Unmapped --</option>
-                ${optionsHtml}
-            </select>
-        `;
-        container.appendChild(row);
-    });
-}
-
-// MODIFY the #pl-analysis-btn listener
-document.getElementById('pl-analysis-btn').addEventListener('click', () => setupPnlView());
-
-// ADD these new event listeners
-document.getElementById('save-pnl-template-btn').addEventListener('click', savePnlStructure);
-document.getElementById('go-to-upload-btn').addEventListener('click', () => {
-    document.getElementById('pnl-template-view').classList.add('hidden');
-    document.getElementById('pnl-upload-view').classList.remove('hidden');
-});
-
-document.getElementById('back-to-template-btn').addEventListener('click', () => {
-    document.getElementById('pnl-upload-view').classList.add('hidden');
-    document.getElementById('pnl-template-view').classList.remove('hidden');
-});
-
-document.getElementById('pnl-file-input').addEventListener('change', handlePnlFileUpload);
-document.getElementById('pnl-form-container').addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-
-    // Handle adding a new item
-    if (target.classList.contains('add-item-btn')) {
-        const input = target.previousElementSibling as HTMLInputElement;
-        const newItemName = input.value.trim();
-        if (newItemName) {
-            const list = input.parentElement.previousElementSibling as HTMLUListElement;
-            const newItemLi = document.createElement('li');
-            newItemLi.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-md';
-            newItemLi.innerHTML = `<span class="item-name">${newItemName}</span><button class="remove-item-btn text-red-500 hover:text-red-700 text-xl">&times;</button>`;
-            list.appendChild(newItemLi);
-            input.value = ''; // Clear input
-        }
-    }
-
-    // Handle removing an item
-    if (target.classList.contains('remove-item-btn')) {
-        target.parentElement.remove();
-    }
-});
-
-async function setupPnlView() {
-    showView('pl-analysis');
-
-    // ADD THESE LINES to reset the P&L views to their initial state
-    document.getElementById('pnl-template-view').classList.remove('hidden');
-    document.getElementById('pnl-upload-view').classList.add('hidden');
-    document.getElementById('pnl-results-view').classList.add('hidden');
-
-    const container = document.getElementById('pnl-form-container');
-    container.innerHTML = '<div class="text-center p-8"><div class="loader"></div><p class="mt-2 text-gray-500">Loading your P&L template...</p></div>';
-
-    if (!currentUser) return;
-
-    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
-    const docSnap = await getDoc(pnlDocRef);
-
-    if (docSnap.exists()) {
-        pnlStructure = docSnap.data().structure;
-    } else {
-        // Default structure if one doesn't exist
-        pnlStructure = {
-            "Pendapatan (Revenue)": ["Penjualan Langsung", "Potongan Penjualan"],
-            "Harga Pokok Produksi": ["Persediaan Barang Awal", "Pembelian Bahan Baku", "Beban Angkut", "Persediaan Akhir"],
-            "Beban Operasional (OPEX)": ["Beban Karyawan", "Beban Sewa", "Beban Listrik & Air"],
-            "Beban Non Operasional": ["Beban Marketing", "Beban Administrasi"],
-            "Depresiasi/ Amortisasi": [],
-            "Bunga": [],
-            "Pajak (PB1)": [],
-        };
-    }
-    renderPnlForm();
-}
-
-/**
- * Renders the interactive P&L form based on the current structure.
- */
-function renderPnlForm() {
-    const container = document.getElementById('pnl-form-container');
-    container.innerHTML = '';
-
-    // Define the correct display order for the categories
-    const categoryOrder = [
-        "Pendapatan (Revenue)",
-        "Harga Pokok Produksi",
-        "Beban Operasional (OPEX)",
-        "Beban Non Operasional",
-        "Depresiasi/ Amortisasi",
-        "Bunga",
-        "Pajak (PB1)"
-    ];
-
-    // Loop over the ordered array instead of the object directly
-    categoryOrder.forEach(category => {
-        // Ensure the category exists in our structure before trying to render it
-        if (!pnlStructure[category]) return;
-
-        const itemsHtml = pnlStructure[category].map(item => `
-            <li class="flex items-center justify-between bg-gray-100 p-2 rounded-md">
-                <span class="item-name">${item}</span>
-                <button class="remove-item-btn text-red-500 hover:text-red-700 text-xl">&times;</button>
-            </li>
-        `).join('');
-
-        const categoryDiv = document.createElement('div');
-        categoryDiv.className = 'p-4 border rounded-lg';
-        categoryDiv.innerHTML = `
-            <h4 class="text-lg font-semibold text-gray-800 mb-3">${category}</h4>
-            <ul class="space-y-2 mb-3">${itemsHtml}</ul>
-            <div class="flex items-center gap-2">
-                <input type="text" class="new-item-input flex-grow border-gray-300 rounded-md shadow-sm text-sm p-1" placeholder="Add new item...">
-                <button class="add-item-btn bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-blue-600">+</button>
-            </div>
-        `;
-        container.appendChild(categoryDiv);
-    });
-}
-
-/**
- * Saves the current P&L form structure to Firestore.
- */
-async function savePnlStructure() {
-    if (!currentUser) return;
-
-    const newStructure = {};
-    document.querySelectorAll('#pnl-form-container .p-4').forEach(categoryDiv => {
-        const categoryName = categoryDiv.querySelector('h4').textContent;
-        const items = [];
-        categoryDiv.querySelectorAll('.item-name').forEach(itemSpan => {
-            items.push(itemSpan.textContent);
-        });
-        newStructure[categoryName] = items;
-    });
-
-    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
-    try {
-        await setDoc(pnlDocRef, { structure: newStructure });
-        pnlStructure = newStructure; // Update global state
-        alert('P&L template saved successfully!');
-    } catch (error) {
-        console.error("Error saving P&L structure:", error);
-        alert('Failed to save template. Please try again.');
-    }
 }
 
 // Function to save data and metadata to IndexedDB
@@ -1534,9 +909,6 @@ function showView(viewName: string): void {
   }
 }
 
-document.getElementById('pl-analysis-btn').addEventListener('click', () => showView('pl-analysis'));
-document.getElementById('back-to-dashboard-from-pl-btn').addEventListener('click', () => showView('dashboard'));
-
 // --- Authentication ---
 document.getElementById('show-signup-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-form').classList.add('hidden'); document.getElementById('signup-form').classList.remove('hidden') })
 document.getElementById('show-login-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('signup-form').classList.add('hidden'); document.getElementById('login-form').classList.remove('hidden') })
@@ -1553,88 +925,245 @@ document.getElementById('goto-view-data-btn').addEventListener('click', viewComp
 // This new button is on our combined Data Management Hub page
 document.getElementById('back-to-main-menu-from-data-hub-btn').addEventListener('click', () => showView('main-menu'));
 
-/**
- * Handles the upload of a MONTHLY sales target Excel file.
- * It prompts the user for the target month, parses the file,
- * and saves the targets as a structured object in Firestore.
- */
 async function handleSalesTargetUpload() {
-    if (!currentUser) {
-        alert('You must be logged in to upload a target.');
+    if (!currentUser) return;
+    const fileInput = document.getElementById('sales-target-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (!file) {
+        alert('Please select a sales target file.');
+        return;
+    }
+    const period = getSelectedPeriod();
+    if (!period) {
+        alert("Please select a valid month and year before uploading.");
         return;
     }
 
-    const fileInput = document.getElementById('sales-target-file-input') as HTMLInputElement;
+    showLoading({ message: 'Processing sales target...' });
+    try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets["Sales Target Data"];
+        if (!worksheet) throw new Error("Sheet 'Sales Target Data' not found. Please use the template.");
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        // Simplified logic to read the new list of metrics and values
+        const targets = {};
+        jsonData.forEach(row => {
+            if (row.Metric && typeof row.Value === 'number') {
+                targets[row.Metric] = row.Value;
+            }
+        });
+
+        // Validation to ensure all required metrics from the new template are present
+        const requiredMetrics = ["Target Omzet", "Target Total Transaction", "Target Average Check", "Target Total Items Sold"];
+        const uploadedMetrics = Object.keys(targets);
+        const allMetricsFound = requiredMetrics.every(metric => uploadedMetrics.includes(metric));
+
+        if (!allMetricsFound) {
+            throw new Error("The uploaded file is missing one or more required metrics. Please use the template.");
+        }
+
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, period);
+        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
+        
+        hideLoading();
+        alert('Sales target file uploaded successfully!');
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error('Error uploading sales target:', error);
+        hideLoading();
+        alert(`Error: ${error.message}`);
+    }
+}
+
+document.getElementById('download-sales-target-template-btn').addEventListener('click', downloadSalesTargetTemplate);
+document.getElementById('download-pnl-target-template-btn').addEventListener('click', downloadPnlTargetTemplate);
+document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
+document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
+
+/**
+ * Generates and triggers a download for the Sales Target Excel template.
+ */
+function downloadSalesTargetTemplate() {
+    const periodString = getSelectedPeriod();
+    if (!periodString) {
+        alert("Please select a valid month and year before downloading the template.");
+        return;
+    }
+
+    // Get and format the selected period
+    const [year, month] = periodString.split('-');
+    const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const formattedPeriod = periodDate.toLocaleDateString('id-ID', {
+        month: 'long',
+        year: 'numeric'
+    });
+
+    const instructions = [
+        { Step: 1, Instruction: "Fill your monthly sales targets in the 'Sales Target Data' sheet." },
+        { Step: 2, Instruction: "The 'Metric' names must match the template exactly." },
+        { Step: 3, Instruction: "The 'Value' must be a number without commas or currency symbols." }
+    ];
+
+    // New data structure with headers
+    const sheetData = [
+        { A: "Business Name:", B: "[Enter Business Name Here]" },
+        { A: "Period:", B: formattedPeriod },
+        {}, // Blank row for spacing
+        { A: "Metric", B: "Value" }, // Table headers
+        { A: "Target Sales", B: 250000000 },
+        { A: "Target Transaction", B: 5000 },
+        { A: "Target Average Check", B: 50000 },
+    ];
+    
+    const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
+    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true }); // Use skipHeader
+
+    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 80 }];
+    wsData['!cols'] = [{ wch: 25 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+    XLSX.utils.book_append_sheet(wb, wsData, "Sales Target Data");
+    XLSX.writeFile(wb, "Finalytics_Sales_Target_Template.xlsx");
+}
+
+
+/**
+ * Generates and triggers a download for the P&L Target Excel template.
+ */
+function downloadPnlTargetTemplate() {
+    const periodString = getSelectedPeriod();
+    if (!periodString) {
+        alert("Please select a valid month and year before downloading the template.");
+        return;
+    }
+
+    // Get and format the selected period
+    const [year, month] = periodString.split('-');
+    const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const formattedPeriod = periodDate.toLocaleDateString('id-ID', {
+        month: 'long',
+        year: 'numeric'
+    });
+
+    const instructions = [
+        { Step: 1, Instruction: "Fill your P&L targets in the 'P&L Target Data' sheet." },
+        { Step: 2, Instruction: "The 'Metric' name must be exact." },
+        { Step: 3, Instruction: "For percentages (like COGS), use decimal format (e.g., enter 0.35 for 35%)." }
+    ];
+
+    // New data structure with headers
+    const sheetData = [
+        { A: "Business Name:", B: "[Enter Business Name Here]" },
+        { A: "Period:", B: formattedPeriod },
+        {}, // Blank row for spacing
+        { A: "Metric", B: "Value" }, // Table headers
+        { A: "Target Revenue", B: 150000000 },
+        { A: "Target COGS %", B: 0.35 },
+        { A: "Target Net Profit %", B: 0.20 }
+    ];
+    
+    const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
+    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true }); // Use skipHeader
+
+    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 80 }];
+    wsData['!cols'] = [{ wch: 25 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+    XLSX.utils.book_append_sheet(wb, wsData, "P&L Target Data");
+    XLSX.writeFile(wb, "Finalytics_P&L_Target_Template.xlsx");
+}
+
+async function handlePnlDataUpload() {
+    if (!currentUser) {
+        alert('Authentication error. Please log in again.');
+        return;
+    }
+
+    const fileInput = document.getElementById('pnl-data-file-input') as HTMLInputElement;
     const file = fileInput.files?.[0];
 
     if (!file) {
-        alert('Please select a sales target file to upload.');
+        alert('Please select a P&L data file to upload.');
         return;
     }
 
-    const targetMonth = getSelectedPeriod();
-    if (!targetMonth) {
-        alert("Invalid period selected. Please select a valid month and year. Upload cancelled.");
+    // This check prevents the error by ensuring a period is selected.
+    const period = getSelectedPeriod();
+    if (!period) {
+        alert("Invalid period selected. Please select a valid month and year before uploading.");
         return;
     }
 
-    const uploadButton = document.getElementById('upload-sales-target-btn') as HTMLButtonElement;
+    const uploadButton = document.getElementById('upload-pnl-data-btn') as HTMLButtonElement;
     const originalButtonText = uploadButton.textContent;
     uploadButton.disabled = true;
-    uploadButton.textContent = 'Uploading...';
+    uploadButton.textContent = 'Processing...';
     
-    showLoading({ message: 'Processing target file...', value: 20 });
+    showLoading({ message: 'Processing P&L file...', value: 20 });
 
     try {
-        // Step 1: Upload the raw Excel file to Storage for backup.
-        const storageRef = ref(storage, `targets/sales/${currentUser.uid}/${file.name}`);
-        await uploadBytesResumable(storageRef, file);
-        showLoading({ message: 'File uploaded, saving target data...', value: 50 });
+        const validMainCategories = [
+            "Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)",
+            "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"
+        ];
 
-        // Step 2: Parse the Excel file.
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const worksheet = workbook.Sheets["P&L Data"]; 
+        
+        if (!worksheet) {
+            throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
+        }
+        
         const parsedData = XLSX.utils.sheet_to_json(worksheet);
 
         if (!parsedData || parsedData.length === 0) {
-            throw new Error("The Excel file is empty or does not contain valid data.");
+            throw new Error("The 'P&L Data' sheet is empty.");
         }
 
-        // Step 3: Transform the array of rows into a structured object (a map).
-        // This is much more efficient for looking up targets later.
-        const targetObject = parsedData.reduce((acc, row) => {
-            if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
-                // Ensure the metric name is a clean, consistent key.
-                const key = String(row.Metric).trim();
-                acc[key] = row.Target;
+        const pnlData = {};
+
+        for (const row of parsedData) {
+            const mainCategory = row["Main Category"];
+            const subCategory = row["Sub-Category"];
+            const amount = row["Amount"];
+
+            if (mainCategory && subCategory && typeof amount === 'number') {
+                if (!validMainCategories.includes(mainCategory)) {
+                    throw new Error(`Invalid Main Category found: "${mainCategory}". Please use one of the exact categories from the template's Instructions sheet.`);
+                }
+                
+                if (!pnlData[mainCategory]) {
+                    pnlData[mainCategory] = {};
+                }
+                
+                pnlData[mainCategory][String(subCategory).trim()] = amount;
             }
-            return acc;
-        }, {});
-
-        if (Object.keys(targetObject).length === 0) {
-            throw new Error("Could not find valid 'Metric' and 'Target' columns in the Excel file. Please check the format.");
         }
 
-        // Step 4: Save to Firestore using the month (e.g., "2025-08") as the document ID.
-        // This makes fetching the target for a specific month incredibly easy and fast.
-        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetMonth);
-        await setDoc(targetDocRef, {
+        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
+        await setDoc(pnlDocRef, {
+            title: `${file.name} (from template)`,
             fileName: file.name,
+            period: period,
             lastUpdatedAt: new Date(),
-            targets: targetObject // Save the structured object.
-        }, { merge: true }); // Use { merge: true } to update/overwrite if a target for this month already exists.
-        
+            pnlData: pnlData
+        });
+
         hideLoading();
-        alert(`Sales targets for ${targetMonth} have been successfully saved!`);
+        alert(`P&L Report for ${period} has been successfully created!`);
         await populateCompiledDataTable();
 
     } catch (error) {
-        console.error("Error uploading sales target:", error);
+        console.error("Error processing P&L data upload:", error);
         hideLoading();
-        alert(`Failed to upload sales target. Error: ${error.message}`);
+        alert(`Failed to process P&L file. Error: ${error.message}`);
     } finally {
-        // Reset the button and file input.
         uploadButton.disabled = false;
         uploadButton.textContent = originalButtonText;
         fileInput.value = ''; 
@@ -1642,82 +1171,44 @@ async function handleSalesTargetUpload() {
 }
 
 async function handlePnlTargetUpload() {
-    if (!currentUser) {
-        alert('Authentication error: You must be logged in to upload a target.');
-        return;
-    }
-
+    if (!currentUser) return;
     const fileInput = document.getElementById('pnl-target-file-input') as HTMLInputElement;
     const file = fileInput.files?.[0];
-
     if (!file) {
-        alert('Please select a P&L target file to upload.');
+        alert('Please select a P&L target file.');
+        return;
+    }
+    const period = getSelectedPeriod();
+    if (!period) {
+        alert("Please select a valid month and year before uploading.");
         return;
     }
 
-    const targetMonth = getSelectedPeriod();
-    if (!targetMonth) {
-        alert("Invalid period selected. Please select a valid month and year. Upload cancelled.");
-        return;
-    }
-
-    const uploadButton = document.getElementById('upload-pnl-target-btn') as HTMLButtonElement;
-    const originalButtonText = uploadButton.textContent;
-    uploadButton.disabled = true;
-    uploadButton.textContent = 'Uploading...';
-    
-    showLoading({ message: 'Processing P&L target file...', value: 20 });
-
+    showLoading({ message: 'Processing P&L target...' });
     try {
-        // Step 1: Upload the raw Excel file to Storage for backup.
-        const storageRef = ref(storage, `targets/pnl/${currentUser.uid}/${file.name}`);
-        await uploadBytesResumable(storageRef, file);
-        showLoading({ message: 'File uploaded, saving target data...', value: 50 });
-
-        // Step 2: Parse the Excel file.
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const parsedData = XLSX.utils.sheet_to_json(worksheet);
+        const worksheet = workbook.Sheets["P&L Target Data"];
+        if (!worksheet) throw new Error("Sheet 'P&L Target Data' not found. Please use the template.");
 
-        if (!parsedData || parsedData.length === 0) {
-            throw new Error("The Excel file is empty or does not contain valid data.");
-        }
-
-        // Step 3: Transform the data into a structured object for efficient lookups.
-        const targetObject = parsedData.reduce((acc, row) => {
-            if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
-                const key = String(row.Metric).trim();
-                acc[key] = row.Target;
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const targets = {};
+        jsonData.forEach(row => {
+            if (row.Metric && typeof row.Value === 'number') {
+                targets[row.Metric] = row.Value;
             }
-            return acc;
-        }, {});
-
-        if (Object.keys(targetObject).length === 0) {
-            throw new Error("Could not find valid 'Metric' and 'Target' columns. Please check the Excel file format.");
-        }
-
-        // Step 4: Save to Firestore using the month (e.g., "2025-08") as the document ID.
-        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetMonth);
-        await setDoc(targetDocRef, {
-            fileName: file.name,
-            lastUpdatedAt: new Date(),
-            targets: targetObject
-        }, { merge: true }); // Use { merge: true } to update if a target for this month already exists.
+        });
         
-        hideLoading();
-        alert(`P&L targets for ${targetMonth} have been successfully saved!`);
-        await populateCompiledDataTable();
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
+        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
 
-    } catch (error) {
-        console.error("Error uploading P&L target:", error);
         hideLoading();
-        alert(`Failed to upload P&L target. Error: ${error.message}`);
-    } finally {
-        // Reset the button and file input.
-        uploadButton.disabled = false;
-        uploadButton.textContent = originalButtonText;
-        fileInput.value = ''; 
+        alert('P&L target file uploaded successfully!');
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error('Error uploading P&L target:', error);
+        hideLoading();
+        alert(`Error: ${error.message}`);
     }
 }
 
@@ -7674,9 +7165,6 @@ function generateApcTrendChannelMonthChart(data: any[]): void {
 document.getElementById('back-to-dashboard-btn').addEventListener('click', () => showView('main-menu'));
 document.getElementById('back-to-dashboard-from-admin-btn').addEventListener('click', () => showView('main-menu'));
 document.getElementById('back-to-dashboard-from-konfigurasi-btn').addEventListener('click', () => showView('main-menu'));
-document.getElementById('back-to-dashboard-from-pl-btn').addEventListener('click', () => showView('pnl-dashboard')); // This one should go to the P&L dashboard
-document.getElementById('back-to-dashboard-from-pnl-history-btn').addEventListener('click', () => showView('pnl-dashboard')); // This one also
-document.getElementById('back-to-dashboard-from-pnl-comp-btn').addEventListener('click', () => showView('pnl-dashboard')); // And this one
 
 /**
  * Generate donut chart showing revenue distribution across business branches.
@@ -10329,3 +9817,72 @@ function hideLoading() {
   loadingOverlay.classList.add('hidden');
 }
 
+function downloadPnlTemplate() {
+    // --- START: New logic to get and format the selected period ---
+    const periodString = getSelectedPeriod(); // Gets "YYYY-MM"
+    let formattedPeriod = "No Period Selected";
+    if (periodString) {
+        const [year, month] = periodString.split('-');
+        // Create a date object (month is 0-indexed, so subtract 1)
+        const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        // Format to "Month Year" in Indonesian (e.g., "Maret 2025")
+        formattedPeriod = periodDate.toLocaleDateString('id-ID', {
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+    // --- END: New logic ---
+
+    const mainCategories = [
+        "Pendapatan (Revenue)",
+        "Harga Pokok Produksi", // COGS
+        "Beban Operasional (OPEX)",
+        "Beban Non Operasional",
+        "Depresiasi/ Amortisasi",
+        "Bunga",
+        "Pajak (PB1)"
+    ];
+
+    const instructions = [
+        { Step: 1, Instruction: "Fill your P&L data into the 'P&L Data' sheet." },
+        { Step: 2, Instruction: "For the 'Main Category' column, you MUST use one of the exact values listed below." },
+        { Step: 3, Instruction: "The 'Sub-Category' is your specific account name (e.g., 'Gaji Karyawan', 'Penjualan Kopi')." },
+        { Step: 4, Instruction: "Ensure the 'Amount' column contains only numbers." },
+        {},
+        { Step: "Valid Main Categories:" },
+        ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))
+    ];
+
+    // --- START: Updated data structure for the "P&L Data" sheet ---
+    const pnlSheetData = [
+        { A: "Business Name:", B: "[Enter Business Name Here]" },
+        { A: "Period:", B: formattedPeriod },
+        {}, // Blank row for spacing
+        // These are now the actual headers for the data table
+        { A: "Main Category", B: "Sub-Category", C: "Amount" }, 
+        // Example rows
+        { A: "Pendapatan (Revenue)", B: "Penjualan Kopi Susu", C: 5000000 },
+        { A: "Harga Pokok Produksi", B: "Bahan Baku Kopi", C: 1200000 },
+        { A: "Beban Operasional (OPEX)", B: "Gaji Barista", C: 1500000 },
+        { A: "Beban Operasional (OPEX)", B: "Biaya Sewa Tempat", C: 1000000 },
+    ];
+    // --- END: Updated data structure ---
+
+    const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
+    
+    // Create the P&L sheet from the new data structure, skipping default headers
+    const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
+
+    // Set column widths for better readability
+    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 80 }];
+    wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+    XLSX.utils.book_append_sheet(wb, wsData, "P&L Data");
+
+    XLSX.writeFile(wb, "Finalytics_P&L_Template.xlsx");
+}
+
+// Attach the function to the new download button
+document.getElementById('download-pnl-template-btn').addEventListener('click', downloadPnlTemplate);
