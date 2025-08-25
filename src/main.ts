@@ -428,7 +428,7 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
   loadGeminiConfig()
 }
 
-async function processAndSavePnlData(file: File, expectedPeriod: string, fileName: string) {
+async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null = null): Promise<string> {
     if (!currentUser) throw new Error('Authentication error. Please log in again.');
 
     const validMainCategories = [
@@ -444,15 +444,20 @@ async function processAndSavePnlData(file: File, expectedPeriod: string, fileNam
         throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
     }
     
-    // Validate the period from the file
+    // Get the actual period from the file content
     const actualPeriod = getPeriodFromFile(worksheet);
-    if (actualPeriod !== expectedPeriod) {
+    if (!actualPeriod) {
+        throw new Error("Could not determine the period from the file. Please check cell B2.");
+    }
+
+    // If an expected period is passed (from the quick upload modal), validate it
+    if (expectedPeriod && actualPeriod !== expectedPeriod) {
         throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
     }
 
-    const parsedData = XLSX.utils.sheet_to_json(worksheet);
+    const parsedData = XLSX.utils.sheet_to_json(worksheet, { range: 3 }); // Start reading from row 4
     if (!parsedData || parsedData.length === 0) {
-        throw new Error("The 'P&L Data' sheet is empty.");
+        throw new Error("The 'P&L Data' sheet is empty or contains no data in the specified range.");
     }
 
     const pnlData = {};
@@ -471,15 +476,21 @@ async function processAndSavePnlData(file: File, expectedPeriod: string, fileNam
             pnlData[mainCategory][String(subCategory).trim()] = amount;
         }
     }
+    
+    if (Object.keys(pnlData).length === 0) {
+        throw new Error("No valid P&L rows could be parsed from the file.");
+    }
 
     const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, actualPeriod);
     await setDoc(pnlDocRef, {
-        title: `${fileName} (from template)`,
-        fileName: fileName,
+        title: `${file.name} (from template)`,
+        fileName: file.name,
         period: actualPeriod,
         lastUpdatedAt: new Date(),
         pnlData: pnlData
     });
+
+    return actualPeriod;
 }
 
 async function populateCompiledDataTable() {
@@ -628,7 +639,7 @@ quickUploadConfirmBtn.addEventListener('click', async () => {
                 await handleModalTargetUpload(file, period, 'sales');
                 break;
             case 'pnlData':
-                await processAndSavePnlData(file, period, file.name);
+                await uploadAndProcessPnlFile(file, period); // Use the new unified function
                 break;
             case 'pnlTarget':
                 await handleModalTargetUpload(file, period, 'pnl');
@@ -1142,62 +1153,7 @@ function downloadPnlTargetTemplate() {
     XLSX.writeFile(wb, "Finalytics_P&L_Target_Template.xlsx");
 }
 
-async function handlePnlDataUpload() {
-    if (!currentUser) return;
-    const fileInput = document.getElementById('pnl-data-file-input');
-    const file = fileInput.files?.[0];
-    if (!file) { 
-        alert('Please select a P&L data file.'); 
-        return; 
-    }
 
-    showLoading({ message: 'Processing P&L file...' });
-    try {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
-        const worksheet = workbook.Sheets["P&L Data"];
-        if (!worksheet) throw new Error("Sheet 'P&L Data' not found. Please use the template.");
-
-        const period = getPeriodFromFile(worksheet);
-        if (!period) throw new Error("Could not determine the period from the file.");
-
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 3 }); // Start reading from row 4
-        
-        const validMainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-        const pnlData = {};
-        for (const row of jsonData) {
-            const mainCategory = row["Main Category"];
-            const subCategory = row["Sub-Category"];
-            const amount = row["Amount"];
-            if (mainCategory && subCategory && typeof amount === 'number') {
-                if (!validMainCategories.includes(mainCategory)) {
-                    throw new Error(`Invalid Main Category found in file: "${mainCategory}".`);
-                }
-                if (!pnlData[mainCategory]) {
-                    pnlData[mainCategory] = {};
-                }
-                pnlData[mainCategory][String(subCategory).trim()] = amount;
-            }
-        }
-
-        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
-        await setDoc(pnlDocRef, { 
-            title: `${file.name} (from template)`, 
-            fileName: file.name, 
-            period: period, 
-            lastUpdatedAt: new Date(), 
-            pnlData: pnlData 
-        });
-        
-        hideLoading();
-        alert(`P&L Report for ${period} has been successfully created!`);
-        await populateCompiledDataTable();
-    } catch (error) {
-        console.error("Error processing P&L data upload:", error);
-        hideLoading();
-        alert(`Failed to process P&L file. Error: ${error.message}`);
-    }
-}
 
 
 /**
@@ -1430,22 +1386,18 @@ function listenForProcessingStatus(fileName: string) {
                     processingView.classList.add('hidden');
                 }, 300);
             }, 3000);
-          } else if (status.state === 'complete') {
-            processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
-            // START: Add the missing function call here
-            loadUploadHistory();
-            populateCompiledDataTable(); // This line ensures the main table refreshes
-            // END: Add the missing function call here
-            unsubscribeProcessor();
-            setTimeout(() => {
-                progressContainer.classList.remove('show');
-                setTimeout(() => {
-                    progressContainer.classList.add('hidden');
-                    // Reset for next upload
-                    uploadView.classList.remove('hidden');
-                    processingView.classList.add('hidden');
-                }, 300);
-            }, 3000);
+            } else if (status.state === 'error') {
+              processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
+              unsubscribeProcessor();
+              setTimeout(() => {
+                  progressContainer.classList.remove('show');
+                  setTimeout(() => {
+                      progressContainer.classList.add('hidden');
+                      // Reset for next upload
+                      uploadView.classList.remove('hidden');
+                      processingView.classList.add('hidden');
+                  }, 300);
+              }, 5000);
           }
         }
       });
@@ -9931,5 +9883,25 @@ async function handlePnlTargetUpload() {
     }
 }
 
-document.getElementById('upload-pnl-data-btn').addEventListener('click', handlePnlDataUpload);
+document.getElementById('upload-pnl-data-btn').addEventListener('click', async () => {
+    if (!currentUser) return;
+    const fileInput = document.getElementById('pnl-data-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (!file) { 
+        alert('Please select a P&L data file.'); 
+        return; 
+    }
+
+    showLoading({ message: 'Processing P&L file...' });
+    try {
+        const period = await uploadAndProcessPnlFile(file); // Call the new unified function
+        hideLoading();
+        alert(`P&L Report for ${period} has been successfully created!`);
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error("Error processing P&L data upload:", error);
+        hideLoading();
+        alert(`Failed to process P&L file. Error: ${error.message}`);
+    }
+});
 document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
