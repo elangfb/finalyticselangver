@@ -535,20 +535,11 @@ async function populateCompiledDataTable() {
                             </div>
                         </td>`;
                 } else {
-                    // --- MODIFICATION: Logic for the upload button is updated here ---
-                    const disabled = ''; // No longer disabling any button
-                    const title = `Upload ${type.replace(/([A-Z])/g, ' $1').toLowerCase()}`; // Universal title
+                    // --- MODIFICATION: The "Upload" button has been removed from here ---
                     return `
                         <td class="px-6 py-4 text-center">
                             <div class="flex items-center justify-center space-x-2">
                                 <span class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full">Not Yet Uploaded</span>
-                                <button class="upload-compiled-btn bg-green-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-green-600 ${disabled}" 
-                                    data-period="${period}" 
-                                    data-type="${type}" 
-                                    title="${title}"
-                                    ${disabled}>
-                                    Upload
-                                </button>
                             </div>
                         </td>`;
                 }
@@ -683,83 +674,6 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
         openQuickUploadModal(period, type);
     }
 
-});
-
-const quickUploadModal = document.getElementById('quick-upload-modal');
-
-/**
- * Opens the quick upload modal and sets its context.
- * @param {string} period - The period for the upload (e.g., "2025-08").
- * @param {string} dataType - The type of data being uploaded.
- */
-function openQuickUploadModal(period: string, dataType: string) {
-    const formattedPeriod = new Date(period + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
-    const formattedType = dataType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-    
-    (document.getElementById('quick-upload-title') as HTMLElement).textContent = `Upload ${formattedType} for ${formattedPeriod}`;
-    (document.getElementById('quick-upload-period') as HTMLInputElement).value = period;
-    (document.getElementById('quick-upload-data-type') as HTMLInputElement).value = dataType;
-    (document.getElementById('quick-upload-file-input') as HTMLInputElement).value = '';
-    
-    document.getElementById('quick-upload-error').classList.add('hidden');
-    document.getElementById('quick-upload-progress-container').classList.add('hidden');
-    (document.getElementById('quick-upload-submit-btn') as HTMLButtonElement).disabled = false;
-    
-    quickUploadModal.classList.remove('hidden');
-}
-
-/** Closes the quick upload modal. */
-function closeQuickUploadModal() {
-    quickUploadModal.classList.add('hidden');
-}
-
-// Event listeners for closing the modal
-document.getElementById('quick-upload-close-btn').addEventListener('click', closeQuickUploadModal);
-document.getElementById('quick-upload-cancel-btn').addEventListener('click', closeQuickUploadModal);
-
-// Event listener for the modal's final upload button
-document.getElementById('quick-upload-submit-btn').addEventListener('click', async () => {
-    const period = (document.getElementById('quick-upload-period') as HTMLInputElement).value;
-    const dataType = (document.getElementById('quick-upload-data-type') as HTMLInputElement).value;
-    const fileInput = document.getElementById('quick-upload-file-input') as HTMLInputElement;
-    const file = fileInput.files?.[0];
-    const errorDiv = document.getElementById('quick-upload-error');
-    const submitBtn = document.getElementById('quick-upload-submit-btn') as HTMLButtonElement;
-
-    if (!file) {
-        errorDiv.textContent = 'Please select a file.';
-        errorDiv.classList.remove('hidden');
-        return;
-    }
-    errorDiv.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Uploading...';
-
-    try {
-        switch (dataType) {
-            case 'salesData':
-                await handleModalSalesDataUpload(file, period);
-                break;
-            case 'salesTarget':
-                await handleModalTargetUpload(file, period, 'sales');
-                break;
-            case 'pnlData':
-                await processAndSavePnlData(file, period, file.name);
-                break;
-            case 'pnlTarget':
-                await handleModalTargetUpload(file, period, 'pnl');
-                break;
-        }
-        await populateCompiledDataTable(); // Refresh the main table
-        closeQuickUploadModal();
-    } catch (error) {
-        console.error(`Modal upload error for ${dataType}:`, error);
-        errorDiv.textContent = `Upload failed: ${error.message}`;
-        errorDiv.classList.remove('hidden');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Upload File';
-    }
 });
 
 /**
