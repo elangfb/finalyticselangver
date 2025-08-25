@@ -428,6 +428,60 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
   loadGeminiConfig()
 }
 
+async function processAndSavePnlData(file: File, expectedPeriod: string, fileName: string) {
+    if (!currentUser) throw new Error('Authentication error. Please log in again.');
+
+    const validMainCategories = [
+        "Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)",
+        "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"
+    ];
+
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const worksheet = workbook.Sheets["P&L Data"];
+
+    if (!worksheet) {
+        throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
+    }
+    
+    // Validate the period from the file
+    const actualPeriod = getPeriodFromFile(worksheet);
+    if (actualPeriod !== expectedPeriod) {
+        throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
+    }
+
+    const parsedData = XLSX.utils.sheet_to_json(worksheet);
+    if (!parsedData || parsedData.length === 0) {
+        throw new Error("The 'P&L Data' sheet is empty.");
+    }
+
+    const pnlData = {};
+    for (const row of parsedData) {
+        const mainCategory = row["Main Category"];
+        const subCategory = row["Sub-Category"];
+        const amount = row["Amount"];
+
+        if (mainCategory && subCategory && typeof amount === 'number') {
+            if (!validMainCategories.includes(mainCategory)) {
+                throw new Error(`Invalid Main Category: "${mainCategory}". Please use an exact category from the template.`);
+            }
+            if (!pnlData[mainCategory]) {
+                pnlData[mainCategory] = {};
+            }
+            pnlData[mainCategory][String(subCategory).trim()] = amount;
+        }
+    }
+
+    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, actualPeriod);
+    await setDoc(pnlDocRef, {
+        title: `${fileName} (from template)`,
+        fileName: fileName,
+        period: actualPeriod,
+        lastUpdatedAt: new Date(),
+        pnlData: pnlData
+    });
+}
+
 async function populateCompiledDataTable() {
     if (!currentUser) return;
     const tbody = document.getElementById('compiled-data-tbody');
@@ -481,15 +535,14 @@ async function populateCompiledDataTable() {
                             </div>
                         </td>`;
                 } else {
-                    // --- MODIFICATION: Added the Upload button here ---
-                    const isPnlData = type === 'pnlData';
-                    const disabled = isPnlData ? 'disabled' : '';
-                    const title = isPnlData ? 'Please use the P&L Tool for this upload.' : `Upload ${type.replace(/([A-Z])/g, ' $1').toLowerCase()}`;
+                    // --- MODIFICATION: Logic for the upload button is updated here ---
+                    const disabled = ''; // No longer disabling any button
+                    const title = `Upload ${type.replace(/([A-Z])/g, ' $1').toLowerCase()}`; // Universal title
                     return `
                         <td class="px-6 py-4 text-center">
                             <div class="flex items-center justify-center space-x-2">
                                 <span class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full">Not Yet Uploaded</span>
-                                <button class="upload-compiled-btn bg-green-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-green-600 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                <button class="upload-compiled-btn bg-green-500 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-green-600 ${disabled}" 
                                     data-period="${period}" 
                                     data-type="${type}" 
                                     title="${title}"
@@ -690,6 +743,9 @@ document.getElementById('quick-upload-submit-btn').addEventListener('click', asy
             case 'salesTarget':
                 await handleModalTargetUpload(file, period, 'sales');
                 break;
+            case 'pnlData':
+                await processAndSavePnlData(file, period, file.name);
+                break;
             case 'pnlTarget':
                 await handleModalTargetUpload(file, period, 'pnl');
                 break;
@@ -709,14 +765,26 @@ document.getElementById('quick-upload-submit-btn').addEventListener('click', asy
 /**
  * Handles the upload of the main Sales Data file from the modal.
  */
-async function handleModalSalesDataUpload(file: File, period: string) {
+async function handleModalSalesDataUpload(file: File, expectedPeriod: string) {
     const progressContainer = document.getElementById('quick-upload-progress-container');
     const progressBar = document.getElementById('quick-upload-progress-bar');
     progressContainer.classList.remove('hidden');
 
+    // First, read the file to validate the period
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]]; // Use the first sheet
+    const actualPeriod = getPeriodFromFile(worksheet);
+
+    if (actualPeriod !== expectedPeriod) {
+        throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
+    }
+
+    // If validation passes, proceed with the upload
     return new Promise((resolve, reject) => {
-        const storageRef = ref(storage, `uploads/${currentUser.uid}/${file.name}`);
-        const metadata = { customMetadata: { userId: currentUser.uid, period: period } };
+        const storagePath = `users/${currentUser.uid}/${actualPeriod}/${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const metadata = { customMetadata: { userId: currentUser.uid, period: actualPeriod } };
         const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
         uploadTask.on('state_changed',
@@ -726,13 +794,23 @@ async function handleModalSalesDataUpload(file: File, period: string) {
             },
             (error) => {
                 console.error("Modal Sales Data upload failed:", error);
+                progressContainer.classList.add('hidden'); // Hide progress on error
                 reject(error);
             },
             () => {
-                // We don't need to wait for processing here, just for the upload to finish.
-                // The main listener will eventually catch the processing completion.
-                console.log('Modal Sales Data upload complete.');
-                resolve(true);
+                console.log('Modal Sales Data upload complete and validated.');
+                // Trigger the backend processing listener
+                const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, actualPeriod);
+                setDoc(docRef, {
+                    fileName: file.name,
+                    status: 'uploaded',
+                    period: actualPeriod,
+                    storagePath: storagePath,
+                    uploadedAt: new Date(),
+                }).then(() => {
+                     listenForProcessingStatus(actualPeriod);
+                     resolve(true);
+                }).catch(reject);
             }
         );
     });
@@ -741,31 +819,48 @@ async function handleModalSalesDataUpload(file: File, period: string) {
 /**
  * Handles the upload of Target files (Sales or P&L) from the modal.
  */
-async function handleModalTargetUpload(file: File, period: string, type: 'sales' | 'pnl') {
+async function handleModalTargetUpload(file: File, expectedPeriod: string, type: 'sales' | 'pnl') {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const parsedData = XLSX.utils.sheet_to_json(worksheet);
+    
+    // Determine the correct sheet name based on the upload type
+    const sheetName = type === 'sales' ? "Sales Target Data" : "P&L Target Data";
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) {
+        throw new Error(`Sheet '${sheetName}' not found. Please use the correct template.`);
+    }
 
-    if (!parsedData || parsedData.length === 0) {
+    // Validate the period from the file
+    const actualPeriod = getPeriodFromFile(worksheet);
+    if (actualPeriod !== expectedPeriod) {
+        throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
+    }
+    
+    // Proceed with parsing if validation passes
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
+
+    if (!jsonData || jsonData.length === 0) {
         throw new Error("The Excel file is empty or does not contain valid data.");
     }
-    const targetObject = parsedData.reduce((acc, row) => {
+
+    const targets = jsonData.reduce((acc, row) => {
         if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
             acc[String(row.Metric).trim()] = row.Target;
         }
         return acc;
     }, {});
-    if (Object.keys(targetObject).length === 0) {
-        throw new Error("Could not find 'Metric' and 'Target' columns.");
+
+    if (Object.keys(targets).length === 0) {
+        throw new Error("Could not find 'Metric' and 'Target' columns with valid data.");
     }
 
     const collectionPath = type === 'sales' ? 'monthlySalesTargets' : 'monthlyPnlTargets';
-    const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, period);
+    const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, actualPeriod);
     await setDoc(targetDocRef, {
         fileName: file.name,
         lastUpdatedAt: new Date(),
-        targets: targetObject
+        targets: targets,
+        period: actualPeriod
     }, { merge: true });
 }
 
@@ -992,98 +1087,6 @@ function downloadPnlTargetTemplate() {
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
     XLSX.utils.book_append_sheet(wb, wsData, "P&L Target Data");
     XLSX.writeFile(wb, "Finalytics_P&L_Target_Template.xlsx");
-}
-
-async function handlePnlDataUpload() {
-    if (!currentUser) {
-        alert('Authentication error. Please log in again.');
-        return;
-    }
-
-    const fileInput = document.getElementById('pnl-data-file-input') as HTMLInputElement;
-    const file = fileInput.files?.[0];
-
-    if (!file) {
-        alert('Please select a P&L data file to upload.');
-        return;
-    }
-
-    // This check prevents the error by ensuring a period is selected.
-    const period = getSelectedPeriod();
-    if (!period) {
-        alert("Invalid period selected. Please select a valid month and year before uploading.");
-        return;
-    }
-
-    const uploadButton = document.getElementById('upload-pnl-data-btn') as HTMLButtonElement;
-    const originalButtonText = uploadButton.textContent;
-    uploadButton.disabled = true;
-    uploadButton.textContent = 'Processing...';
-    
-    showLoading({ message: 'Processing P&L file...', value: 20 });
-
-    try {
-        const validMainCategories = [
-            "Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)",
-            "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"
-        ];
-
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
-        const worksheet = workbook.Sheets["P&L Data"]; 
-        
-        if (!worksheet) {
-            throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
-        }
-        
-        const parsedData = XLSX.utils.sheet_to_json(worksheet);
-
-        if (!parsedData || parsedData.length === 0) {
-            throw new Error("The 'P&L Data' sheet is empty.");
-        }
-
-        const pnlData = {};
-
-        for (const row of parsedData) {
-            const mainCategory = row["Main Category"];
-            const subCategory = row["Sub-Category"];
-            const amount = row["Amount"];
-
-            if (mainCategory && subCategory && typeof amount === 'number') {
-                if (!validMainCategories.includes(mainCategory)) {
-                    throw new Error(`Invalid Main Category found: "${mainCategory}". Please use one of the exact categories from the template's Instructions sheet.`);
-                }
-                
-                if (!pnlData[mainCategory]) {
-                    pnlData[mainCategory] = {};
-                }
-                
-                pnlData[mainCategory][String(subCategory).trim()] = amount;
-            }
-        }
-
-        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
-        await setDoc(pnlDocRef, {
-            title: `${file.name} (from template)`,
-            fileName: file.name,
-            period: period,
-            lastUpdatedAt: new Date(),
-            pnlData: pnlData
-        });
-
-        hideLoading();
-        alert(`P&L Report for ${period} has been successfully created!`);
-        await populateCompiledDataTable();
-
-    } catch (error) {
-        console.error("Error processing P&L data upload:", error);
-        hideLoading();
-        alert(`Failed to process P&L file. Error: ${error.message}`);
-    } finally {
-        uploadButton.disabled = false;
-        uploadButton.textContent = originalButtonText;
-        fileInput.value = ''; 
-    }
 }
 
 async function handlePnlDataUpload() {
