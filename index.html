@@ -5501,7 +5501,30 @@
         </div>
     </div>
 </div>
+<div id="quick-upload-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="text-xl font-semibold text-gray-800" id="quick-upload-modal-title">Upload File</h3>
+            <button id="quick-upload-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+        <div id="quick-upload-modal-body">
+            <p id="quick-upload-instructions" class="text-sm text-gray-600 mb-4">Please select the correct file. The system will validate that the period inside the file matches the selected period.</p>
+            <input type="file" id="quick-upload-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <div id="quick-upload-error" class="text-red-500 text-sm mt-2 hidden"></div>
 
+            <div id="quick-upload-progress-container" class="mt-4 hidden">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="quick-upload-progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+             <div id="quick-upload-processing-status" class="mt-2 text-sm text-gray-600 hidden"></div>
+        </div>
+        <div class="flex items-center justify-end mt-6">
+            <button id="quick-upload-cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300 mr-2">Cancel</button>
+            <button id="quick-upload-confirm-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">Upload & Process</button>
+        </div>
+    </div>
+</div>
 
 
         <script type="module" src="./src/main.ts"></script>

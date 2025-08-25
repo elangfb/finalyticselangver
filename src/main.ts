@@ -514,7 +514,7 @@ async function populateCompiledDataTable() {
         const sortedPeriods = Object.keys(aggregatedData).sort().reverse();
 
         if (sortedPeriods.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">No data uploaded yet. Select a period and upload a file to begin.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">No data periods found. Please upload a Sales Data file to begin.</td></tr>';
             return;
         }
 
@@ -535,12 +535,12 @@ async function populateCompiledDataTable() {
                             </div>
                         </td>`;
                 } else {
-                    // --- MODIFICATION: The "Upload" button has been removed from here ---
+                    // --- MODIFICATION: Show "Upload" button instead of "Not Yet Uploaded" ---
                     return `
                         <td class="px-6 py-4 text-center">
-                            <div class="flex items-center justify-center space-x-2">
-                                <span class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full">Not Yet Uploaded</span>
-                            </div>
+                            <button class="upload-compiled-btn bg-gray-200 text-gray-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-gray-300" data-period="${period}" data-type="${type}">
+                                Upload
+                            </button>
                         </td>`;
                 }
             };
@@ -561,6 +561,95 @@ async function populateCompiledDataTable() {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-red-500">Could not load data.</td></tr>';
     }
 }
+
+const quickUploadModal = document.getElementById('quick-upload-modal');
+const quickUploadTitle = document.getElementById('quick-upload-modal-title');
+const quickUploadFileInput = document.getElementById('quick-upload-file-input') as HTMLInputElement;
+const quickUploadError = document.getElementById('quick-upload-error');
+const quickUploadConfirmBtn = document.getElementById('quick-upload-confirm-btn') as HTMLButtonElement;
+const quickUploadProgressContainer = document.getElementById('quick-upload-progress-container');
+const quickUploadProcessingStatus = document.getElementById('quick-upload-processing-status');
+
+const typeDisplayNames = {
+    salesData: 'Sales Data',
+    salesTarget: 'Sales Target',
+    pnlData: 'P&L Data',
+    pnlTarget: 'P&L Target'
+};
+
+function openQuickUploadModal(period: string, type: string) {
+    const [year, month] = period.split('-');
+    const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    quickUploadTitle.textContent = `Upload ${typeDisplayNames[type]} for ${formattedPeriod}`;
+    
+    // Store data on the modal for the confirm button to access
+    quickUploadModal.dataset.period = period;
+    quickUploadModal.dataset.type = type;
+    
+    // Reset modal state
+    quickUploadFileInput.value = '';
+    quickUploadError.classList.add('hidden');
+    quickUploadConfirmBtn.disabled = false;
+    quickUploadConfirmBtn.textContent = 'Upload & Process';
+    quickUploadProgressContainer.classList.add('hidden');
+    quickUploadProcessingStatus.classList.add('hidden');
+    quickUploadProcessingStatus.textContent = '';
+
+
+    quickUploadModal.classList.remove('hidden');
+}
+
+// Close modal listeners
+quickUploadModal.querySelector('#quick-upload-modal-close').addEventListener('click', () => quickUploadModal.classList.add('hidden'));
+quickUploadModal.querySelector('#quick-upload-cancel-btn').addEventListener('click', () => quickUploadModal.classList.add('hidden'));
+
+// Main upload confirmation listener
+quickUploadConfirmBtn.addEventListener('click', async () => {
+    const file = quickUploadFileInput.files?.[0];
+    const period = quickUploadModal.dataset.period;
+    const type = quickUploadModal.dataset.type;
+
+    if (!file) {
+        quickUploadError.textContent = 'Please select a file.';
+        quickUploadError.classList.remove('hidden');
+        return;
+    }
+    quickUploadError.classList.add('hidden');
+    quickUploadConfirmBtn.disabled = true;
+    quickUploadConfirmBtn.textContent = 'Processing...';
+
+    try {
+        switch (type) {
+            case 'salesData':
+                await handleModalSalesDataUpload(file, period);
+                break;
+            case 'salesTarget':
+                await handleModalTargetUpload(file, period, 'sales');
+                break;
+            case 'pnlData':
+                await processAndSavePnlData(file, period, file.name);
+                break;
+            case 'pnlTarget':
+                await handleModalTargetUpload(file, period, 'pnl');
+                break;
+        }
+        
+        quickUploadProcessingStatus.textContent = 'Success! The table will refresh shortly.';
+        quickUploadProcessingStatus.className = 'mt-2 text-sm text-green-600';
+        quickUploadProcessingStatus.classList.remove('hidden');
+
+        await populateCompiledDataTable(); // Refresh the main table
+        setTimeout(() => quickUploadModal.classList.add('hidden'), 2000);
+
+    } catch (error) {
+        console.error("Quick upload failed:", error);
+        quickUploadError.textContent = `Error: ${error.message}`;
+        quickUploadError.classList.remove('hidden');
+        quickUploadConfirmBtn.disabled = false;
+        quickUploadConfirmBtn.textContent = 'Upload & Process';
+    }
+});
 
 // Add event listener for the new table
 document.getElementById('compiled-data-tbody').addEventListener('click', async (e) => {
@@ -680,54 +769,104 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
  * Handles the upload of the main Sales Data file from the modal.
  */
 async function handleModalSalesDataUpload(file: File, expectedPeriod: string) {
-    const progressContainer = document.getElementById('quick-upload-progress-container');
-    const progressBar = document.getElementById('quick-upload-progress-bar');
+    // Immediately close the modal to use the main progress UI
+    document.getElementById('quick-upload-modal').classList.add('hidden');
+
+    // --- All main progress bar UI elements ---
+    const progressContainer = document.getElementById('upload-progress-container');
+    const progressBar = document.getElementById('upload-progress-bar');
+    const progressPercent = document.getElementById('upload-progress-percent');
+    const statusText = document.getElementById('upload-status-text');
+    const filenameText = document.getElementById('upload-filename');
+    const cancelBtn = document.getElementById('cancel-upload-btn');
+    const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement; // To re-enable on failure
+
+    // --- Initialize the main progress UI ---
+    filenameText.textContent = file.name;
+    statusText.textContent = 'Analyzing file...';
+    progressBar.style.width = '0%';
+    progressBar.classList.remove('bg-green-500', 'bg-red-500');
+    progressBar.classList.add('bg-blue-600');
+    progressPercent.textContent = '0%';
     progressContainer.classList.remove('hidden');
+    setTimeout(() => progressContainer.classList.add('show'), 10);
 
-    // First, read the file to validate the period
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]]; // Use the first sheet
-    const actualPeriod = getPeriodFromFile(worksheet);
+    try {
+        // 1. Read the file client-side to validate the period
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]]; // Use the first sheet
+        const actualPeriod = getPeriodFromSalesData(worksheet);
 
-    if (actualPeriod !== expectedPeriod) {
-        throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
-    }
+        // 2. CRITICAL: Validate the file's period against the expected period from the table row
+        if (actualPeriod !== expectedPeriod) {
+            throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
+        }
 
-    // If validation passes, proceed with the upload
-    return new Promise((resolve, reject) => {
+        statusText.textContent = `Period ${actualPeriod} found. Uploading...`;
+
+        // 3. If validation passes, proceed with the full upload process
         const storagePath = `users/${currentUser.uid}/${actualPeriod}/${file.name}`;
         const storageRef = ref(storage, storagePath);
         const metadata = { customMetadata: { userId: currentUser.uid, period: actualPeriod } };
         const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
+        const cancelUpload = () => uploadTask.cancel();
+        cancelBtn.addEventListener('click', cancelUpload, { once: true });
+
         uploadTask.on('state_changed',
             (snapshot) => {
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                progressBar.style.width = `${progress}%`;
+                const percent = Math.round(progress);
+                progressBar.style.width = `${percent}%`;
+                progressPercent.textContent = `${percent}%`;
+                statusText.textContent = `Uploading... (${(snapshot.bytesTransferred / 1024 / 1024).toFixed(2)} MB of ${(snapshot.totalBytes / 1024 / 1024).toFixed(2)} MB)`;
             },
             (error) => {
+                // This block is executed on upload failure
                 console.error("Modal Sales Data upload failed:", error);
-                progressContainer.classList.add('hidden'); // Hide progress on error
-                reject(error);
+                statusText.textContent = 'Upload Failed!';
+                progressBar.classList.add('bg-red-500');
+                uploadButton.disabled = false; // Re-enable main upload button
+                setTimeout(() => {
+                    progressContainer.classList.remove('show');
+                    setTimeout(() => progressContainer.classList.add('hidden'), 300);
+                }, 5000);
+                cancelBtn.removeEventListener('click', cancelUpload);
             },
-            () => {
-                console.log('Modal Sales Data upload complete and validated.');
-                // Trigger the backend processing listener
+            async () => {
+                // This block is executed on upload success
+                statusText.textContent = 'Upload Complete! Waiting for server...';
+                progressBar.classList.add('bg-green-500');
+                progressPercent.textContent = '100%';
+                cancelBtn.removeEventListener('click', cancelUpload);
+                
+                // Trigger backend processing by creating the signal document
                 const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, actualPeriod);
-                setDoc(docRef, {
+                await setDoc(docRef, {
                     fileName: file.name,
                     status: 'uploaded',
                     period: actualPeriod,
                     storagePath: storagePath,
                     uploadedAt: new Date(),
-                }).then(() => {
-                     listenForProcessingStatus(actualPeriod);
-                     resolve(true);
-                }).catch(reject);
+                });
+                
+                // Listen for the backend processing status using the main UI
+                listenForProcessingStatus(actualPeriod);
             }
         );
-    });
+
+    } catch (error) {
+        console.error("Upload initialization failed:", error);
+        // Use the main progress UI to show the error
+        statusText.textContent = `Error: ${error.message}`;
+        progressBar.classList.add('bg-red-500');
+        uploadButton.disabled = false;
+        setTimeout(() => {
+            progressContainer.classList.remove('show');
+            setTimeout(() => progressContainer.classList.add('hidden'), 5000);
+        }, 5000);
+    }
 }
 
 /**
@@ -1291,8 +1430,12 @@ function listenForProcessingStatus(fileName: string) {
                     processingView.classList.add('hidden');
                 }, 300);
             }, 3000);
-          } else if (status.state === 'error') {
-            processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
+          } else if (status.state === 'complete') {
+            processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
+            // START: Add the missing function call here
+            loadUploadHistory();
+            populateCompiledDataTable(); // This line ensures the main table refreshes
+            // END: Add the missing function call here
             unsubscribeProcessor();
             setTimeout(() => {
                 progressContainer.classList.remove('show');
@@ -1302,7 +1445,7 @@ function listenForProcessingStatus(fileName: string) {
                     uploadView.classList.remove('hidden');
                     processingView.classList.add('hidden');
                 }, 300);
-            }, 5000);
+            }, 3000);
           }
         }
       });
