@@ -9905,3 +9905,4 @@ document.getElementById('upload-pnl-data-btn').addEventListener('click', async (
     }
 });
 document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
+document.getElementById('konfigurasi-btn').addEventListener('click', () => showView('konfigurasi'));
