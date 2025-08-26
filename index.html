@@ -432,47 +432,22 @@
                     <!-- Sidebar Navigation -->
                     <aside class="md:w-1/4 lg:w-1/5 space-y-4">
                         <nav id="analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md">
-                            <a
-                                href="#"
-                                class="sidebar-link active p-3 rounded-md"
-                                data-target="umum"
-                            >
-                                Tinjauan Umum
-                            </a>
-                            <a
-                                href="#"
-                                class="sidebar-link p-3 rounded-md"
-                                data-target="penjualan"
-                            >
-                                Analisa Penjualan
-                            </a>
-                            
-    <a href="#" class="sidebar-link p-3 rounded-md" data-target="waktu">
-        Pebandingan Waktu
-    </a>
+                           <a href="#" class="sidebar-link active p-3 rounded-md" data-target="umum">Tinjauan Umum</a>
+<a href="#" class="sidebar-link p-3 rounded-md" data-target="penjualan">Analisa Penjualan</a>
 
-                            <a
-                                href="#"
-                                class="sidebar-link p-3 rounded-md"
-                                data-target="produk"
-                            >
-                                Analisa Produk
-                            </a>
-                            <a
-                                href="#"
-                                class="sidebar-link p-3 rounded-md"
-                                data-target="cabang"
-                            >
-                                Analisa Cabang
-                            </a>
-                            <a
-                                href="#"
-                                class="sidebar-link p-3 rounded-md"
-                                data-target="yoy"
-                            >
-                                Analisa YoY
-                            </a>
-                            <a href="#" class="sidebar-link p-3 rounded-md" data-target="summaries">Monthly Summaries</a>
+<div class="submenu-container">
+    <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <span>Pebandingan Waktu</span>
+        <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    </button>
+    <div class="submenu hidden pl-4 mt-1 space-y-1">
+        <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-penjualan">Penjualan</a>
+        <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-pnl">Profit & Loss</a>
+    </div>
+</div>
+<a href="#" class="sidebar-link p-3 rounded-md" data-target="produk">Analisa Produk</a>
+<a href="#" class="sidebar-link p-3 rounded-md" data-target="cabang">Analisa Cabang</a>
+<a href="#" class="sidebar-link p-3 rounded-md" data-target="yoy">Analisa YoY</a>
                         </nav>
 
                         <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full">
@@ -553,620 +528,472 @@
                             </div>
                         </div>
 
-                        <!-- Tinjauan Umum Section -->
                         <section id="umum-section" class="analysis-section active space-y-6">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <!-- Total Omzet Card -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
-                                    <p id="ringkasan-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
-                                    <p id="ringkasan-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                                </div>
-                                <!-- Total Check Card -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
-                                    <p id="ringkasan-total-check" class="text-4xl font-bold mt-2">0</p>
-                                    <p id="ringkasan-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                                </div>
-                                <!-- Avg. Check Card -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
-                                    <p id="ringkasan-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
-                                    <p id="ringkasan-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                                </div>
-                            </div>
-                            <hr class="border-gray-300 my-6">
-
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#daily-omzet-heatmap-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="daily-omzet-heatmap-content" class="px-6 pb-6 chart-content">
-                                    <div id="daily-omzet-heatmap-container" class="overflow-x-auto"></div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-dailyOmzetHeatmap" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-heatmap-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="omzet-heatmap-content" class="px-6 pb-6 chart-content">
-                                    <div id="omzet-heatmap-container" class="overflow-x-auto"></div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-omzetJamHariHeatmap" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#tc-apc-harian-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="tc-apc-harian-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="tc-apc-harian-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="tcApcHarian">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-tcApcHarian" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-harian-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="omzet-harian-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="omzet-harian-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetHarian">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-omzetHarian" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-mingguan-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="omzet-mingguan-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="omzet-mingguan-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetMingguan">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-omzetMingguan" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white rounded-lg shadow-md">
-    <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-bulanan-content">
-        <h3 class="text-xl font-semibold text-gray-700">Omzet Bulanan</h3>
-        <svg
-            class="w-6 h-6 transform transition-transform chevron-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-        >
-            <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 9l-7 7-7-7"
-            ></path>
-        </svg>
-    </div>
-    <div id="omzet-bulanan-content" class="px-6 pb-6 chart-content">
-        <div class="chart-container">
-            <canvas id="omzet-bulanan-chart"></canvas>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
+            <p id="ringkasan-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="ringkasan-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
         </div>
-        <div class="mt-4 flex justify-end">
-            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetBulanan">Analyze with AI</button>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
+            <p id="ringkasan-total-check" class="text-4xl font-bold mt-2">0</p>
+            <p id="ringkasan-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
         </div>
-        <div id="analysis-result-omzetBulanan" class="analysis-result-container hidden"></div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
+            <p id="ringkasan-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="ringkasan-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+        </div>
     </div>
-</div>
+    <hr class="border-gray-300 my-6">
 
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-outlet-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="omzet-outlet-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="omzet-outlet-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetOutlet">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-omzetOutlet" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-                        </section>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#daily-omzet-heatmap-content">
+            <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="daily-omzet-heatmap-content" class="px-6 pb-6 chart-content">
+            <div id="daily-omzet-heatmap-container" class="overflow-x-auto"></div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-dailyOmzetHeatmap" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
 
-                        <!-- Analisa Penjualan Section -->
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-heatmap-content">
+            <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="omzet-heatmap-content" class="px-6 pb-6 chart-content">
+            <div id="omzet-heatmap-container" class="overflow-x-auto"></div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-omzetJamHariHeatmap" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#tc-apc-harian-content">
+            <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="tc-apc-harian-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="tc-apc-harian-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="tc-apc-harian-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="tcApcHarian">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-tcApcHarian" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-harian-content">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="omzet-harian-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="omzet-harian-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-harian-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetHarian">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-omzetHarian" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-mingguan-content">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="omzet-mingguan-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="omzet-mingguan-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-mingguan-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetMingguan">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-omzetMingguan" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-bulanan-content">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Bulanan</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="omzet-bulanan-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="omzet-bulanan-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-bulanan-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetBulanan">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-omzetBulanan" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-outlet-content">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="omzet-outlet-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="omzet-outlet-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-outlet-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetOutlet">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-omzetOutlet" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
+
                         <section id="penjualan-section" class="analysis-section space-y-6">
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-bulanan-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Total Penjualan & Check Per Bulan</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="penjualan-bulanan-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="penjualan-bulanan-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanBulanan">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-penjualanBulanan" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow-md">
-    <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#menu-sales-trend-content">
-        <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
-        <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-bulanan-content">
+            <h3 class="text-xl font-semibold text-gray-700">Total Penjualan & Check Per Bulan</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="penjualan-bulanan-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="penjualan-bulanan-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-bulanan-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanBulanan">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-penjualanBulanan" class="analysis-result-container hidden"></div>
+        </div>
     </div>
-    <div id="menu-sales-trend-content" class="px-6 pb-6 chart-content">
-        <!-- Dropdown for menu selection -->
-        <div class="mb-4">
-            <label for="menu-select" class="block text-sm font-medium text-gray-700 mb-1">Select menu items to display:</label>
-            <select id="menu-select" multiple></select>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#menu-sales-trend-content">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
         </div>
-        <div class="chart-container">
-            <canvas id="menu-sales-trend-chart"></canvas>
+        <div id="menu-sales-trend-content" class="px-6 pb-6 chart-content">
+            <div class="mb-4">
+                <label for="menu-select" class="block text-sm font-medium text-gray-700 mb-1">Select menu items to display:</label>
+                <select id="menu-select" multiple></select>
+            </div>
+            <div class="chart-container">
+                <canvas id="menu-sales-trend-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="menu-sales-trend-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="menuSalesTrend">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-menuSalesTrend" class="analysis-result-container hidden"></div>
         </div>
-        <div class="mt-4 flex justify-end">
-            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="menuSalesTrend">Analyze with AI</button>
-        </div>
-        <div id="analysis-result-menuSalesTrend" class="analysis-result-container hidden"></div>
     </div>
-</div>
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-channel-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="penjualan-channel-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="penjualan-channel-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanChannel">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-penjualanChannel" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow-md">
-    <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#sales-trend-hourly-daily-content">
-        <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
-        <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
-    </div>
-    <div id="sales-trend-hourly-daily-content" class="px-6 pb-6 chart-content">
-        <div class="chart-container">
-            <canvas id="sales-trend-hourly-daily-chart"></canvas>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-channel-content">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
         </div>
-        <div class="mt-4 flex justify-end">
-            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="salesTrendHourlyDaily">Analyze with AI</button>
+        <div id="penjualan-channel-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="penjualan-channel-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-channel-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanChannel">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-penjualanChannel" class="analysis-result-container hidden"></div>
         </div>
-        <div id="analysis-result-salesTrendHourlyDaily" class="analysis-result-container hidden"></div>
     </div>
-</div>
-                        </section>
-<section id="waktu-section" class="analysis-section space-y-6">
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#sales-trend-hourly-daily-content">
+            <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="sales-trend-hourly-daily-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="sales-trend-hourly-daily-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="sales-trend-hourly-daily-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="salesTrendHourlyDaily">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-salesTrendHourlyDaily" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
+<section id="waktu-penjualan-section" class="analysis-section space-y-6">
+    <div class="bg-white rounded-lg shadow-md border">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Harian Antar Bulan</h3>
+            <div class="mt-4">
+                <label for="waktu-omzet-harian-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih bulan untuk dibandingkan:</label>
+                <select id="waktu-omzet-harian-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="waktu-omzet-harian-chart"></canvas>
+            </div>
+            </div>
+    </div>
+</section>
+
+<section id="waktu-pnl-section" class="analysis-section space-y-6">
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Pebandingan Waktu</h3>
-        
-        <div class="mb-6 max-w-xs">
-            <label for="waktu-select" class="block text-sm font-medium text-gray-700">Pilih Tipe Analisa</label>
-            <select id="waktu-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <option value="penjualan">Penjualan</option>
-                <option value="pnl">P&L</option>
-            </select>
-        </div>
-
-        <div id="waktu-penjualan-content">
-            <div class="bg-white rounded-lg shadow-md border">
-                <div class="p-6">
-                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Harian Antar Bulan</h3>
-                    <div class="mt-4">
-                        <label for="waktu-omzet-harian-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih bulan untuk dibandingkan:</label>
-                        <select id="waktu-omzet-harian-select" multiple></select>
-                    </div>
-                </div>
-                <div class="px-6 pb-6">
-                    <div class="chart-container">
-                        <canvas id="waktu-omzet-harian-chart"></canvas>
-                    </div>
-                </div>
-            </div>
-            </div>
-
-        <div id="waktu-pnl-content" class="hidden">
-            <h4 class="text-lg font-semibold text-gray-600 mb-4">Perbandingan P&L Seluruh Periode</h4>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead id="waktu-pnl-thead" class="bg-gray-50">
-                        </thead>
-                    <tbody id="waktu-pnl-tbody" class="bg-white divide-y divide-gray-200">
-                        </tbody>
-                </table>
-            </div>
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Perbandingan P&L Seluruh Periode</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead id="waktu-pnl-thead" class="bg-gray-50">
+                </thead>
+                <tbody id="waktu-pnl-tbody" class="bg-white divide-y divide-gray-200">
+                </tbody>
+            </table>
         </div>
     </div>
 </section>
 
 
 
-                        <!-- Analisa Produk Section -->
                         <section id="produk-section" class="analysis-section space-y-6">
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#order-by-category-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Order by Category</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="order-by-category-content" class="px-6 pb-6 chart-content">
-                                    <div class="grid grid-cols-1 gap-6">
-                                        <div>
-                                            <h4 class="text-lg font-semibold text-center mb-2">By Menu Category</h4>
-                                            <div class="chart-container">
-                                                <canvas id="order-by-menu-category-chart"></canvas>
-                                            </div>
-                                            <div class="mt-4 flex justify-end">
-                                                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="orderByCategory">Analyze with AI</button>
-                                            </div>
-                                            <div id="analysis-result-orderByCategory" class="analysis-result-container hidden"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#top-menu-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Top 5 Menu Items by Quantity</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="top-menu-content" class="px-6 pb-6 chart-content">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div>
-                                            <h4 class="text-lg font-semibold text-center mb-2">Top 5 Makanan</h4>
-                                            <div class="chart-container" style="height: 300px;">
-                                                <canvas id="top-makanan-chart"></canvas>
-                                            </div>
-                                            <div class="mt-4 flex justify-end">
-                                                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="topMakanan">Analyze with AI</button>
-                                            </div>
-                                            <div id="analysis-result-topMakanan" class="analysis-result-container hidden"></div>
-                                        </div>
-                                        <div>
-                                            <h4 class="text-lg font-semibold text-center mb-2">Top 5 Minuman</h4>
-                                            <div class="chart-container" style="height: 300px;">
-                                                <canvas id="top-minuman-chart"></canvas>
-                                            </div>
-                                            <div class="mt-4 flex justify-end">
-                                                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="topMinuman">Analyze with AI</button>
-                                            </div>
-                                            <div id="analysis-result-topMinuman" class="analysis-result-container hidden"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#order-by-category-content">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Category</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="order-by-category-content" class="px-6 pb-6 chart-content">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <h4 class="text-lg font-semibold text-center mb-2">By Menu Category</h4>
+                    <div class="chart-container">
+                        <canvas id="order-by-menu-category-chart"></canvas>
+                    </div>
+                    <div class="mt-4 flex justify-end items-center gap-4">
+                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="order-by-menu-category-chart">Download Chart</button>
+                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="orderByCategory">Analyze with AI</button>
+                    </div>
+                    <div id="analysis-result-orderByCategory" class="analysis-result-container hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#top-menu-content">
+            <h3 class="text-xl font-semibold text-gray-700">Top 5 Menu Items by Quantity</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="top-menu-content" class="px-6 pb-6 chart-content">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h4 class="text-lg font-semibold text-center mb-2">Top 5 Makanan</h4>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="top-makanan-chart"></canvas>
+                    </div>
+                    <div class="mt-4 flex justify-end items-center gap-4">
+                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="top-makanan-chart">Download Chart</button>
+                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="topMakanan">Analyze with AI</button>
+                    </div>
+                    <div id="analysis-result-topMakanan" class="analysis-result-container hidden"></div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold text-center mb-2">Top 5 Minuman</h4>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="top-minuman-chart"></canvas>
+                    </div>
+                    <div class="mt-4 flex justify-end items-center gap-4">
+                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="top-minuman-chart">Download Chart</button>
+                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="topMinuman">Analyze with AI</button>
+                    </div>
+                    <div id="analysis-result-topMinuman" class="analysis-result-container hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
-                        <!-- Analisa Cabang Section -->
-                        <section id="cabang-section" class="analysis-section space-y-6">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <!-- Omzet Tertinggi -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">Omzet Tertinggi</h3>
-                                    <p id="cabang-omzet-tertinggi-nama" class="text-2xl font-bold mt-2">-</p>
-                                    <p id="cabang-omzet-tertinggi-nilai" class="text-lg mt-1 font-medium text-indigo-600">Rp0</p>
-                                </div>
-                                <!-- Cabang Paling Ramai -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">Cabang Paling Ramai (by Check)</h3>
-                                    <p id="cabang-ramai-nama" class="text-2xl font-bold mt-2">-</p>
-                                    <p id="cabang-ramai-nilai" class="text-lg mt-1 font-medium text-indigo-600">0 checks</p>
-                                </div>
-                                <!-- APC Tertinggi -->
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">APC Tertinggi</h3>
-                                    <p id="cabang-apc-tertinggi-nama" class="text-2xl font-bold mt-2">-</p>
-                                    <p id="cabang-apc-tertinggi-nilai" class="text-lg mt-1 font-medium text-indigo-600">Rp0</p>
-                                </div>
-                            </div>
+<section id="cabang-section" class="analysis-section space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Omzet Tertinggi</h3>
+            <p id="cabang-omzet-tertinggi-nama" class="text-2xl font-bold mt-2">-</p>
+            <p id="cabang-omzet-tertinggi-nilai" class="text-lg mt-1 font-medium text-indigo-600">Rp0</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Cabang Paling Ramai (by Check)</h3>
+            <p id="cabang-ramai-nama" class="text-2xl font-bold mt-2">-</p>
+            <p id="cabang-ramai-nilai" class="text-lg mt-1 font-medium text-indigo-600">0 checks</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">APC Tertinggi</h3>
+            <p id="cabang-apc-tertinggi-nama" class="text-2xl font-bold mt-2">-</p>
+            <p id="cabang-apc-tertinggi-nilai" class="text-lg mt-1 font-medium text-indigo-600">Rp0</p>
+        </div>
+    </div>
 
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#cabang-omzet-check-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="cabang-omzet-check-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="cabang-omzet-check-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangOmzetCheck">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-cabangOmzetCheck" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#cabang-omzet-check-content">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="cabang-omzet-check-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="cabang-omzet-check-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="cabang-omzet-check-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangOmzetCheck">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangOmzetCheck" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
 
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#cabang-apc-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Average Check per Cabang</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="cabang-apc-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="cabang-apc-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangApc">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-cabangApc" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#cabang-apc-content">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Average Check per Cabang</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="cabang-apc-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="cabang-apc-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="cabang-apc-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangApc">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangApc" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
 
-                            <div class="bg-white rounded-lg shadow-md p-6">
-                                <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Performa Cabang</h3>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang</th>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Omzet</th>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Check</th>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Check (APC)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="cabang-detail-tbody" class="bg-white divide-y divide-gray-200">
-                                            <!-- Data will be populated by JS -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="mt-4 flex justify-end">
-                                    <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangDetail">Analyze with AI</button>
-                                </div>
-                                <div id="analysis-result-cabangDetail" class="analysis-result-container hidden"></div>
-                            </div>
-                        </section>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Performa Cabang</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Omzet</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Check</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Check (APC)</th>
+                    </tr>
+                </thead>
+                <tbody id="cabang-detail-tbody" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+            </table>
+        </div>
+        <div class="mt-4 flex justify-end">
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="cabangDetail">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-cabangDetail" class="analysis-result-container hidden"></div>
+    </div>
+</section>
 
-                        <!-- Analisa YoY Section -->
-                        <section id="yoy-section" class="analysis-section space-y-6">
-                            <div class="bg-white p-4 rounded-lg shadow-md">
-                                <div class="flex items-center gap-4">
-                                    <label for="yoy-year-select" class="text-sm font-medium">Select Year:</label>
-                                    <select id="yoy-year-select" class="p-2 border rounded-md"></select>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">YoY Omzet Growth</h3>
-                                    <p id="yoy-omzet-growth" class="text-4xl font-bold mt-2">0%</p>
-                                </div>
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">YoY Total Check Growth</h3>
-                                    <p id="yoy-check-growth" class="text-4xl font-bold mt-2">0%</p>
-                                </div>
-                                <div class="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 class="text-lg font-semibold text-gray-600">YoY Avg. Check Growth</h3>
-                                    <p id="yoy-apc-growth" class="text-4xl font-bold mt-2">0%</p>
-                                </div>
-                            </div>
+<section id="yoy-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="flex items-center gap-4">
+            <label for="yoy-year-select" class="text-sm font-medium">Select Year:</label>
+            <select id="yoy-year-select" class="p-2 border rounded-md"></select>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">YoY Omzet Growth</h3>
+            <p id="yoy-omzet-growth" class="text-4xl font-bold mt-2">0%</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">YoY Total Check Growth</h3>
+            <p id="yoy-check-growth" class="text-4xl font-bold mt-2">0%</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">YoY Avg. Check Growth</h3>
+            <p id="yoy-apc-growth" class="text-4xl font-bold mt-2">0%</p>
+        </div>
+    </div>
 
-                            <div class="bg-white rounded-lg shadow-md">
-                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#yoy-omzet-chart-content">
-                                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Bulanan (YoY)</h3>
-                                    <svg
-                                        class="w-6 h-6 transform transition-transform chevron-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M19 9l-7 7-7-7"
-                                        ></path>
-                                    </svg>
-                                </div>
-                                <div id="yoy-omzet-chart-content" class="px-6 pb-6 chart-content">
-                                    <div class="chart-container">
-                                        <canvas id="yoy-omzet-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end">
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="yoyOmzet">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-yoyOmzet" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#yoy-omzet-chart-content">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Bulanan (YoY)</h3>
+            <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </div>
+        <div id="yoy-omzet-chart-content" class="px-6 pb-6 chart-content">
+            <div class="chart-container">
+                <canvas id="yoy-omzet-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="yoy-omzet-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="yoyOmzet">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-yoyOmzet" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
 
-                            <div class="bg-white rounded-lg shadow-md p-6">
-                                <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Perbandingan YoY</h3>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Prev. Year)</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Curr. Year)</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Growth</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="yoy-detail-tbody" class="bg-white divide-y divide-gray-200">
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="mt-4 flex justify-end">
-                                    <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="yoyDetail">Analyze with AI</button>
-                                </div>
-                                <div id="analysis-result-yoyDetail" class="analysis-result-container hidden"></div>
-                            </div>
-                        </section>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Perbandingan YoY</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Prev. Year)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Curr. Year)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Growth</th>
+                    </tr>
+                </thead>
+                <tbody id="yoy-detail-tbody" class="bg-white divide-y divide-gray-200">
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4 flex justify-end">
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="yoyDetail">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-yoyDetail" class="analysis-result-container hidden"></div>
+    </div>
+</section>
                         <!-- Monthly Summaries -->
-                        <section id="summaries-section" class="analysis-section space-y-6">
+                        <section id="summaries-section" class="analysis-section space-y-6 hidden">
     <div class="bg-white rounded-lg shadow-md p-6">
         <h3 class="text-2xl font-semibold text-gray-800 mb-4">Monthly Comparison</h3>
         <p class="text-gray-600 mb-6">Select two months to compare their performance side-by-side. The comparison is based on the sum of all daily data within each month.</p>

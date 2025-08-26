@@ -2330,21 +2330,6 @@ async function generateAllTimePnlTable() {
     }
 }
 
-document.getElementById('waktu-select').addEventListener('change', (e) => {
-    const selectedValue = (e.target as HTMLSelectElement).value;
-    const penjualanContent = document.getElementById('waktu-penjualan-content');
-    const pnlContent = document.getElementById('waktu-pnl-content');
-
-    if (selectedValue === 'pnl') {
-        penjualanContent.classList.add('hidden');
-        pnlContent.classList.remove('hidden');
-        generateAllTimePnlTable(); // Generate the table when P&L is selected
-    } else { // 'penjualan'
-        pnlContent.classList.add('hidden');
-        penjualanContent.classList.remove('hidden');
-    }
-});
-
 function generateMenuSalesTrendChart(summaries: any[]) {
     const menuSelectElement = document.getElementById('menu-select') as HTMLSelectElement;
     
@@ -5164,22 +5149,38 @@ async function generateGeneralPdfInsights(currentData: any[], lastPeriodData: an
  * @returns {void}
  */
 document.querySelector('main.flex-1').addEventListener('click', async (e) => {
-  const analyzeBtn = e.target.closest('.analyze-btn')
-  if (analyzeBtn) {
-    const chartId = analyzeBtn.dataset.chartId
-    await analyzeChart(chartId)
-  }
+    const target = e.target as HTMLElement;
 
-  const toggleBtn = e.target.closest('.toggle-chart-btn')
-  if (toggleBtn) {
-    const contentId = toggleBtn.dataset.target
-    const contentElement = document.querySelector(contentId)
-    const chevron = toggleBtn.querySelector('.chevron-icon')
+    // Handle Analyze button clicks
+    const analyzeBtn = target.closest('.analyze-btn');
+    if (analyzeBtn) {
+        const chartId = (analyzeBtn as HTMLElement).dataset.chartId;
+        await analyzeChart(chartId);
+    }
 
-    contentElement.classList.toggle('hidden')
-    chevron.classList.toggle('rotate-180')
-  }
-})
+    // Handle Download Chart button clicks
+    const downloadBtn = target.closest('.download-chart-btn');
+    if (downloadBtn) {
+        const chartId = (downloadBtn as HTMLElement).dataset.chartId;
+        downloadChartAsImage(chartId);
+    }
+
+    // Handle chart accordion toggle clicks
+    const toggleBtn = target.closest('.toggle-chart-btn');
+    if (toggleBtn) {
+        const contentId = (toggleBtn as HTMLElement).dataset.target;
+        const contentElement = document.querySelector(contentId);
+        const chevron = toggleBtn.querySelector('.chevron-icon');
+        
+        // This logic ensures the chart is visible before toggling
+        if (contentElement.style.maxHeight) {
+            contentElement.style.maxHeight = null;
+        } else {
+            contentElement.style.maxHeight = contentElement.scrollHeight + "px";
+        }
+        chevron.classList.toggle('rotate-180');
+    }
+});
 
 /**
  * Event listener for clicks on the analysis sidebar.
@@ -5189,21 +5190,61 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
  * Sets the active class on the clicked link and displays the corresponding section.
  * @returns {void}
  */
+// REPLACE the old 'analysis-sidebar' listener with this one
 document.getElementById('analysis-sidebar').addEventListener('click', (e) => {
-  if (e.target.tagName === 'A') {
-    e.preventDefault()
-    document.querySelectorAll('.sidebar-link').forEach((link) => link.classList.remove('active'))
-    e.target.classList.add('active')
+    const target = e.target as HTMLElement;
 
-    const targetId = e.target.dataset.target
-    document.querySelectorAll('.analysis-section').forEach((sec) => sec.classList.remove('active'))
-    document.getElementById(`${targetId}-section`).classList.add('active')
+    const link = target.closest('.sidebar-link');
+    const toggleBtn = target.closest('.submenu-toggle');
 
-    // Hide main filters for YoY and Konfigurasi tabs
-    const showMainFilters = !['yoy', 'konfigurasi'].includes(targetId)
-    document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none'
-  }
-})
+    // Handle submenu expansion/collapse first
+    if (toggleBtn) {
+        const submenu = toggleBtn.nextElementSibling as HTMLElement;
+        const chevron = toggleBtn.querySelector('.chevron-icon');
+        if (submenu && chevron) {
+            submenu.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+    }
+
+    // Handle link clicks for navigation (main links AND submenu links)
+    if (link) {
+        e.preventDefault();
+
+        // Remove active state from all links and toggles
+        document.querySelectorAll('.sidebar-link, .submenu-toggle').forEach(el => el.classList.remove('active'));
+        
+        // Add active state to the clicked link
+        link.classList.add('active');
+
+        // If it's a submenu link, also activate its parent toggle button
+        const parentToggle = link.closest('.submenu-container')?.querySelector('.submenu-toggle');
+        if (parentToggle) {
+            parentToggle.classList.add('active');
+        }
+        
+        const targetId = link.dataset.target;
+
+        // Show the correct section
+        document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
+        const targetSection = document.getElementById(`${targetId}-section`);
+        if (targetSection) {
+            targetSection.classList.add('active');
+        }
+
+        // Hide main filters for certain tabs
+        const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl'].includes(targetId);
+        document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
+
+        // Load data specifically for the selected view
+        if (targetId === 'waktu-pnl') {
+            generateAllTimePnlTable();
+        }
+        if (targetId === 'waktu-penjualan') {
+            setupMonthlyOmzetComparisonChart();
+        }
+    }
+});
 
 /**
  * Generate hourly Average Per Customer (APC) line chart with AI data storage.
@@ -9906,3 +9947,29 @@ document.getElementById('upload-pnl-data-btn').addEventListener('click', async (
 });
 document.getElementById('upload-pnl-target-btn').addEventListener('click', handlePnlTargetUpload);
 document.getElementById('konfigurasi-btn').addEventListener('click', () => showView('konfigurasi'));
+
+/**
+ * Downloads a specified chart as a PNG image.
+ * @param {string} chartId - The canvas ID of the chart to download.
+ */
+function downloadChartAsImage(chartId: string) {
+    const chartInstance = charts[chartId]; // Get the chart from our global charts object
+    if (!chartInstance) {
+        console.error(`Chart with ID "${chartId}" not found.`);
+        alert('Could not download chart. Instance not found.');
+        return;
+    }
+
+    // Use the Chart.js built-in function to get a base64 image string
+    const imageUrl = chartInstance.toBase64Image('image/png', 1);
+
+    // Create a temporary link element to trigger the download
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `${chartId}.png`; // Set the filename for the download
+
+    // Programmatically click the link to start the download, then remove the link
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
