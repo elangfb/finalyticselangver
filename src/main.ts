@@ -689,23 +689,17 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
                     break;
                 }
                 case 'pnlData': {
-                    showLoading({ message: 'Loading report...', value: 50 });
+                    showLoading({ message: 'Loading P&L report...' });
                     const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
                     const pnlDocSnap = await getDoc(pnlDocRef);
                     if (pnlDocSnap.exists()) {
                         const report = pnlDocSnap.data();
-                        showView('pl-analysis');
-                        document.getElementById('pnl-template-view').classList.add('hidden');
-                        document.getElementById('pnl-upload-view').classList.add('hidden');
-                        document.getElementById('pnl-results-view').classList.remove('hidden');
-                        (document.getElementById('pnl-report-title') as HTMLInputElement).value = report.title;
-                        renderPnlResults(report.pnlData);
-                        document.getElementById('pnl-review-mode-header').classList.add('hidden');
-                        document.getElementById('pnl-title-input-wrapper').classList.add('hidden');
-                        document.getElementById('save-pnl-report-btn-wrapper').classList.add('hidden');
-                        document.getElementById('back-to-mapping-btn').classList.add('hidden');
+                        // Call our new modal function instead of the broken code
+                        showPnlDataModal(report);
+                    } else {
+                        alert('Could not find the selected P&L data.');
                     }
-                    break;
+                    break; // break added for consistency
                 }
                 case 'salesTarget': {
                     showLoading({ message: 'Fetching target data...' });
@@ -10110,4 +10104,93 @@ function downloadChartAsImage(chartId: string) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// --- P&L Data Modal Listeners ---
+document.getElementById('pnl-data-modal-close').addEventListener('click', () => {
+    document.getElementById('pnl-data-modal').classList.add('hidden');
+});
+document.getElementById('pnl-data-modal-ok-btn').addEventListener('click', () => {
+    document.getElementById('pnl-data-modal').classList.add('hidden');
+});
+
+/**
+ * Displays a modal with a formatted Profit & Loss statement for a specific period.
+ * @param {object} data - The P&L data object from Firestore.
+ */
+function showPnlDataModal(data: any) {
+    const modal = document.getElementById('pnl-data-modal');
+    const titleEl = document.getElementById('pnl-data-modal-title');
+    const bodyEl = document.getElementById('pnl-data-modal-body');
+
+    const period = data.period;
+    const [year, month] = period.split('-');
+    const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    titleEl.textContent = `P&L Statement for ${formattedPeriod}`;
+
+    const pnlData = data.pnlData || {};
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+    let totalRevenue = 0, totalHPP = 0, totalOpex = 0, totalNonOpex = 0;
+    let totalDepresiasi = 0, totalBunga = 0, totalPajak = 0;
+
+    const renderCategory = (categoryName: string) => {
+        const categoryData = pnlData[categoryName] || {};
+        const categoryTotal = Object.values(categoryData).reduce((sum, value) => sum + (value as number), 0);
+
+        // Assign to wider-scoped totals
+        if (categoryName === "Pendapatan (Revenue)") totalRevenue = categoryTotal;
+        if (categoryName === "Harga Pokok Produksi") totalHPP = categoryTotal;
+        if (categoryName === "Beban Operasional (OPEX)") totalOpex = categoryTotal;
+        if (categoryName === "Beban Non Operasional") totalNonOpex = categoryTotal;
+        if (categoryName === "Depresiasi/ Amortisasi") totalDepresiasi = categoryTotal;
+        if (categoryName === "Bunga") totalBunga = categoryTotal;
+        if (categoryName === "Pajak (PB1)") totalPajak = categoryTotal;
+
+        if (Object.keys(categoryData).length === 0) return '';
+
+        const itemsHtml = Object.entries(categoryData).map(([name, value]) => `
+            <div class="flex justify-between text-sm text-gray-600 pl-4">
+                <span>${name}</span><span class="font-mono">${formatCurrency(value as number)}</span>
+            </div>`).join('');
+        
+        return `
+            <div class="mb-4">
+                <h4 class="font-bold text-md text-gray-800">${categoryName}</h4>
+                <div class="space-y-1 mt-2">${itemsHtml}</div>
+                <div class="flex justify-between font-semibold pt-1 border-t mt-1">
+                    <span>Total ${categoryName}</span><span class="font-mono">${formatCurrency(categoryTotal)}</span>
+                </div>
+            </div>`;
+    };
+    
+    const renderSubtotal = (label, value, colorClass) => `
+        <div class="flex justify-between font-bold text-lg py-2 my-2 ${colorClass} rounded-md px-4">
+            <span>${label}</span><span class="font-mono">${formatCurrency(value)}</span>
+        </div>`;
+
+    // --- Build the HTML string in the correct financial statement order ---
+    let finalHtml = '';
+    finalHtml += renderCategory("Pendapatan (Revenue)");
+    finalHtml += renderCategory("Harga Pokok Produksi");
+    const grossProfit = totalRevenue - totalHPP;
+    finalHtml += renderSubtotal("Laba Kotor (Gross Profit)", grossProfit, "bg-yellow-100 text-yellow-800");
+
+    finalHtml += renderCategory("Beban Operasional (OPEX)");
+    const netOperatingIncome = grossProfit - totalOpex;
+    finalHtml += renderSubtotal("Pendapatan Bersih Operasional", netOperatingIncome, "bg-blue-100 text-blue-800");
+
+    finalHtml += renderCategory("Beban Non Operasional");
+    const ebitda = netOperatingIncome - totalNonOpex;
+    finalHtml += renderSubtotal("EBITDA", ebitda, "bg-orange-100 text-orange-800");
+
+    finalHtml += renderCategory("Depresiasi/ Amortisasi");
+    finalHtml += renderCategory("Bunga");
+    finalHtml += renderCategory("Pajak (PB1)");
+
+    const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
+    finalHtml += renderSubtotal("Pendapatan Bersih (Net Income)", netIncome, "bg-green-200 text-green-800");
+    
+    bodyEl.innerHTML = finalHtml;
+    modal.classList.remove('hidden');
 }
