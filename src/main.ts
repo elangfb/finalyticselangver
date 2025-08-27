@@ -707,7 +707,20 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
                     }
                     break;
                 }
-                case 'salesTarget':
+                case 'salesTarget': {
+                    showLoading({ message: 'Fetching target data...' });
+                    const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, id);
+                    const targetDocSnap = await getDoc(targetDocRef);
+                    if (targetDocSnap.exists()) {
+                        const targetData = targetDocSnap.data();
+                        showSalesTargetModal(targetData);
+                    } else {
+                        alert('Could not find the selected sales target data.');
+                    }
+                    // This hideLoading() call should be inside this case
+                    hideLoading(); 
+                    break;
+                }
                 case 'pnlTarget':
                     alert('Viewing target data directly is not yet implemented.');
                     break;
@@ -716,7 +729,9 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
             console.error(`Error viewing compiled data for type ${type}:`, error);
             alert('Could not load the selected item.');
         } finally {
-            if (type !== 'salesTarget' && type !== 'pnlTarget') {
+            // Corrected: The finally block should only hide the loading overlay
+            // for types that actually show it and aren't handled elsewhere.
+            if (type !== 'salesTarget') { // salesTarget handles its own loading state
                 hideLoading();
             }
         }
@@ -773,8 +788,130 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
         const type = (uploadBtn as HTMLElement).dataset.type;
         openQuickUploadModal(period, type);
     }
-
 });
+
+/**
+ * Displays a modal with a table comparing sales targets to actual performance for a specific period.
+ * @param {object} data - The sales target data object from Firestore.
+ */
+async function showSalesTargetModal(data: any) {
+    const modal = document.getElementById('sales-target-modal');
+    const titleEl = document.getElementById('sales-target-modal-title');
+    const bodyEl = document.getElementById('sales-target-modal-body');
+
+    // --- 1. Show loading state and prepare period info ---
+    bodyEl.innerHTML = '<p id="sales-target-loading-msg" class="text-center text-gray-500">Loading actual sales data...</p>';
+    modal.classList.remove('hidden');
+
+    const period = data.period; // e.g., "2025-08"
+    if (!period) {
+        bodyEl.innerHTML = '<p class="text-center text-red-500">Error: Period not found in target data.</p>';
+        return;
+    }
+
+    const [year, month] = period.split('-');
+    const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    titleEl.textContent = `Sales Target vs Actual for ${formattedPeriod}`;
+
+    try {
+        // --- 2. Fetch all daily summaries for the matching period ---
+        const summariesQuery = query(
+            collectionGroup(db, 'dailySummaries'),
+            where('userId', '==', currentUser.uid)
+        );
+        const querySnapshot = await getDocs(summariesQuery);
+        
+        const periodSummaries = [];
+        querySnapshot.forEach(doc => {
+            const summary = doc.data();
+            // The summary date is 'YYYY-MM-DD', so we check if it starts with the target period 'YYYY-MM'
+            if (summary.date && summary.date.startsWith(period)) {
+                periodSummaries.push(summary);
+            }
+        });
+
+        // --- 3. Calculate actual performance from the summaries ---
+        const actuals = periodSummaries.reduce((acc, summary) => {
+            acc.totalOmzet += summary.totalOmzet || 0;
+            acc.totalTransactions += summary.totalTransactions || 0;
+            acc.totalItemsSold += summary.totalItemsSold || 0;
+            return acc;
+        }, {
+            totalOmzet: 0,
+            totalTransactions: 0,
+            totalItemsSold: 0
+        });
+
+        const actualAvgPerTransaction = actuals.totalTransactions > 0 
+            ? actuals.totalOmzet / actuals.totalTransactions 
+            : 0;
+
+        // Map the calculated actuals to the metric names used in the target file
+        const actualValues = {
+            'Total Omzet': actuals.totalOmzet,
+            'Total Transaction': actuals.totalTransactions,
+            'Total Items Sold': actuals.totalItemsSold,
+            'Avg. Per Transaction': actualAvgPerTransaction
+        };
+
+        // --- 4. Build the comparison table HTML ---
+        const targets = data.targets || {};
+        const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+        const formatNumber = (value) => Math.round(value).toLocaleString('id-ID');
+
+        let tableHtml = `
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actual</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Achievement</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+        `;
+
+        for (const metric in targets) {
+            const targetValue = targets[metric];
+            const actualValue = actualValues[metric] || 0;
+            const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
+            const isCurrency = metric.toLowerCase().includes('omzet') || metric.toLowerCase().includes('transaction');
+
+            tableHtml += `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${metric}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">
+                        ${isCurrency ? formatCurrency(targetValue) : formatNumber(targetValue)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">
+                        ${isCurrency ? formatCurrency(actualValue) : formatNumber(actualValue)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
+                            </div>
+                            <span class="font-semibold">${achievement.toFixed(1)}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        tableHtml += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        bodyEl.innerHTML = tableHtml;
+
+    } catch (error) {
+        console.error("Error fetching or processing actuals for sales target:", error);
+        bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not load actual sales data. ${error.message}</p>`;
+    }
+}
 
 /**
  * Handles the upload of the main Sales Data file from the modal.
@@ -1053,25 +1190,20 @@ async function handleSalesTargetUpload() {
         if (!period) throw new Error("Could not determine the period from the file.");
 
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
-
-        const targets = {
-            Sales: {},
-            Produk: {},
-            Channel: {}
-        };
-        let currentCategory = "";
-
+        
+        // --- MODIFIED: Simplified parsing logic for the new flat structure ---
+        const targets = {};
         jsonData.forEach(row => {
             const metric = row.Metric ? String(row.Metric).trim() : null;
             const targetValue = row.Target;
-
-            if (metric === 'Sales' || metric === 'Produk' || metric === 'Channel') {
-                currentCategory = metric;
-            } 
-            else if (currentCategory && metric && typeof targetValue === 'number') {
-                targets[currentCategory][metric] = targetValue;
+            if (metric && typeof targetValue === 'number') {
+                targets[metric] = targetValue;
             }
         });
+
+        if (Object.keys(targets).length === 0) {
+            throw new Error("No valid targets found in the file. Please ensure the 'Target' column contains numbers.");
+        }
 
         const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, period);
         await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
@@ -1086,32 +1218,38 @@ async function handleSalesTargetUpload() {
     }
 }
 
+// --- Sales Target Modal Listeners ---
+document.getElementById('sales-target-modal-close').addEventListener('click', () => {
+    document.getElementById('sales-target-modal').classList.add('hidden');
+});
+document.getElementById('sales-target-modal-ok-btn').addEventListener('click', () => {
+    document.getElementById('sales-target-modal').classList.add('hidden');
+});
+
+
 
 document.getElementById('download-sales-target-template-btn').addEventListener('click', downloadSalesTargetTemplate);
 document.getElementById('download-pnl-target-template-btn').addEventListener('click', downloadPnlTargetTemplate);
 document.getElementById('upload-sales-target-btn').addEventListener('click', handleSalesTargetUpload);
+
 /**
  * Generates and triggers a download for the Sales Target Excel template.
  */
 function downloadSalesTargetTemplate() {
     const instructions = [
         { Step: 1, Instruction: "In the 'Sales Target Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
-        { Step: 2, Instruction: "Fill in the target values in the 'Target' column for each metric." },
+        { Step: 2, Instruction: "Fill in the target values in the 'Target' column for each metric. These should be numbers without commas or currency symbols." },
     ];
+    // --- MODIFIED: The sheet data now reflects the new, simpler metrics ---
     const sheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
         { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
         {}, 
         { A: "Metric", B: "Target" }, 
-        { A: "Omzet", B: 300000000 },
-        { A: "Total Check", B: 6000 },
-        { A: "APC (Average Per Check)", B: 50000 },
-        { A: "Qty Makanan", B: 4500 },
-        { A: "Qty Minuman", B: 5500 },
-        { A: "Dine In", B: 150000000 },
-        { A: "GoFood", B: 75000000 },
-        { A: "GrabFood", B: 60000000 },
-        { A: "ShopeeFood", B: 15000000 },
+        { A: "Total Omzet", B: 300000000 },
+        { A: "Total Transaction", B: 6000 },
+        { A: "Avg. Per Transaction", B: 50000 },
+        { A: "Total Items Sold", B: 10000 },
     ];
 
     const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
