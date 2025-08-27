@@ -5385,6 +5385,22 @@
     </div>
 </div>
 
+<!-- P&L Target View Modal -->
+<div id="pnl-target-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="text-xl font-semibold text-gray-800" id="pnl-target-modal-title">P&L Target vs Actual</h3>
+            <button id="pnl-target-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+        <div id="pnl-target-modal-body">
+            <p id="pnl-target-loading-msg" class="text-center text-gray-500">Loading P&L data for comparison...</p>
+        </div>
+        <div class="flex items-center justify-end mt-6">
+            <button id="pnl-target-modal-ok-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">OK</button>
+        </div>
+    </div>
+</div>
+
 
         <script type="module" src="./src/main.ts"></script>
     </body>

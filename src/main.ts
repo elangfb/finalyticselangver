@@ -715,10 +715,21 @@ document.getElementById('compiled-data-tbody').addEventListener('click', async (
                     hideLoading(); 
                     break;
                 }
-                case 'pnlTarget':
-                    alert('Viewing target data directly is not yet implemented.');
-                    break;
-            }
+                case 'pnlTarget': {
+    showLoading({ message: 'Fetching P&L target data...' });
+    const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, id);
+    const targetDocSnap = await getDoc(targetDocRef);
+    if (targetDocSnap.exists()) {
+        const targetData = targetDocSnap.data();
+        // Call our new function
+        await showPnlTargetModal(targetData);
+    } else {
+        alert('Could not find the selected P&L target data.');
+    }
+    hideLoading();
+    break;
+}
+}
         } catch (error) {
             console.error(`Error viewing compiled data for type ${type}:`, error);
             alert('Could not load the selected item.');
@@ -10193,4 +10204,108 @@ function showPnlDataModal(data: any) {
     
     bodyEl.innerHTML = finalHtml;
     modal.classList.remove('hidden');
+}
+
+// --- P&L Target Modal Listeners ---
+document.getElementById('pnl-target-modal-close').addEventListener('click', () => {
+    document.getElementById('pnl-target-modal').classList.add('hidden');
+});
+document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () => {
+    document.getElementById('pnl-target-modal').classList.add('hidden');
+});
+
+/**
+ * Displays a modal comparing P&L targets to actual P&L performance for a specific period.
+ * @param {object} targetData - The P&L target data object from Firestore.
+ */
+async function showPnlTargetModal(targetData: any) {
+    const modal = document.getElementById('pnl-target-modal');
+    const titleEl = document.getElementById('pnl-target-modal-title');
+    const bodyEl = document.getElementById('pnl-target-modal-body');
+
+    bodyEl.innerHTML = '<p id="pnl-target-loading-msg" class="text-center text-gray-500">Loading actual P&L report for comparison...</p>';
+    modal.classList.remove('hidden');
+
+    const period = targetData.period;
+    if (!period) {
+        bodyEl.innerHTML = '<p class="text-center text-red-500">Error: Period not found in target data.</p>';
+        return;
+    }
+
+    const [year, month] = period.split('-');
+    const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    titleEl.textContent = `P&L Target vs Actual for ${formattedPeriod}`;
+
+    try {
+        // Fetch the corresponding actual P&L report
+        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
+        const pnlDocSnap = await getDoc(pnlDocRef);
+
+        let actualValues = {
+            'Target Revenue': 0,
+            'Target COGS %': 0,
+            'Target Net Profit %': 0
+        };
+
+        if (pnlDocSnap.exists()) {
+            const pnlData = pnlDocSnap.data().pnlData || {};
+            
+            const totalRevenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalHPP = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalOpex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalNonOpex = Object.values(pnlData["Beban Non Operasional"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalDepresiasi = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalBunga = Object.values(pnlData["Bunga"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            const totalPajak = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+
+            const grossProfit = totalRevenue - totalHPP;
+            const netOperatingIncome = grossProfit - totalOpex;
+            const ebitda = netOperatingIncome - totalNonOpex;
+            const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
+
+            actualValues['Target Revenue'] = totalRevenue;
+            actualValues['Target COGS %'] = totalRevenue > 0 ? (totalHPP / totalRevenue) : 0;
+            actualValues['Target Net Profit %'] = totalRevenue > 0 ? (netIncome / totalRevenue) : 0;
+        }
+
+        const targets = targetData.targets || {};
+        const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+        const formatPercent = (value) => `${(value * 100).toFixed(1)}%`;
+
+        let tableHtml = `
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>
+                            </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">`;
+
+        const metricOrder = ['Target Revenue', 'Target COGS %', 'Target Net Profit %'];
+
+        metricOrder.forEach(metric => {
+            if (!targets.hasOwnProperty(metric)) return; 
+
+            const targetValue = targets[metric];
+            const actualValue = actualValues[metric] || 0;
+            const isPercentMetric = metric.includes('%');
+
+            tableHtml += `
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric.replace('Target ', '')}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${isPercentMetric ? formatPercent(targetValue) : formatCurrency(targetValue)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${isPercentMetric ? formatPercent(actualValue) : formatCurrency(actualValue)}</td>
+                    </tr>`;
+        });
+        
+        tableHtml += `</tbody></table></div>`;
+        bodyEl.innerHTML = tableHtml;
+
+    } catch (error) {
+        console.error("Error fetching P&L report for comparison:", error);
+        bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not load P&L report. ${error.message}</p>`;
+    }
 }
