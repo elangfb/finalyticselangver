@@ -2183,6 +2183,10 @@ function runAnalysis(): void {
   generateMenuSalesTrendChart(currentData);
   generatePnlAnalysisTable(currentStartDate, currentEndDate);
   setupMonthlyOmzetComparisonChart();
+  generateAnalisaPenjualanCharts(currentData);
+  generatePerbandinganPenjualanCharts(currentData);
+  generateAnalisaPnlTable(); 
+
   
   
   console.log("Analysis complete with pre-calculated summaries.");
@@ -2472,6 +2476,170 @@ async function generateAllTimePnlTable() {
         tbody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
     }
 }
+
+/**
+ * Generates the comprehensive P&L comparison table with expandable/collapsible rows
+ * for the "Analisa P&L" section.
+ */
+async function generateAnalisaPnlTable() {
+    if (!currentUser) return;
+    const thead = document.getElementById('analisa-pnl-thead');
+    const tbody = document.getElementById('analisa-pnl-tbody');
+    tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">Loading all P&L reports and targets...</td></tr>';
+
+    try {
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const targetsRef = collection(db, `users/${currentUser.uid}/monthlyPnlTargets`);
+
+        const [reportsSnap, targetsSnap] = await Promise.all([
+            getDocs(reportsRef),
+            getDocs(targetsRef) 
+        ]);
+
+        const allReports = reportsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(report => report.period && typeof report.period === 'string')
+            .sort((a, b) => a.period.localeCompare(b.period));
+
+        if (allReports.length === 0) {
+            thead.innerHTML = '';
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
+            return;
+        }
+
+        const targetsByPeriod = {};
+        targetsSnap.forEach(doc => {
+            targetsByPeriod[doc.id] = doc.data().targets;
+        });
+        
+        let periodHeaders = '';
+        allReports.forEach(r => {
+            const date = new Date(r.period + '-02');
+            const headerDate = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+            periodHeaders += `
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${headerDate} (Actual)</th>
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">(Target)</th>
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">(% of Revenue)</th>
+            `;
+        });
+        thead.innerHTML = `<tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+            ${periodHeaders}
+        </tr>`;
+
+        tbody.innerHTML = '';
+        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
+        const formatPercent = (value) => value ? `${(value * 100).toFixed(1)}%` : '0.0%';
+
+        const subtotals = {
+            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+        };
+
+        const allMetrics = [
+            "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)",
+            "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)",
+            "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
+            "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
+        ];
+
+        const totalRevenuesByPeriod = {};
+        allReports.forEach(report => {
+            const revenueData = report.pnlData["Pendapatan (Revenue)"] || {};
+            totalRevenuesByPeriod[report.period] = Object.values(revenueData).reduce((sum: number, val: number) => sum + val, 0);
+        });
+
+        allMetrics.forEach(metricName => {
+            const isSubtotal = !!subtotals[metricName];
+            const hasSubcategories = !isSubtotal;
+            const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '');
+
+            // --- Main Category or Subtotal Row ---
+            const mainRow = document.createElement('tr');
+            mainRow.className = isSubtotal ? 'bg-gray-50 font-semibold' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer';
+            if (hasSubcategories) {
+                mainRow.classList.add('pnl-category-toggle');
+                mainRow.dataset.target = `sub-category-of-${sanitizedMetricName}`;
+            }
+
+            let mainRowHtml = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">
+                    <div class="flex items-center">
+                        ${metricName}
+                        ${hasSubcategories ? '<svg class="w-4 h-4 ml-2 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>' : ''}
+                    </div>
+                </td>`;
+            
+            allReports.forEach(report => {
+                const categoryTotals = {};
+                Object.keys(report.pnlData).forEach(cat => {
+                    categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                });
+                const actualValue = isSubtotal ? subtotals[metricName](categoryTotals) : categoryTotals[metricName] || 0;
+                
+                mainRowHtml += `<td class="px-6 py-4 text-right text-sm text-gray-800 font-mono">${formatCurrency(actualValue)}</td>
+                                <td class="px-6 py-4 text-right text-sm text-gray-400 font-mono"></td>
+                                <td class="px-6 py-4 text-right text-sm text-blue-600 font-mono">${(totalRevenuesByPeriod[report.period] > 0) ? formatPercent(actualValue / totalRevenuesByPeriod[report.period]) : ''}</td>`;
+            });
+            mainRow.innerHTML = mainRowHtml;
+            tbody.appendChild(mainRow);
+
+            // --- Sub-Category Rows (if they exist) ---
+            if (hasSubcategories) {
+                const subCategoryNames = new Set<string>();
+                allReports.forEach(report => {
+                    Object.keys(report.pnlData[metricName] || {}).forEach(subCat => subCategoryNames.add(subCat));
+                });
+
+                subCategoryNames.forEach(subCatName => {
+                    const subRow = document.createElement('tr');
+                    subRow.className = `pnl-subcategory hidden sub-category-of-${sanitizedMetricName}`;
+                    let subRowHtml = `<td class="pl-10 pr-6 py-3 whitespace-nowrap text-sm text-gray-600">${subCatName}</td>`;
+
+                    allReports.forEach(report => {
+                        const actualValue = report.pnlData[metricName]?.[subCatName] || 0;
+                        const totalRevenueForPeriod = totalRevenuesByPeriod[report.period];
+                        const percentageOfRevenue = totalRevenueForPeriod > 0 ? actualValue / totalRevenueForPeriod : null;
+
+                        subRowHtml += `<td class="px-6 py-3 text-right text-sm text-gray-500 font-mono">${formatCurrency(actualValue)}</td>
+                                       <td class="px-6 py-3"></td>
+                                       <td class="px-6 py-3 text-right text-sm text-blue-600 font-mono">${percentageOfRevenue !== null ? formatPercent(percentageOfRevenue) : ''}</td>`;
+                    });
+                    subRow.innerHTML = subRowHtml;
+                    tbody.appendChild(subRow);
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error("Error generating all-time P&L table:", error);
+        tbody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
+    }
+}
+
+// --- P&L Table Accordion Listener ---
+document.getElementById('analisa-pnl-tbody')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const headerRow = target.closest('.pnl-category-toggle');
+
+    if (headerRow) {
+        const targetClass = headerRow.dataset.target;
+        if (!targetClass) return;
+
+        const subRows = document.querySelectorAll(`.${targetClass}`);
+        const chevron = headerRow.querySelector('.chevron-icon');
+
+        subRows.forEach(row => {
+            row.classList.toggle('hidden');
+        });
+        
+        if (chevron) {
+            chevron.classList.toggle('rotate-180');
+        }
+    }
+});
 
 function generateMenuSalesTrendChart(summaries: any[]) {
     const menuSelectElement = document.getElementById('menu-select') as HTMLSelectElement;
@@ -2943,9 +3111,11 @@ function generateOmzetHeatmapFromSummaries(summaries: any[]) {
     container.innerHTML = tableHTML;
 }
 
-function generateDailyOmzetHeatmapFromSummaries(summaries: any[]) {
-  const container = document.getElementById('daily-omzet-heatmap-container');
-  container.innerHTML = ''; // Clear previous heatmap
+function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
+  const container = document.getElementById(containerId);
+  if (!container) return; // Exit if the container doesn't exist
+
+  container.innerHTML = ''; 
 
   if (summaries.length === 0) {
     container.innerHTML = '<p class="text-gray-500">No data to display for the selected period.</p>';
@@ -2953,23 +3123,19 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[]) {
   }
 
   const dailyTotals = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
-  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals; // Store data for AI
+  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals; 
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
-  // --- FIX STARTS HERE: Treat filter dates as UTC ---
   const startDateString = document.getElementById('date-start').value;
   const endDateString = document.getElementById('date-end').value;
-  // By appending 'T00:00:00Z', we explicitly tell the Date constructor this is a UTC date.
   const startDate = new Date(startDateString + 'T00:00:00Z');
   const endDate = new Date(endDateString + 'T00:00:00Z');
-  // --- FIX ENDS HERE ---
 
   let currentMonth = -1;
   let calendarHTML = '';
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  // The loop now correctly iterates through UTC dates
   for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
     const month = d.getUTCMonth();
     if (month !== currentMonth) {
@@ -5376,7 +5542,7 @@ document.getElementById('analysis-sidebar').addEventListener('click', (e) => {
         }
 
         // Hide main filters for certain tabs
-        const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl'].includes(targetId);
+         const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 'analisa-pnl'].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
 
         // Load data specifically for the selected view
@@ -10308,4 +10474,148 @@ async function showPnlTargetModal(targetData: any) {
         console.error("Error fetching P&L report for comparison:", error);
         bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not load P&L report. ${error.message}</p>`;
     }
+}
+
+/**
+ * Generates all charts for the new "Analisa Penjualan" section.
+ * It reuses existing chart logic and targets new canvas elements.
+ */
+function generateAnalisaPenjualanCharts(summaries: any[]) {
+    // --- Chart 1: Penjualan Per Channel (Visit Purpose) ---
+    const channelSales = summaries.reduce((acc, s) => {
+        if (s.revenueByVisitPurpose) {
+            for (const channel in s.revenueByVisitPurpose) {
+                acc[channel] = (acc[channel] || 0) + s.revenueByVisitPurpose[channel];
+            }
+        }
+        return acc;
+    }, {});
+
+    // --- MODIFICATION: Changed chart type from 'pie' to 'doughnut' ---
+    createChart('penjualan-channel-chart-new', 'doughnut', {
+        labels: Object.keys(channelSales),
+        datasets: [{
+            data: Object.values(channelSales),
+            backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
+        }],
+    });
+
+    // --- Data Aggregation for Category and Top 5 Charts ---
+    const aggregatedData = summaries.reduce((acc, s) => {
+        if (s.menuCategories) {
+            for (const category in s.menuCategories) {
+                acc.categoryQuantities[category] = (acc.categoryQuantities[category] || 0) + s.menuCategories[category].quantity;
+            }
+        }
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                if (!acc.itemQuantities[category]) acc.itemQuantities[category] = {};
+                for (const menu in s.menuItemQuantities[category]) {
+                    acc.itemQuantities[category][menu] = (acc.itemQuantities[category][menu] || 0) + s.menuItemQuantities[category][menu];
+                }
+            }
+        }
+        return acc;
+    }, { categoryQuantities: {}, itemQuantities: {} });
+
+    // --- Chart 2: Order by Menu Category ---
+    createChart('order-by-menu-category-chart-new', 'doughnut', {
+        labels: Object.keys(aggregatedData.categoryQuantities),
+        datasets: [{ 
+            data: Object.values(aggregatedData.categoryQuantities),
+            backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B']
+        }],
+    });
+
+    // --- Chart 3 & 4: Top 5 Makanan & Minuman ---
+    const createTop5Chart = (containerId: string, categoryName: string, color: string) => {
+        const categoryItems = aggregatedData.itemQuantities[categoryName] || {};
+        const top5 = Object.entries(categoryItems)
+            .filter(item => !item[0].includes('(PACKAGE)'))
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        if (top5.length > 0) {
+            createChart(containerId, 'bar', {
+                labels: top5.map(item => item[0]),
+                datasets: [{
+                    label: 'Quantity Sold',
+                    data: top5.map(item => item[1]),
+                    backgroundColor: color,
+                }],
+            }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+        }
+    };
+    
+    createTop5Chart('top-makanan-chart-new', 'MAKANAN', '#EF4444');
+    createTop5Chart('top-minuman-chart-new', 'MINUMAN', '#3B82F6');
+}
+
+/**
+ * Generates all metrics and charts for the "Perbandingan Waktu > Penjualan" section.
+ */
+function generatePerbandinganPenjualanCharts(summaries: any[]) {
+    // --- 1. Key Metrics: Total Penjualan & Check ---
+    const monthlyTotals = summaries.reduce((acc, s) => {
+        acc.omzet += s.totalOmzet || 0;
+        acc.checks += s.totalTransactions || 0;
+        return acc;
+    }, { omzet: 0, checks: 0 });
+
+    document.getElementById('penjualan-total-omzet').textContent = `Rp${monthlyTotals.omzet.toLocaleString('id-ID')}`;
+    document.getElementById('penjualan-total-check').textContent = monthlyTotals.checks.toLocaleString('id-ID');
+
+    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
+    const labelsHarian = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+
+    // --- 2. Chart: Omzet Harian (Line Chart) ---
+    const dataHarian = sortedSummaries.map(s => s.totalOmzet);
+    createChart('waktu-omzet-harian-chart', 'line', {
+        labels: labelsHarian,
+        datasets: [{
+            label: 'Total Omzet Harian',
+            data: dataHarian,
+            borderColor: '#3B82F6',
+            tension: 0.1,
+        }],
+    });
+
+    // --- 3. Chart: Omzet Mingguan (Line Chart) ---
+    const weeklyOmzet = summaries.reduce((acc, summary) => {
+        const d = summary.date;
+        const firstDayOfWeek = new Date(d);
+        firstDayOfWeek.setDate(d.getDate() - d.getDay());
+        const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
+        acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
+        return acc;
+    }, {});
+    const sortedWeeks = Object.keys(weeklyOmzet).sort();
+    createChart('waktu-omzet-mingguan-chart', 'line', {
+        labels: sortedWeeks,
+        datasets: [{
+            label: 'Total Omzet Mingguan',
+            data: sortedWeeks.map((week) => weeklyOmzet[week]),
+            borderColor: '#10B981',
+            tension: 0.1,
+        }],
+    });
+
+    // --- 4. Chart: Tren TC & APC Harian (Dual Axis Line Chart) ---
+    const tcData = sortedSummaries.map(s => s.totalTransactions);
+    const apcData = sortedSummaries.map(s => s.apc);
+    createChart('waktu-tc-apc-harian-chart', 'line', {
+        labels: labelsHarian,
+        datasets: [
+            { label: 'Total Check (TC)', data: tcData, borderColor: '#60A5FA', yAxisID: 'y-tc', tension: 0.1, },
+            { label: 'Average Check (APC)', data: apcData, borderColor: '#F97316', yAxisID: 'y-apc', tension: 0.1, },
+        ],
+    }, {
+        scales: {
+            'y-tc': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Check' }, },
+            'y-apc': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, },
+        },
+    });
+
+    // --- 5. NEW: Generate the Daily Omzet Heatmap for the new container ---
+    generateDailyOmzetHeatmapFromSummaries(summaries, 'waktu-daily-omzet-heatmap-container');
 }
