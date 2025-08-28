@@ -879,12 +879,15 @@
 
 <section id="waktu-pnl-section" class="analysis-section space-y-6">
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Perbandingan P&L Seluruh Periode</h3>
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Perbandingan P&L (Last 24 Months)</h3>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead id="waktu-pnl-thead" class="bg-gray-50">
-                </thead>
+                    </thead>
                 <tbody id="waktu-pnl-tbody" class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="2" class="text-center p-4 text-gray-500">Loading P&L data...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -1035,7 +1038,16 @@
 
 <section id="analisa-pnl-section" class="analysis-section space-y-6">
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Perbandingan P&L Seluruh Periode</h3>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan P&L Periode</h3>
+            
+            <div class="flex items-center gap-2">
+                <label for="pnl-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="pnl-period-select" class="p-2 border rounded-md text-sm bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500">
+                    </select>
+            </div>
+        </div>
+
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead id="analisa-pnl-thead" class="bg-gray-50">
