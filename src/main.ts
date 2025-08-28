@@ -59,7 +59,7 @@ import {
   shortenCurrency,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
-import { getStorage, ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Firebase Config
@@ -1268,32 +1268,35 @@ function downloadSalesTargetTemplate() {
 }
 
 
-/**
- * Generates and triggers a download for the P&L Target Excel template.
- */
-function downloadPnlTargetTemplate() {
-    const instructions = [
-        { Step: 1, Instruction: "In the 'P&L Target Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
-        { Step: 2, Instruction: "For percentages, use decimal format (e.g., enter 0.35 for 35%)." }
-    ];
-    const sheetData = [
-        { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
-        {}, 
-        { A: "Metric", B: "Value" },
-        { A: "Target Revenue", B: 150000000 },
-        { A: "Target COGS %", B: 0.35 },
-        { A: "Target Net Profit %", B: 0.20 }
-    ];
+async function downloadPnlTargetTemplate() {
+    showLoading({ message: 'Fetching template...' });
+    
+    // The path to your master template in Firebase Storage
+    const templatePath = 'templates/Finalytics_P&L_Target_Template.xlsx';
+    const templateRef = ref(storage, templatePath);
 
-    const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
-    const wsData = XLSX.utils.json_to_sheet(sheetData, { skipHeader: true });
-    wsInstructions['!cols'] = [{ wch: 10 }, { wch: 100 }];
-    wsData['!cols'] = [{ wch: 25 }, { wch: 20 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
-    XLSX.utils.book_append_sheet(wb, wsData, "P&L Target Data");
-    XLSX.writeFile(wb, "Finalytics_P&L_Target_Template.xlsx");
+    try {
+        // Get the download URL for the file
+        const url = await getDownloadURL(templateRef);
+
+        // Create a temporary link to trigger the browser download
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // This attribute suggests a filename to the browser
+        link.setAttribute('download', 'Finalytics_P&L_Target_Template.xlsx');
+        
+        // Append the link to the body, click it, and then remove it
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        hideLoading();
+    } catch (error) {
+        hideLoading();
+        console.error("Error fetching P&L template from Storage:", error);
+        alert("Could not download the template. Please ensure it has been uploaded by an administrator.");
+    }
 }
 
 
@@ -2391,92 +2394,6 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
     }
 }
 
-async function generateAllTimePnlTable() {
-    if (!currentUser) return;
-    const thead = document.getElementById('waktu-pnl-thead');
-    const tbody = document.getElementById('waktu-pnl-tbody');
-    tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">Loading all P&L reports...</td></tr>';
-
-    try {
-        // 1. Fetch P&L Structure and all Reports
-        const structureRef = doc(db, `users/${currentUser.uid}/pnl/structure`);
-        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-
-        const [structureSnap, reportsSnap] = await Promise.all([
-            getDoc(structureRef),
-            getDocs(reportsRef)
-        ]);
-
-        const pnlTemplate = structureSnap.exists() ? structureSnap.data().structure : {};
-        
-        // 2. Sort all reports by period
-        const allReports = reportsSnap.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            // START: Add this line to fix the error
-            .filter(report => report.period && typeof report.period === 'string') // This ensures we only process reports that have a period
-            // END: Add this line to fix the error
-            .sort((a, b) => a.period.localeCompare(b.period));
-
-        if (allReports.length === 0) {
-            thead.innerHTML = '';
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
-            return;
-        }
-        
-        // 3. Render Table Header
-        const periodHeaders = allReports.map(r => {
-            const date = new Date(r.period + '-02');
-            return `<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${date.toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`;
-        }).join('');
-        thead.innerHTML = `<tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
-            ${periodHeaders}
-        </tr>`;
-
-        // 4. Render Table Body
-        tbody.innerHTML = '';
-        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
-
-        const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-        const subtotals = {
-            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
-        };
-
-        const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
-
-        allMetrics.forEach(metricName => {
-            const isSubtotal = !!subtotals[metricName];
-            const tr = document.createElement('tr');
-            tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
-
-            let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
-            
-            allReports.forEach(report => {
-                let value = 0;
-                if (isSubtotal) {
-                    const categoryTotals = {};
-                    categoryOrder.forEach(cat => {
-                       categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
-                    });
-                    value = subtotals[metricName](categoryTotals);
-                } else {
-                    value = Object.values(report.pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
-                }
-                rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(value)}</td>`;
-            });
-            tr.innerHTML = rowHtml;
-            tbody.appendChild(tr);
-        });
-
-    } catch (error) {
-        console.error("Error generating all-time P&L table:", error);
-        tbody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
-    }
-}
-
 /**
  * Generates the comprehensive P&L comparison table with expandable/collapsible rows
  * for the "Analisa P&L" section.
@@ -2485,7 +2402,7 @@ async function generateAnalisaPnlTable() {
     if (!currentUser) return;
     const thead = document.getElementById('analisa-pnl-thead');
     const tbody = document.getElementById('analisa-pnl-tbody');
-    tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">Loading all P&L reports and targets...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Loading all P&L reports and targets...</td></tr>';
 
     try {
         const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
@@ -2503,7 +2420,7 @@ async function generateAnalisaPnlTable() {
 
         if (allReports.length === 0) {
             thead.innerHTML = '';
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
             return;
         }
 
@@ -2528,15 +2445,8 @@ async function generateAnalisaPnlTable() {
         </tr>`;
 
         tbody.innerHTML = '';
-        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
-        const formatPercent = (value) => value ? `${(value * 100).toFixed(1)}%` : '0.0%';
-
-        const subtotals = {
-            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
-        };
+        const formatCurrency = (value) => (value || value === 0) ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'N/A';
+        const formatPercent = (value) => (value || value === 0) ? `${(value * 100).toFixed(1)}%` : '';
 
         const allMetrics = [
             "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)",
@@ -2545,10 +2455,17 @@ async function generateAnalisaPnlTable() {
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
         ];
 
+        const subtotals = {
+            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+        };
+
         const totalRevenuesByPeriod = {};
         allReports.forEach(report => {
             const revenueData = report.pnlData["Pendapatan (Revenue)"] || {};
-            totalRevenuesByPeriod[report.period] = Object.values(revenueData).reduce((sum: number, val: number) => sum + val, 0);
+            totalRevenuesByPeriod[report.period] = Object.values(revenueData).reduce((sum, val) => sum + val, 0);
         });
 
         allMetrics.forEach(metricName => {
@@ -2558,14 +2475,14 @@ async function generateAnalisaPnlTable() {
 
             // --- Main Category or Subtotal Row ---
             const mainRow = document.createElement('tr');
-            mainRow.className = isSubtotal ? 'bg-gray-50 font-semibold' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer';
+            mainRow.className = isSubtotal ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer';
             if (hasSubcategories) {
                 mainRow.classList.add('pnl-category-toggle');
                 mainRow.dataset.target = `sub-category-of-${sanitizedMetricName}`;
             }
 
             let mainRowHtml = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}">
                     <div class="flex items-center">
                         ${metricName}
                         ${hasSubcategories ? '<svg class="w-4 h-4 ml-2 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>' : ''}
@@ -2574,14 +2491,31 @@ async function generateAnalisaPnlTable() {
             
             allReports.forEach(report => {
                 const categoryTotals = {};
-                Object.keys(report.pnlData).forEach(cat => {
-                    categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
-                });
+                if (report.pnlData) {
+                    Object.keys(report.pnlData).forEach(cat => {
+                        categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum, val) => sum + val, 0);
+                    });
+                }
                 const actualValue = isSubtotal ? subtotals[metricName](categoryTotals) : categoryTotals[metricName] || 0;
                 
+                const periodTargets = targetsByPeriod[report.period] || {};
+                const targetRevenue = periodTargets['Pendapatan (Revenue)'];
+                let nominalTarget = null;
+
+                if (targetRevenue) {
+                    if (metricName === 'Pendapatan (Revenue)') {
+                        nominalTarget = targetRevenue;
+                    } else if (periodTargets[metricName] !== undefined) {
+                        nominalTarget = targetRevenue * periodTargets[metricName];
+                    }
+                }
+                
+                const totalRevenueForPeriod = totalRevenuesByPeriod[report.period];
+                const percentageOfRevenue = totalRevenueForPeriod > 0 ? actualValue / totalRevenueForPeriod : null;
+
                 mainRowHtml += `<td class="px-6 py-4 text-right text-sm text-gray-800 font-mono">${formatCurrency(actualValue)}</td>
-                                <td class="px-6 py-4 text-right text-sm text-gray-400 font-mono"></td>
-                                <td class="px-6 py-4 text-right text-sm text-blue-600 font-mono">${(totalRevenuesByPeriod[report.period] > 0) ? formatPercent(actualValue / totalRevenuesByPeriod[report.period]) : ''}</td>`;
+                                <td class="px-6 py-4 text-right text-sm text-gray-500 font-mono">${formatCurrency(nominalTarget)}</td>
+                                <td class="px-6 py-4 text-right text-sm text-blue-600 font-mono">${formatPercent(percentageOfRevenue)}</td>`;
             });
             mainRow.innerHTML = mainRowHtml;
             tbody.appendChild(mainRow);
@@ -2590,7 +2524,9 @@ async function generateAnalisaPnlTable() {
             if (hasSubcategories) {
                 const subCategoryNames = new Set<string>();
                 allReports.forEach(report => {
-                    Object.keys(report.pnlData[metricName] || {}).forEach(subCat => subCategoryNames.add(subCat));
+                    if (report.pnlData && report.pnlData[metricName]) {
+                        Object.keys(report.pnlData[metricName]).forEach(subCat => subCategoryNames.add(subCat));
+                    }
                 });
 
                 subCategoryNames.forEach(subCatName => {
@@ -2599,13 +2535,12 @@ async function generateAnalisaPnlTable() {
                     let subRowHtml = `<td class="pl-10 pr-6 py-3 whitespace-nowrap text-sm text-gray-600">${subCatName}</td>`;
 
                     allReports.forEach(report => {
-                        const actualValue = report.pnlData[metricName]?.[subCatName] || 0;
+                        const actualValue = report.pnlData?.[metricName]?.[subCatName] || 0;
                         const totalRevenueForPeriod = totalRevenuesByPeriod[report.period];
                         const percentageOfRevenue = totalRevenueForPeriod > 0 ? actualValue / totalRevenueForPeriod : null;
 
                         subRowHtml += `<td class="px-6 py-3 text-right text-sm text-gray-500 font-mono">${formatCurrency(actualValue)}</td>
-                                       <td class="px-6 py-3"></td>
-                                       <td class="px-6 py-3 text-right text-sm text-blue-600 font-mono">${percentageOfRevenue !== null ? formatPercent(percentageOfRevenue) : ''}</td>`;
+                                       <td class="px-6 py-3"></td> <td class="px-6 py-3 text-right text-sm text-blue-600 font-mono">${formatPercent(percentageOfRevenue)}</td>`;
                     });
                     subRow.innerHTML = subRowHtml;
                     tbody.appendChild(subRow);
@@ -2615,7 +2550,7 @@ async function generateAnalisaPnlTable() {
 
     } catch (error) {
         console.error("Error generating all-time P&L table:", error);
-        tbody.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-red-500">Error: Could not load P&L data.</td></tr>`;
     }
 }
 
@@ -10381,8 +10316,8 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
 });
 
 /**
- * Displays a modal comparing P&L targets to actual P&L performance for a specific period.
- * @param {object} targetData - The P&L target data object from Firestore.
+ * Displays a modal comparing P&L targets to actual performance for a specific period,
+ * with a conditional "Achievement" column.
  */
 async function showPnlTargetModal(targetData: any) {
     const modal = document.getElementById('pnl-target-modal');
@@ -10403,14 +10338,21 @@ async function showPnlTargetModal(targetData: any) {
     titleEl.textContent = `P&L Target vs Actual for ${formattedPeriod}`;
 
     try {
-        // Fetch the corresponding actual P&L report
         const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
         const pnlDocSnap = await getDoc(pnlDocRef);
 
         let actualValues = {
-            'Target Revenue': 0,
-            'Target COGS %': 0,
-            'Target Net Profit %': 0
+            'Pendapatan (Revenue)': 0,
+            'Harga Pokok Produksi': 0,
+            'Beban Operasional (OPEX)': 0,
+            'Beban Non Operasional': 0,
+            'Depresiasi/ Amortisasi': 0,
+            'Bunga': 0,
+            'Pajak (PB1)': 0,
+            'Laba Kotor (Gross Profit)': 0,
+            'Pendapatan Bersih Operasional (Net Operating Income)': 0,
+            'Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)': 0,
+            'Pendapatan Bersih (Net Income)': 0
         };
 
         if (pnlDocSnap.exists()) {
@@ -10423,21 +10365,27 @@ async function showPnlTargetModal(targetData: any) {
             const totalDepresiasi = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
             const totalBunga = Object.values(pnlData["Bunga"] || {}).reduce((sum: number, val: number) => sum + val, 0);
             const totalPajak = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-
             const grossProfit = totalRevenue - totalHPP;
             const netOperatingIncome = grossProfit - totalOpex;
             const ebitda = netOperatingIncome - totalNonOpex;
             const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
 
-            actualValues['Target Revenue'] = totalRevenue;
-            actualValues['Target COGS %'] = totalRevenue > 0 ? (totalHPP / totalRevenue) : 0;
-            actualValues['Target Net Profit %'] = totalRevenue > 0 ? (netIncome / totalRevenue) : 0;
+            actualValues['Pendapatan (Revenue)'] = totalRevenue;
+            actualValues['Harga Pokok Produksi'] = totalHPP;
+            actualValues['Beban Operasional (OPEX)'] = totalOpex;
+            actualValues['Beban Non Operasional'] = totalNonOpex;
+            actualValues['Depresiasi/ Amortisasi'] = totalDepresiasi;
+            actualValues['Bunga'] = totalBunga;
+            actualValues['Pajak (PB1)'] = totalPajak;
+            actualValues['Laba Kotor (Gross Profit)'] = grossProfit;
+            actualValues['Pendapatan Bersih Operasional (Net Operating Income)'] = netOperatingIncome;
+            actualValues['Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)'] = ebitda;
+            actualValues['Pendapatan Bersih (Net Income)'] = netIncome;
         }
 
         const targets = targetData.targets || {};
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-        const formatPercent = (value) => `${(value * 100).toFixed(1)}%`;
-
+        
         let tableHtml = `
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -10446,33 +10394,69 @@ async function showPnlTargetModal(targetData: any) {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>
-                            </tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Achievement</th>
+                        </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">`;
 
-        const metricOrder = ['Target Revenue', 'Target COGS %', 'Target Net Profit %'];
+        const metricOrder = [
+            "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)",
+            "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)",
+            "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
+            "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
+        ];
+
+        // --- MODIFICATION: List of metrics that will show the achievement bar ---
+        const achievementMetrics = [
+            "Pendapatan (Revenue)",
+            "Laba Kotor (Gross Profit)",
+            "Pendapatan Bersih Operasional (Net Operating Income)",
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
+            "Pendapatan Bersih (Net Income)"
+        ];
 
         metricOrder.forEach(metric => {
-            if (!targets.hasOwnProperty(metric)) return; 
+            const targetRevenue = targets['Pendapatan (Revenue)'];
+            let targetValue = 0;
 
-            const targetValue = targets[metric];
+            if (targetRevenue) {
+                if (metric === 'Pendapatan (Revenue)') {
+                    targetValue = targetRevenue;
+                } else if (targets[metric] !== undefined) {
+                    targetValue = targetRevenue * targets[metric];
+                }
+            }
+
             const actualValue = actualValues[metric] || 0;
-            const isPercentMetric = metric.includes('%');
-
+            const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
+            
             tableHtml += `
                 <tr>
-                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric.replace('Target ', '')}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${isPercentMetric ? formatPercent(targetValue) : formatCurrency(targetValue)}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${isPercentMetric ? formatPercent(actualValue) : formatCurrency(actualValue)}</td>
-                    </tr>`;
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(targetValue)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">`;
+
+            // --- MODIFICATION: Conditionally render the achievement bar ---
+            if (achievementMetrics.includes(metric)) {
+                tableHtml += `
+                        <div class="flex items-center">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
+                            </div>
+                            <span class="font-semibold">${achievement.toFixed(1)}%</span>
+                        </div>`;
+            }
+            // If the metric is not in the list, the cell will be empty.
+            tableHtml += `</td></tr>`;
         });
         
         tableHtml += `</tbody></table></div>`;
         bodyEl.innerHTML = tableHtml;
 
     } catch (error) {
-        console.error("Error fetching P&L report for comparison:", error);
-        bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not load P&L report. ${error.message}</p>`;
+        console.error("Error processing P&L target view:", error);
+        bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not display P&L target comparison. ${error.message}</p>`;
     }
 }
 
