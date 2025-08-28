@@ -92,6 +92,7 @@ let monthlyComparisonInitialized = false;
 let monthlyComparisonTargets = {};
 let omzetComparisonSelect: SlimSelect | null = null;
 let currentPnlPeriod: string | null = null;
+let menuTrend24MonthSelect: SlimSelect | null = null;
 
 
 
@@ -2177,42 +2178,49 @@ function runAnalysis(): void {
   generateOmzetHeatmapFromSummaries(currentData);
   generateOmzetMingguanChartFromSummaries(currentData);
   generateOmzetBulananChartFromSummaries(currentData);
-  generateOmzetOutletChartFromSummaries(currentData);
-  generatePenjualanBulananChartFromSummaries(currentData);
+  generateOmzetOutletChartFromSummaries(currentData, 'omzet-outlet-chart');
   generatePenjualanChannelChartFromSummaries(currentData);
   generateSalesTrendHourlyDailyChartFromSummaries(currentData);
   generateProductAnalysisChartsFromSummaries(currentData);
-  generateCabangAnalysisFromSummaries(currentData);
+  generateCabangAnalysisFromSummaries(currentData, {
+      topOmzetNameId: 'cabang-omzet-tertinggi-nama',
+      topOmzetValueId: 'cabang-omzet-tertinggi-nilai',
+      topCheckNameId: 'cabang-ramai-nama',
+      topCheckValueId: 'cabang-ramai-nilai',
+      topApcNameId: 'cabang-apc-tertinggi-nama',
+      topApcValueId: 'cabang-apc-tertinggi-nilai',
+      omzetCheckCanvasId: 'cabang-omzet-check-chart',
+      apcCanvasId: 'cabang-apc-chart',
+      detailTableId: 'cabang-detail-tbody'
+  });
   generateMenuSalesTrendChart(currentData);
   generatePnlAnalysisTable(currentStartDate, currentEndDate);
   setupMonthlyOmzetComparisonChart();
   generateAnalisaPenjualanCharts(currentData);
-  generatePerbandinganPenjualanCharts(currentData);
-  generateAnalisaPnlTable(); 
+  generateWaktuPenjualanSection(currentData);
+  generateAnalisaPnlTable();
+  generatePenjualanBulananChartFromSummaries(currentData, 'penjualan-bulanan-chart');
+  generateCabangPenjualanSection(currentData);
+
 
   
   
   console.log("Analysis complete with pre-calculated summaries.");
 }
 
-function generateCabangAnalysisFromSummaries(summaries: any[]) {
+function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
     if (summaries.length === 0) return;
 
-    // Aggregate stats for each branch across all summaries
     const branchStats = summaries.reduce((acc, s) => {
         if (s.revenueByBranch) {
             for (const branchName in s.revenueByBranch) {
-                if (!acc[branchName]) {
-                    acc[branchName] = { revenue: 0, checks: 0 };
-                }
+                if (!acc[branchName]) acc[branchName] = { revenue: 0, checks: 0 };
                 acc[branchName].revenue += s.revenueByBranch[branchName];
             }
         }
         if (s.transactionCountsByBranch) {
             for (const branchName in s.transactionCountsByBranch) {
-                if (!acc[branchName]) {
-                    acc[branchName] = { revenue: 0, checks: 0 };
-                }
+                if (!acc[branchName]) acc[branchName] = { revenue: 0, checks: 0 };
                 acc[branchName].checks += s.transactionCountsByBranch[branchName];
             }
         }
@@ -2220,69 +2228,94 @@ function generateCabangAnalysisFromSummaries(summaries: any[]) {
     }, {});
 
     const processedStats = Object.entries(branchStats).map(([name, stats]) => {
-        const apc = stats.checks > 0 ? stats.revenue / stats.checks : 0;
-        return { name, totalRevenue: stats.revenue, totalCheck: stats.checks, avgCheck: apc };
+        const apc = (stats as any).checks > 0 ? (stats as any).revenue / (stats as any).checks : 0;
+        return { name, totalRevenue: (stats as any).revenue, totalCheck: (stats as any).checks, avgCheck: apc };
     });
 
     if (processedStats.length === 0) return;
 
-    // --- 1. Populate Stat Cards ---
     const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
 
-    const topOmzet = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
-    document.getElementById('cabang-omzet-tertinggi-nama').textContent = topOmzet.name;
-    document.getElementById('cabang-omzet-tertinggi-nilai').textContent = formatCurrency(topOmzet.totalRevenue);
+    // Populate Stat Cards (only if IDs are provided)
+    if (ids.topOmzetNameId) {
+        const topOmzet = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
+        document.getElementById(ids.topOmzetNameId).textContent = topOmzet.name;
+        document.getElementById(ids.topOmzetValueId).textContent = formatCurrency(topOmzet.totalRevenue);
+    }
+    if (ids.topCheckNameId) {
+        const topCheck = [...processedStats].sort((a, b) => b.totalCheck - a.totalCheck)[0];
+        document.getElementById(ids.topCheckNameId).textContent = topCheck.name;
+        document.getElementById(ids.topCheckValueId).textContent = `${topCheck.totalCheck.toLocaleString('id-ID')} checks`;
+    }
+    if (ids.topApcNameId) {
+        const topApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)[0];
+        document.getElementById(ids.topApcNameId).textContent = topApc.name;
+        document.getElementById(ids.topApcValueId).textContent = formatCurrency(topApc.avgCheck);
+    }
 
-    const topCheck = [...processedStats].sort((a, b) => b.totalCheck - a.totalCheck)[0];
-    document.getElementById('cabang-ramai-nama').textContent = topCheck.name;
-    document.getElementById('cabang-ramai-nilai').textContent = `${topCheck.totalCheck.toLocaleString('id-ID')} checks`;
-
-    const topApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)[0];
-    document.getElementById('cabang-apc-tertinggi-nama').textContent = topApc.name;
-    document.getElementById('cabang-apc-tertinggi-nilai').textContent = formatCurrency(topApc.avgCheck);
-
-    // --- 2. Create Charts ---
+    // Create Charts
     const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue);
     const labels = sortedByRevenue.map((s) => s.name);
-    chartDataForAI['cabangOmzetCheck'] = sortedByRevenue;
 
-    createChart('cabang-omzet-check-chart', 'bar', {
-        labels,
-        datasets: [
-            { type: 'bar', label: 'Total Omzet', data: sortedByRevenue.map((s) => s.totalRevenue), backgroundColor: '#4F46E5', yAxisID: 'y-omzet' },
-            { type: 'line', label: 'Total Check', data: sortedByRevenue.map((s) => s.totalCheck), borderColor: '#F97316', yAxisID: 'y-check' },
-        ],
-    }, {
-        scales: {
-            'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
-        },
-    });
+    if (ids.omzetCheckCanvasId) {
+        chartDataForAI[ids.omzetCheckCanvasId] = sortedByRevenue;
+        createChart(ids.omzetCheckCanvasId, 'bar', {
+            labels,
+            datasets: [
+                { type: 'bar', label: 'Total Omzet', data: sortedByRevenue.map((s) => s.totalRevenue), backgroundColor: '#4F46E5', yAxisID: 'y-omzet' },
+                { type: 'line', label: 'Total Check', data: sortedByRevenue.map((s) => s.totalCheck), borderColor: '#F97316', yAxisID: 'y-check' },
+            ],
+        }, {
+            scales: {
+                'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
+            },
+        });
+    }
 
-    const sortedByApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck);
-    chartDataForAI['cabangApc'] = sortedByApc;
-    createChart('cabang-apc-chart', 'bar', {
-        labels: sortedByApc.map((s) => s.name),
-        datasets: [{ label: 'Average Check (APC)', data: sortedByApc.map((s) => s.avgCheck), backgroundColor: '#10B981' }],
-    }, {
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } },
-    });
+    if (ids.apcCanvasId) {
+        const sortedByApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck);
+        chartDataForAI[ids.apcCanvasId] = sortedByApc;
+        createChart(ids.apcCanvasId, 'bar', {
+            labels: sortedByApc.map((s) => s.name),
+            datasets: [{ label: 'Average Check (APC)', data: sortedByApc.map((s) => s.avgCheck), backgroundColor: '#10B981' }],
+        }, {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } },
+        });
+    }
 
-    // --- 3. Populate Detail Table ---
-    const tbody = document.getElementById('cabang-detail-tbody');
-    tbody.innerHTML = '';
-    sortedByRevenue.forEach((s) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${s.name}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.totalRevenue)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s.totalCheck.toLocaleString('id-ID')}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.avgCheck)}</td>
-        `;
-        tbody.appendChild(tr);
+    // Populate Detail Table
+    if (ids.detailTableId) {
+        const tbody = document.getElementById(ids.detailTableId);
+        tbody.innerHTML = '';
+        sortedByRevenue.forEach((s) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${s.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.totalRevenue)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s.totalCheck.toLocaleString('id-ID')}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(s.avgCheck)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        chartDataForAI[ids.detailTableId] = sortedByRevenue;
+    }
+}
+
+/**
+ * Generates all charts and tables for the "Perbandingan Cabang > Penjualan" section.
+ */
+function generateCabangPenjualanSection(summaries: any[]) {
+    // Call the refactored functions with the new, unique IDs
+    generateOmzetOutletChartFromSummaries(summaries, 'perbandingan-omzet-outlet-chart');
+
+    generateCabangAnalysisFromSummaries(summaries, {
+        // Note: We are not passing the stat card IDs since this section doesn't have them.
+        omzetCheckCanvasId: 'perbandingan-omzet-check-chart',
+        apcCanvasId: 'perbandingan-apc-chart',
+        detailTableId: 'perbandingan-cabang-detail-tbody'
     });
-    chartDataForAI['cabangDetail'] = sortedByRevenue;
 }
 
 /**
@@ -2822,7 +2855,7 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
     createTop5Chart('top-minuman-chart', 'MINUMAN', '#3B82F6');
 }
 
-function generatePenjualanBulananChartFromSummaries(summaries: any[]) {
+function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: string) {
     const monthlyData = summaries.reduce((acc, s) => {
         const month = s.date.toISOString().slice(0, 7); // YYYY-MM
         if (!acc[month]) {
@@ -2839,7 +2872,7 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[]) {
 
     chartDataForAI['penjualanBulanan'] = sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] }));
 
-    createChart('penjualan-bulanan-chart', 'bar', {
+    createChart(canvasId, 'bar', { // Use the provided canvasId
         labels: sortedMonths,
         datasets: [
             { label: 'Total Penjualan', data: salesData, backgroundColor: '#3B82F6', yAxisID: 'y-sales' },
@@ -2851,6 +2884,27 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[]) {
             'y-check': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false } },
         },
     });
+}
+
+/**
+ * Generates all charts and tables for the consolidated "Perbandingan Waktu (Penjualan)" section.
+ */
+function generateWaktuPenjualanSection(summaries: any[]) {
+    // Perbandingan Jangka Pendek
+    setupMonthlyOmzetComparisonChart(); // This function already exists and uses `allSalesData` globally
+    setupMonthlyComparison(summaries);
+
+    // Analisis Tren Jangka Panjang
+    generateYoYAnalysisFromSummaries(summaries);
+    generatePenjualanBulananChartFromSummaries(summaries, 'waktu-penjualan-bulanan-chart');
+    
+    generate24MonthTcApcTrend(summaries);
+    setup24MonthMenuTrendChart(summaries);
+    generate24MonthChannelTrendChart(summaries);
+    generate24MonthCategoryTrendChart(summaries);
+
+
+
 }
 
 function generatePenjualanChannelChartFromSummaries(summaries: any[]) {
@@ -2904,7 +2958,7 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[]) {
     createChart('sales-trend-hourly-daily-chart', 'line', { labels, datasets });
 }
 
-function generateOmzetOutletChartFromSummaries(summaries: any[]) {
+function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: string) {
     const outletOmzet = summaries.reduce((acc, summary) => {
         if (summary.revenueByBranch) {
             for (const branch in summary.revenueByBranch) {
@@ -2915,9 +2969,9 @@ function generateOmzetOutletChartFromSummaries(summaries: any[]) {
     }, {});
 
     const sortedOutlets = Object.entries(outletOmzet).sort((a, b) => b[1] - a[1]);
-    chartDataForAI['omzetOutlet'] = Object.fromEntries(sortedOutlets);
+    chartDataForAI[canvasId] = Object.fromEntries(sortedOutlets); // Use dynamic ID for AI data
 
-    createChart('omzet-outlet-chart', 'bar', {
+    createChart(canvasId, 'bar', { // Use the provided canvasId
         labels: sortedOutlets.map((entry) => entry[0]),
         datasets: [{
             label: 'Total Omzet',
@@ -10554,7 +10608,6 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
         return acc;
     }, {});
 
-    // --- MODIFICATION: Changed chart type from 'pie' to 'doughnut' ---
     createChart('penjualan-channel-chart-new', 'doughnut', {
         labels: Object.keys(channelSales),
         datasets: [{
@@ -10562,6 +10615,76 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
             backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
         }],
     });
+
+    // --- START: NEW CHART ADDED ---
+
+    // --- Chart 2: Perbandingan Omzet & Total Check per Cabang ---
+    const branchStats = summaries.reduce((acc, s) => {
+        // Aggregate revenue from each summary
+        if (s.revenueByBranch) {
+            for (const branchName in s.revenueByBranch) {
+                if (!acc[branchName]) acc[branchName] = { revenue: 0, checks: 0 };
+                acc[branchName].revenue += s.revenueByBranch[branchName];
+            }
+        }
+        // Aggregate transaction counts from each summary
+        if (s.transactionCountsByBranch) {
+            for (const branchName in s.transactionCountsByBranch) {
+                if (!acc[branchName]) acc[branchName] = { revenue: 0, checks: 0 };
+                acc[branchName].checks += s.transactionCountsByBranch[branchName];
+            }
+        }
+        return acc;
+    }, {});
+
+    const processedStats = Object.entries(branchStats).map(([name, stats]) => ({
+        name,
+        totalRevenue: (stats as any).revenue,
+        totalCheck: (stats as any).checks
+    }));
+
+    // Sort by revenue to show the highest-performing branches first
+    const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const labels = sortedByRevenue.map((s) => s.name);
+
+    createChart('omzet-vs-check-cabang-chart-new', 'bar', {
+        labels,
+        datasets: [
+            {
+                type: 'bar',
+                label: 'Total Omzet',
+                data: sortedByRevenue.map((s) => s.totalRevenue),
+                backgroundColor: '#4F46E5',
+                yAxisID: 'y-omzet',
+            },
+            {
+                type: 'line',
+                label: 'Total Check',
+                data: sortedByRevenue.map((s) => s.totalCheck),
+                borderColor: '#F97316',
+                yAxisID: 'y-check',
+                tension: 0.1
+            },
+        ],
+    }, {
+        scales: {
+            'y-omzet': {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'Total Omzet (Rp)' },
+                ticks: { callback: shortenCurrency }
+            },
+            'y-check': {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'Total Check' },
+                grid: { drawOnChartArea: false }, // Avoid cluttering with two sets of grid lines
+                ticks: { callback: shortenNumber }
+            },
+        },
+    });
+
+    // --- END: NEW CHART ADDED ---
 
     // --- Data Aggregation for Category and Top 5 Charts ---
     const aggregatedData = summaries.reduce((acc, s) => {
@@ -10581,7 +10704,7 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
         return acc;
     }, { categoryQuantities: {}, itemQuantities: {} });
 
-    // --- Chart 2: Order by Menu Category ---
+    // --- Chart 3: Order by Menu Category ---
     createChart('order-by-menu-category-chart-new', 'doughnut', {
         labels: Object.keys(aggregatedData.categoryQuantities),
         datasets: [{ 
@@ -10590,12 +10713,12 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
         }],
     });
 
-    // --- Chart 3 & 4: Top 5 Makanan & Minuman ---
+    // --- Chart 4 & 5: Top 5 Makanan & Minuman ---
     const createTop5Chart = (containerId: string, categoryName: string, color: string) => {
         const categoryItems = aggregatedData.itemQuantities[categoryName] || {};
         const top5 = Object.entries(categoryItems)
             .filter(item => !item[0].includes('(PACKAGE)'))
-            .sort((a, b) => b[1] - a[1])
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
             .slice(0, 5);
 
         if (top5.length > 0) {
@@ -10615,70 +10738,333 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
 }
 
 /**
- * Generates all metrics and charts for the "Perbandingan Waktu > Penjualan" section.
+ * Generates a dual-axis line chart showing the trend of Total Check (TC) 
+ * and Average Per Check (APC) over the last 24 months.
  */
-function generatePerbandinganPenjualanCharts(summaries: any[]) {
-    // --- 1. Key Metrics: Total Penjualan & Check ---
-    const monthlyTotals = summaries.reduce((acc, s) => {
-        acc.omzet += s.totalOmzet || 0;
-        acc.checks += s.totalTransactions || 0;
-        return acc;
-    }, { omzet: 0, checks: 0 });
+function generate24MonthTcApcTrend(summaries: any[]) {
+    if (summaries.length === 0) return;
 
-    document.getElementById('penjualan-total-omzet').textContent = `Rp${monthlyTotals.omzet.toLocaleString('id-ID')}`;
-    document.getElementById('penjualan-total-check').textContent = monthlyTotals.checks.toLocaleString('id-ID');
+    // 1. Define the 24-month date range
+    const latestDate = summaries.reduce((max, s) => s.date > max ? s.date : max, summaries[0].date);
+    const endDate = new Date(latestDate);
+    const startDate = new Date(latestDate);
+    startDate.setMonth(startDate.getMonth() - 23); // Go back 23 months to get a total of 24
+    startDate.setDate(1); // Start from the beginning of that month
 
-    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
-    const labelsHarian = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    // 2. Filter summaries to only include data within this range
+    const filteredSummaries = summaries.filter(s => s.date >= startDate && s.date <= endDate);
 
-    // --- 2. Chart: Omzet Harian (Line Chart) ---
-    const dataHarian = sortedSummaries.map(s => s.totalOmzet);
-    createChart('waktu-omzet-harian-chart', 'line', {
-        labels: labelsHarian,
-        datasets: [{
-            label: 'Total Omzet Harian',
-            data: dataHarian,
-            borderColor: '#3B82F6',
-            tension: 0.1,
-        }],
-    });
-
-    // --- 3. Chart: Omzet Mingguan (Line Chart) ---
-    const weeklyOmzet = summaries.reduce((acc, summary) => {
-        const d = summary.date;
-        const firstDayOfWeek = new Date(d);
-        firstDayOfWeek.setDate(d.getDate() - d.getDay());
-        const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
-        acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
+    // 3. Aggregate data by month (YYYY-MM)
+    const monthlyData = filteredSummaries.reduce((acc, s) => {
+        const monthKey = s.date.toISOString().slice(0, 7);
+        if (!acc[monthKey]) {
+            acc[monthKey] = { revenue: 0, transactions: 0 };
+        }
+        acc[monthKey].revenue += s.totalOmzet;
+        acc[monthKey].transactions += s.totalTransactions;
         return acc;
     }, {});
-    const sortedWeeks = Object.keys(weeklyOmzet).sort();
-    createChart('waktu-omzet-mingguan-chart', 'line', {
-        labels: sortedWeeks,
-        datasets: [{
-            label: 'Total Omzet Mingguan',
-            data: sortedWeeks.map((week) => weeklyOmzet[week]),
-            borderColor: '#10B981',
-            tension: 0.1,
-        }],
+
+    // 4. Prepare data for the chart
+    const sortedMonths = Object.keys(monthlyData).sort();
+    const tcData = sortedMonths.map(month => monthlyData[month].transactions);
+    const apcData = sortedMonths.map(month => {
+        const monthStats = monthlyData[month];
+        return monthStats.transactions > 0 ? monthStats.revenue / monthStats.transactions : 0;
     });
 
-    // --- 4. Chart: Tren TC & APC Harian (Dual Axis Line Chart) ---
-    const tcData = sortedSummaries.map(s => s.totalTransactions);
-    const apcData = sortedSummaries.map(s => s.apc);
-    createChart('waktu-tc-apc-harian-chart', 'line', {
-        labels: labelsHarian,
+    const chartLabels = sortedMonths.map(monthStr => {
+        const date = new Date(monthStr + '-02'); // Use day 2 to avoid timezone issues
+        return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+    });
+
+    chartDataForAI['tcApc24Month'] = {
+        period: "Last 24 Months",
+        trends: sortedMonths.map((month, i) => ({ month, total_check: tcData[i], average_check: apcData[i] }))
+    };
+
+    // 5. Create the dual-axis line chart
+    createChart('tc-apc-24-bulan-chart', 'line', {
+        labels: chartLabels,
         datasets: [
-            { label: 'Total Check (TC)', data: tcData, borderColor: '#60A5FA', yAxisID: 'y-tc', tension: 0.1, },
-            { label: 'Average Check (APC)', data: apcData, borderColor: '#F97316', yAxisID: 'y-apc', tension: 0.1, },
-        ],
+            {
+                label: 'Total Check (TC)',
+                data: tcData,
+                borderColor: '#3B82F6',
+                yAxisID: 'y-tc',
+                tension: 0.1
+            },
+            {
+                label: 'Average Check (APC)',
+                data: apcData,
+                borderColor: '#F97316',
+                yAxisID: 'y-apc',
+                tension: 0.1
+            }
+        ]
     }, {
         scales: {
-            'y-tc': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Check' }, },
-            'y-apc': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, },
-        },
+            'y-tc': {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'Total Check' },
+                ticks: { callback: shortenNumber }
+            },
+            'y-apc': {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'Average Check (Rp)' },
+                grid: { drawOnChartArea: false },
+                ticks: { callback: shortenCurrency }
+            }
+        }
+    });
+}
+
+/**
+ * Draws the 24-month menu trend chart based on the current dropdown selection.
+ */
+function draw24MonthMenuTrendChart(summaries: any[]) {
+    if (!menuTrend24MonthSelect) return;
+
+    const selectedMenus = menuTrend24MonthSelect.getSelected() as string[];
+    
+    // --- MODIFICATION START ---
+    // 1. Get all unique months that have data, sort them chronologically,
+    //    and take only the last 24 months. This creates a rolling window.
+    const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
+    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+    // --- MODIFICATION END ---
+    
+    const chartLabels = allMonthLabels.map(monthStr => {
+        const date = new Date(monthStr + '-02'); // Use day 2 to avoid timezone issues
+        return date.toLocaleString('default', { month: 'short', year: '2-digit' });
     });
 
-    // --- 5. NEW: Generate the Daily Omzet Heatmap for the new container ---
-    generateDailyOmzetHeatmapFromSummaries(summaries, 'waktu-daily-omzet-heatmap-container');
+    // 2. Create a dataset for each selected menu item
+    const datasets = selectedMenus.map((menuName, index) => {
+        const monthlyQuantities = Array(allMonthLabels.length).fill(0);
+
+        summaries.forEach(s => {
+            const monthKey = s.date.toISOString().slice(0, 7);
+            const monthIndex = allMonthLabels.indexOf(monthKey);
+
+            if (monthIndex > -1 && s.menuItemQuantities) {
+                for (const category in s.menuItemQuantities) {
+                    if (s.menuItemQuantities[category][menuName]) {
+                        monthlyQuantities[monthIndex] += s.menuItemQuantities[category][menuName];
+                    }
+                }
+            }
+        });
+
+        const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#F59E0B'];
+        return {
+            label: menuName,
+            data: monthlyQuantities,
+            borderColor: colors[index % colors.length],
+            tension: 0.1,
+            fill: false,
+        };
+    });
+    
+    chartDataForAI['menuTrend24Month'] = {
+        period: "Last 24 available months",
+        selected_menus: selectedMenus,
+        trends: datasets.map(ds => ({ menu: ds.label, monthly_quantity: ds.data }))
+    };
+
+    createChart('menu-trend-24-bulan-chart', 'line', {
+        labels: chartLabels,
+        datasets: datasets
+    });
+}
+
+/**
+ * Sets up the multi-select dropdown for the 24-month menu trend chart.
+ */
+function setup24MonthMenuTrendChart(summaries: any[]) {
+    if (menuTrend24MonthSelect) {
+        draw24MonthMenuTrendChart(summaries);
+        return;
+    }
+
+    const selectEl = document.getElementById('menu-trend-24-bulan-select') as HTMLSelectElement;
+
+    // 1. Get all unique, non-package menu items and their total quantities
+    const allItems = summaries.reduce((acc, s) => {
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                for (const menuName in s.menuItemQuantities[category]) {
+                    if (!menuName.includes('(PACKAGE)')) {
+                        acc[menuName] = (acc[menuName] || 0) + s.menuItemQuantities[category][menuName];
+                    }
+                }
+            }
+        }
+        return acc;
+    }, {});
+
+    if (Object.keys(allItems).length === 0) {
+        selectEl.innerHTML = '<option disabled>No menu data available</option>';
+        return;
+    }
+
+    // 2. Sort items by total quantity to find the most popular ones for the default selection
+    const sortedItems = Object.entries(allItems).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    // 3. Populate the select element
+    selectEl.innerHTML = sortedItems.map(item => `<option value="${item[0]}">${item[0]}</option>`).join('');
+
+    // 4. Initialize Slim Select
+    menuTrend24MonthSelect = new SlimSelect({
+        select: '#menu-trend-24-bulan-select',
+        settings: { placeholderText: 'Select menus...' },
+        events: {
+            afterChange: () => {
+                draw24MonthMenuTrendChart(allSalesData); // Use global data to ensure it's always up-to-date
+            }
+        }
+    });
+
+    // 5. Set a default selection of the top 5 most popular items
+    const top5Items = sortedItems.slice(0, 5).map(item => item[0]);
+    menuTrend24MonthSelect.setSelected(top5Items);
+}
+
+/**
+ * Generates a stacked area chart showing the sales contribution of each channel 
+ * over the last 24 available months.
+ */
+function generate24MonthChannelTrendChart(summaries: any[]) {
+    if (summaries.length === 0) return;
+
+    // 1. Get the last 24 months that have data
+    const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
+    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+
+    // 2. Get all unique channels across the entire dataset
+    const channels = [...new Set(summaries.flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
+
+    // 3. Aggregate monthly revenue for each channel
+    const channelData = {};
+    channels.forEach(ch => {
+        channelData[ch] = Array(allMonthLabels.length).fill(0);
+    });
+
+    summaries.forEach(s => {
+        const monthKey = s.date.toISOString().slice(0, 7);
+        const monthIndex = allMonthLabels.indexOf(monthKey);
+        if (monthIndex > -1 && s.revenueByVisitPurpose) {
+            for (const channel in s.revenueByVisitPurpose) {
+                if (channelData[channel]) {
+                    channelData[channel][monthIndex] += s.revenueByVisitPurpose[channel];
+                }
+            }
+        }
+    });
+
+    const chartLabels = allMonthLabels.map(monthStr => {
+        const date = new Date(monthStr + '-02');
+        return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+    });
+
+    chartDataForAI['channelTrend24Month'] = {
+        period: "Last 24 available months",
+        trends: channels.map(ch => ({ channel: ch, monthly_revenue: channelData[ch] }))
+    };
+
+    // 4. Create datasets for the stacked area chart
+    const datasets = channels.map((channel, index) => {
+        const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#F59E0B'];
+        return {
+            label: channel,
+            data: channelData[channel],
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '80', // Add alpha for fill
+            fill: true, // This makes it an area chart
+            tension: 0.2,
+        };
+    });
+
+    createChart('channel-trend-24-bulan-chart', 'line', {
+        labels: chartLabels,
+        datasets: datasets
+    }, {
+        scales: {
+            y: {
+                stacked: true, // This stacks the datasets
+                ticks: { callback: shortenCurrency }
+            }
+        }
+    });
+}
+
+/**
+ * Generates a stacked area chart showing the quantity contribution of each menu category 
+ * over the last 24 available months.
+ */
+function generate24MonthCategoryTrendChart(summaries: any[]) {
+    if (summaries.length === 0) return;
+
+    // 1. Get the last 24 months that have data
+    const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
+    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+
+    // 2. Get all unique menu categories
+    const categories = [...new Set(summaries.flatMap(s => Object.keys(s.menuCategories || {})))];
+
+    // 3. Aggregate monthly quantity for each category
+    const categoryData = {};
+    categories.forEach(cat => {
+        categoryData[cat] = Array(allMonthLabels.length).fill(0);
+    });
+
+    summaries.forEach(s => {
+        const monthKey = s.date.toISOString().slice(0, 7);
+        const monthIndex = allMonthLabels.indexOf(monthKey);
+        if (monthIndex > -1 && s.menuCategories) {
+            for (const category in s.menuCategories) {
+                if (categoryData[category]) {
+                    // We aggregate by quantity for this chart
+                    categoryData[category][monthIndex] += s.menuCategories[category].quantity;
+                }
+            }
+        }
+    });
+
+    const chartLabels = allMonthLabels.map(monthStr => {
+        const date = new Date(monthStr + '-02');
+        return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+    });
+
+    chartDataForAI['categoryTrend24Month'] = {
+        period: "Last 24 available months",
+        trends: categories.map(cat => ({ category: cat, monthly_quantity: categoryData[cat] }))
+    };
+
+    // 4. Create datasets for the stacked area chart
+    const datasets = categories.map((category, index) => {
+        const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#F59E0B'];
+        return {
+            label: category,
+            data: categoryData[category],
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '80', // Add alpha for fill
+            fill: true,
+            tension: 0.2,
+        };
+    });
+
+    createChart('category-trend-24-bulan-chart', 'line', {
+        labels: chartLabels,
+        datasets: datasets
+    }, {
+        scales: {
+            y: {
+                stacked: true, // This stacks the datasets
+                ticks: { callback: shortenNumber } // Use number formatter for quantity
+            }
+        }
+    });
 }

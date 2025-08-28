@@ -432,13 +432,14 @@
                     <!-- Sidebar Navigation -->
                     <aside class="md:w-1/4 lg:w-1/5 space-y-4">
                         <nav id="analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md">
-                           <a href="#" class="sidebar-link active p-3 rounded-md" data-target="umum">Tinjauan Umum</a>
-                           <a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-penjualan">Analisa Penjualan (New)</a>
-                           <a href="#" class="sidebar-link p-3 rounded-md" data-target="penjualan">Analisa Penjualan</a>
+                        <a href="#" class="sidebar-link active p-3 rounded-md" data-target="umum">Tinjauan Umum</a>
+                        <a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-penjualan">Analisa Penjualan</a>
+                        <a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-pnl">Analisa P&L</a>
+                        <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="penjualan">Analisa Penjualan</a>
 
 <div class="submenu-container">
     <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <span>Pebandingan Waktu</span>
+        <span>Perbandingan Waktu</span>
         <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
     <div class="submenu hidden pl-4 mt-1 space-y-1">
@@ -446,10 +447,19 @@
         <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-pnl">Profit & Loss</a>
     </div>
 </div>
-<a href="#" class="sidebar-link p-3 rounded-md" data-target="produk">Analisa Produk</a>
-<a href="#" class="sidebar-link p-3 rounded-md" data-target="cabang">Analisa Cabang</a>
-<a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-pnl">Analisa P&L</a>
-<a href="#" class="sidebar-link p-3 rounded-md" data-target="yoy">Analisa YoY</a>
+<div class="submenu-container">
+    <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <span>Perbandingan Cabang</span>
+        <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    </button>
+    <div class="submenu hidden pl-4 mt-1 space-y-1">
+        <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-penjualan">Penjualan</a>
+        <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-pnl">Profit & Loss</a>
+    </div>
+</div>
+<a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="produk">Analisa Produk</a>
+<a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="cabang">Analisa Cabang</a>
+<a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="yoy">Analisa YoY</a>
                         </nav>
 
                         <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full">
@@ -696,6 +706,20 @@
     </div>
 
     <div class="bg-white rounded-lg shadow-md">
+    <div class="flex justify-between items-center p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
+    </div>
+    <div class="px-6 pb-6">
+        <div class="chart-container">
+            <canvas id="omzet-vs-check-cabang-chart-new"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="omzet-vs-check-cabang-chart-new">Download Chart</button>
+        </div>
+    </div>
+</div>
+
+    <div class="bg-white rounded-lg shadow-md">
         <div class="flex justify-between items-center p-6">
             <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
         </div>
@@ -816,65 +840,182 @@
         </div>
     </div>
 </section>
-<section id="waktu-penjualan-section" class="analysis-section space-y-6">
-    
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h3 class="text-lg font-semibold text-gray-600">Total Penjualan (Omzet) Bulan Ini</h3>
-            <p id="penjualan-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h3 class="text-lg font-semibold text-gray-600">Total Check Bulan Ini</h3>
-            <p id="penjualan-total-check" class="text-4xl font-bold mt-2">0</p>
+<section id="waktu-penjualan-section" class="analysis-section space-y-8">
+    <div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Perbandingan Jangka Pendek</h3>
+        <div class="space-y-6 mt-4">
+            <div class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Harian Antar Bulan</h3>
+                    <p class="text-sm text-gray-500 mt-1">Membandingkan tren harian di bulan ini dengan bulan lalu. Pilih beberapa bulan untuk perbandingan.</p>
+                    <div class="mt-4">
+                        <label for="waktu-omzet-harian-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih bulan untuk dibandingkan:</label>
+                        <select id="waktu-omzet-harian-select" multiple></select>
+                    </div>
+                </div>
+                <div class="px-6 pb-6">
+                    <div class="chart-container">
+                        <canvas id="waktu-omzet-harian-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-xl font-semibold text-gray-700">Monthly Comparison</h3>
+                <p class="text-sm text-gray-500 mt-1">Perbandingan performa penjualan dari bulan ke bulan (Month-over-Month). Pilih dua bulan untuk perbandingan.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-gray-50 p-4 rounded-lg border mt-4">
+                    <div>
+                        <label for="month-a-select" class="block text-sm font-medium text-gray-700">Compare this month:</label>
+                        <select id="month-a-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                    </div>
+                    <div>
+                        <label for="month-b-select" class="block text-sm font-medium text-gray-700">With this month:</label>
+                        <select id="month-b-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                    </div>
+                </div>
+                <div id="comparison-results-container" class="mt-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" id="month-a-header">Month A</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" id="month-b-header">Month B</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change (vs Month A)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Target</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="bg-white rounded-lg shadow-md border">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Harian Antar Bulan</h3>
-            <div class="mt-4">
-                <label for="waktu-omzet-harian-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih bulan untuk dibandingkan:</label>
-                <select id="waktu-omzet-harian-select" multiple></select>
+
+    <div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Analisis Tren Jangka Panjang</h3>
+        <div class="space-y-6 mt-4">
+            <div class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet Bulanan (YoY)</h3>
+                    <p class="text-sm text-gray-500 mt-1">Mengukur pertumbuhan bisnis tahunan. Pilih tahun untuk perbandingan.</p>
+                    <div class="mt-4">
+                         <label for="yoy-year-select" class="text-sm font-medium">Select Year:</label>
+                         <select id="yoy-year-select" class="p-2 border rounded-md"></select>
+                    </div>
+                </div>
+                <div class="px-6 pb-6">
+                    <div class="chart-container">
+                        <canvas id="yoy-omzet-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                 <h3 class="text-xl font-semibold text-gray-700">Detail Perbandingan YoY</h3>
+                 <p class="text-sm text-gray-500 mt-1">Drill-down dari grafik YoY untuk detail yang lebih dalam.</p>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Prev. Year)</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Omzet (Curr. Year)</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Growth</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yoy-detail-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+             <div class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                     <h3 class="text-xl font-semibold text-gray-700">Total Penjualan & Check Per Bulan</h3>
+                     <p class="text-sm text-gray-500 mt-1">Menampilkan tren historis penjualan dan jumlah transaksi bulanan dalam periode yang dipilih.</p>
+                </div>
+                <div class="px-6 pb-6">
+                    <div class="chart-container">
+                        <canvas id="waktu-penjualan-bulanan-chart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="waktu-omzet-harian-chart"></canvas>
-            </div>
-            </div>
     </div>
-    <hr class="border-gray-300">
 
     <div class="bg-white rounded-lg shadow-md">
     <div class="p-6">
-        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
+        <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC bulanan dalam 24 bulan terakhir</h3>
+        <p class="text-sm text-gray-500 mt-1">Melihat tren metrik kunci dalam 2 tahun terakhir.</p>
     </div>
     <div class="px-6 pb-6">
-        <div id="waktu-daily-omzet-heatmap-container" class="overflow-x-auto"></div>
+        <div class="chart-container">
+            <canvas id="tc-apc-24-bulan-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="tc-apc-24-bulan-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="tcApc24Month">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-tcApc24Month" class="analysis-result-container hidden"></div>
     </div>
 </div>
 
-    <div class="bg-white rounded-lg shadow-md">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan dalam Sebulan</h3>
-        </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="waktu-omzet-mingguan-chart"></canvas>
-            </div>
+<div class="bg-white rounded-lg shadow-md">
+    <div class="p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu bulanan dalam 24 bulan terakhir</h3>
+        <p class="text-sm text-gray-500 mt-1">Melihat bagaimana popularitas menu berubah dalam jangka panjang.</p>
+        <div class="mt-4">
+            <label for="menu-trend-24-bulan-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk dibandingkan:</label>
+            <select id="menu-trend-24-bulan-select" multiple></select>
         </div>
     </div>
+    <div class="px-6 pb-6">
+        <div class="chart-container">
+            <canvas id="menu-trend-24-bulan-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="menu-trend-24-bulan-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="menuTrend24Month">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-menuTrend24Month" class="analysis-result-container hidden"></div>
+    </div>
+</div>
 
-    <div class="bg-white rounded-lg shadow-md">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
-        </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="waktu-tc-apc-harian-chart"></canvas>
-            </div>
-        </div>
+<div class="bg-white rounded-lg shadow-md">
+    <div class="p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel bulanan dalam 24 bulan terakhir</h3>
+        <p class="text-sm text-gray-500 mt-1">Melihat tren sumber penjualan (dine-in, online) dalam 2 tahun.</p>
     </div>
+    <div class="px-6 pb-6">
+        <div class="chart-container">
+            <canvas id="channel-trend-24-bulan-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="channel-trend-24-bulan-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="channelTrend24Month">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-channelTrend24Month" class="analysis-result-container hidden"></div>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow-md">
+    <div class="p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category bulanan dalam 24 bulan terakhir</h3>
+        <p class="text-sm text-gray-500 mt-1">Melihat tren popularitas kategori menu dalam 2 tahun.</p>
+    </div>
+    <div class="px-6 pb-6">
+        <div class="chart-container">
+            <canvas id="category-trend-24-bulan-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="category-trend-24-bulan-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="categoryTrend24Month">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-categoryTrend24Month" class="analysis-result-container hidden"></div>
+    </div>
+</div>
 </section>
 
 <section id="waktu-pnl-section" class="analysis-section space-y-6">
@@ -888,6 +1029,63 @@
                     <tr>
                         <td colspan="2" class="text-center p-4 text-gray-500">Loading P&L data...</td>
                     </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section id="cabang-penjualan-section" class="analysis-section space-y-6">
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
+            <p class="text-sm text-gray-500 mt-1">Membandingkan total pendapatan kotor setiap cabang.</p>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="perbandingan-omzet-outlet-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
+            <p class="text-sm text-gray-500 mt-1">Membandingkan pendapatan dan volume transaksi antar cabang.</p>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="perbandingan-omzet-check-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Average Check per Cabang</h3>
+            <p class="text-sm text-gray-500 mt-1">Menganalisis daya beli pelanggan di setiap cabang.</p>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="perbandingan-apc-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Performa Cabang</h3>
+        <p class="text-sm text-gray-500 mt-1 mb-4">Laporan detail yang merangkum semua metrik penjualan per cabang.</p>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Omzet</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Check</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Check (APC)</th>
+                    </tr>
+                </thead>
+                <tbody id="perbandingan-cabang-detail-tbody" class="bg-white divide-y divide-gray-200">
                 </tbody>
             </table>
         </div>
