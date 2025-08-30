@@ -1002,11 +1002,17 @@
 
 <section id="general-keuangan-section" class="analysis-section space-y-6">
     <div class="bg-white p-4 rounded-lg shadow-md">
-        <div class="flex items-center gap-2">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div>
+            <label for="general-keuangan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+            <select id="general-keuangan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+        </div>
+        <div>
             <label for="general-keuangan-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
-            <select id="general-keuangan-period-select" class="p-2 border rounded-md text-sm bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500"></select>
+            <select id="general-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
         </div>
     </div>
+</div>
 
     <div class="bg-white rounded-lg shadow-md p-6">
         <h3 class="text-xl font-semibold text-gray-700">Tabel P&L bulanan vs. Target</h3>
@@ -1062,6 +1068,14 @@
 </section>
 
 <section id="general-penjualan-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3">
+            <div>
+                <label for="general-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="general-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
@@ -1120,6 +1134,14 @@
 </section>
 
 <section id="general-produk-channel-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3">
+        <div>
+            <label for="general-produk-channel-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+            <select id="general-produk-channel-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+        </div>
+    </div>
+</div>
     <div class="bg-white rounded-lg shadow-md">
         <div class="p-6">
             <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>

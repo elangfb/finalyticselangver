@@ -2178,12 +2178,19 @@ function runAnalysis(): void {
   const lastPeriodEndDate = new Date(document.getElementById('last-period-end').value);
   lastPeriodEndDate.setHours(23, 59, 59, 999);
 
-  const currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
-  const lastPeriodData = allSalesData.filter((summary) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
+  const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
+  const selectedBranch = branchSelect?.value;
+
+  let currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
+  let lastPeriodData = allSalesData.filter((summary) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
+
+  if (selectedBranch && selectedBranch !== 'ALL') {
+      currentData = currentData.filter(s => s.branches.includes(selectedBranch));
+      lastPeriodData = lastPeriodData.filter(s => s.branches.includes(selectedBranch));
+  }
 
   destroyCharts();
 
-  // Tinjauan Umum Section
   generateRingkasanFromSummaries(currentData, lastPeriodData, {
       omzet: 'ringkasan-total-omzet',
       check: 'ringkasan-total-check',
@@ -2199,11 +2206,7 @@ function runAnalysis(): void {
   generateOmzetMingguanChartFromSummaries(currentData, 'omzet-mingguan-chart', 'line');
   generateOmzetBulananChartFromSummaries(currentData);
   generateOmzetOutletChartFromSummaries(currentData, 'omzet-outlet-chart');
-
-  // Analisa Produk Section
   generateProductAnalysisChartsFromSummaries(currentData);
-
-  // Analisa Cabang Section
   generateCabangAnalysisFromSummaries(currentData, {
       topOmzetNameId: 'cabang-omzet-tertinggi-nama',
       topOmzetValueId: 'cabang-omzet-tertinggi-nilai',
@@ -2215,17 +2218,12 @@ function runAnalysis(): void {
       apcCanvasId: 'cabang-apc-chart',
       detailTableId: 'cabang-detail-tbody'
   });
-
-  // Call all other section orchestrators
-  generateWaktuPenjualanSection(currentData);
-  generateAnalisaPenjualanCharts(currentData); // This is the "Analisa Penjualan (New)"
+  generateWaktuPenjualanSection();
+  generateAnalisaPenjualanCharts(currentData);
   generateCabangPenjualanSection(currentData);
   generateGeneralPenjualanSection(currentData, lastPeriodData);
   generateGeneralProdukChannelSection(currentData);
-
-  // --- NEW: Call the orchestrator for the original "Analisa Penjualan" section ---
   generateAnalisaPenjualanSection(currentData);
-
   console.log("Analysis complete with pre-calculated summaries.");
 }
 
@@ -2907,12 +2905,10 @@ function generateWaktuPenjualanSection() {
     if (!currentUser) return;
     const periodA = (document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement).value;
     const periodB = (document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement).value;
-    // --- MODIFICATION: Read the selected branch ---
     const selectedBranch = (document.getElementById('waktu-penjualan-branch-select') as HTMLSelectElement).value;
 
     if (!periodA || !periodB || !selectedBranch) return;
 
-    // --- MODIFICATION: Filter data by selected branch first ---
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
     
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
@@ -2922,7 +2918,7 @@ function generateWaktuPenjualanSection() {
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC' });
     generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
-    generateYoYComparisonChart(periodB, selectedBranch); // Pass branch to YoY function
+    generateYoYComparisonChart(periodB, selectedBranch);
 }
 
 async function setupCabangKeuanganSelectors() {
@@ -3187,7 +3183,6 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
 
-    // Filter the main sales data to get only summaries for the selected branch
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
     const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
 
@@ -3271,7 +3266,6 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
 
     const periodA = `${yearA}-${String(month + 1).padStart(2, '0')}`;
     
-    // --- MODIFICATION: Filter by selected branch ---
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
 
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
@@ -3287,18 +3281,17 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
  */
 async function generateGeneralKeuanganSection() {
     if (!currentUser) return;
-    const selectEl = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
-    const selectedPeriod = selectEl.value;
+    const branchSelect = document.getElementById('general-keuangan-branch-select') as HTMLSelectElement;
+    const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
+    const selectedBranch = branchSelect.value;
+    const selectedPeriod = periodSelect.value;
 
-    if (!selectedPeriod) {
-        console.log("No period selected for financial analysis.");
+    if (!selectedPeriod || !selectedBranch) {
         return;
     }
 
     showLoading({ message: 'Fetching financial data...', value: 20 });
     
-    // --- FIX START ---
-    // Correctly define the 12-month date range to include the full selected month.
     const endDate = new Date(selectedPeriod + '-01T00:00:00');
     endDate.setMonth(endDate.getMonth() + 1);
     endDate.setDate(endDate.getDate() - 1);
@@ -3306,30 +3299,28 @@ async function generateGeneralKeuanganSection() {
 
     const startDate = new Date(selectedPeriod + '-01T00:00:00');
     startDate.setMonth(startDate.getMonth() - 11);
-    // --- FIX END ---
     
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-    const reportsSnap = await getDocs(reportsRef);
+    const q = query(reportsRef, where("branchName", "==", selectedBranch));
+    const reportsSnap = await getDocs(q);
     
     const historicalReports = reportsSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(report => {
-            const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
+            const reportDate = new Date(report.period + '-02');
             return reportDate >= startDate && reportDate <= endDate;
         })
         .sort((a, b) => a.period.localeCompare(b.period));
 
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
-    // Generate all components
-    await generatePnlTargetComparisonTable(selectedPeriod, 'general-pnl-target-container');
+    await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container');
     generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
     generatePnlOverviewChart(historicalReports);
     
-    // Use the reusable function for all ratio charts
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-hr-chart', metric: 'Beban Operasional (OPEX)', title: 'HR & Bonus' }); // Assuming HR is in OPEX
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-hr-chart', metric: 'Beban Operasional (OPEX)', title: 'HR & Bonus' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
     
     hideLoading();
@@ -3339,61 +3330,100 @@ async function generateGeneralKeuanganSection() {
  * Sets up the period selector dropdown for the "Aspek Keuangan" section.
  */
 async function setupGeneralKeuanganPeriodSelector() {
-    if (generalKeuanganSelectorInitialized) return; // This guard is still needed
+    if (generalKeuanganSelectorInitialized) return;
     if (!currentUser) return;
     
-    const selectEl = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
-    selectEl.innerHTML = '<option>Loading periods...</option>';
+    const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
+    const branchSelect = document.getElementById('general-keuangan-branch-select') as HTMLSelectElement;
 
-    try {
-        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-        const reportsSnap = await getDocs(reportsRef);
+    const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(reportsRef);
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
 
-        const periods = reportsSnap.docs.map(doc => doc.data().period).filter(Boolean).sort().reverse();
-
-        if (periods.length === 0) {
-            selectEl.innerHTML = '<option>No P&L data found</option>';
-            return;
-        }
-
-        selectEl.innerHTML = periods.map(period => {
-            const [year, month] = period.split('-');
-            const dateLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-            return `<option value="${period}">${dateLabel}</option>`;
-        }).join('');
-        
-        selectEl.addEventListener('change', generateGeneralKeuanganSection);
-        generalKeuanganSelectorInitialized = true;
-        
-        // The data load trigger that was here has been removed.
-    } catch (error) {
-        console.error("Error setting up P&L period selector:", error);
-        selectEl.innerHTML = '<option>Error loading periods</option>';
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches with P&L data</option>';
+        return;
     }
+
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchSelect.value = branches[0];
+        
+    branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralKeuangan(branchSelect.value));
+    periodSelect.addEventListener('change', () => generateGeneralKeuanganSection());
+
+    generalKeuanganSelectorInitialized = true;
+    
+    await updatePeriodSelectorsForGeneralKeuangan(branches[0]);
+}
+
+async function setupGeneralPenjualanSelectors() {
+    if (!currentUser) return;
+
+    const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
+
+    // Get a unique list of all branches from the entire dataset
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches found</option>';
+        return;
+    }
+
+    // Populate the branch selector, including an "All Branches" option as the default
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    
+    // When the branch changes, re-run the main analysis function to apply all filters
+    branchSelect.addEventListener('change', () => runAnalysis());
+}
+
+async function setupGeneralProdukChannelSelectors() {
+    if (!currentUser) return;
+
+    const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;
+
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches found</option>';
+        return;
+    }
+
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    
+    // When the branch changes, re-run the analysis for this section
+    branchSelect.addEventListener('change', () => {
+        // We need to get the current date-filtered data before passing it
+        const currentStartDate = new Date((document.getElementById('date-start') as HTMLInputElement).value);
+        const currentEndDate = new Date((document.getElementById('date-end') as HTMLInputElement).value);
+        currentEndDate.setHours(23, 59, 59, 999);
+        const currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
+        generateGeneralProdukChannelSection(currentData);
+    });
 }
 
 /**
  * Generates a P&L Target vs Actual comparison table for a single period.
  * If no target is found, it displays an upload button.
  */
-async function generatePnlTargetComparisonTable(period: string, containerId: string) {
+async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string) {
     const container = document.getElementById(containerId);
     container.innerHTML = '<p class="text-gray-500">Loading P&L comparison...</p>';
     
-    const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
+    const targetId = `${period}_${branch.replace(/\s+/g, '_')}`;
+    const reportId = `${period}_${branch.replace(/\s+/g, '_')}`;
+
+    const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetId);
     const targetSnap = await getDoc(targetRef);
 
     if (targetSnap.exists()) {
-        // If target exists, reuse the modal logic to show the comparison table
-        await showPnlTargetModal(targetSnap.data());
+        await showPnlTargetModal(targetSnap.data(), reportId);
         const modalHTML = document.getElementById('pnl-target-modal-body').innerHTML;
         container.innerHTML = modalHTML;
         document.getElementById('pnl-target-modal').classList.add('hidden');
     } else {
-        // --- NEW: If no target exists, show a message and an upload button ---
         container.innerHTML = `
             <div class="text-center p-4 border rounded-lg bg-gray-50">
-                <p class="text-gray-500 mb-4">No target data found for this period.</p>
+                <p class="text-gray-500 mb-4">No target data found for this branch and period.</p>
                 <button class="upload-compiled-btn bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-indigo-600" data-period="${period}" data-type="pnlTarget">
                     Upload P&L Target
                 </button>
@@ -6241,18 +6271,19 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         const targetSection = document.getElementById(`${targetId}-section`);
         if (targetSection) targetSection.classList.add('active');
         
-      
-
         const showMainFilters = ![
             'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 
             'analisa-pnl', 'general-keuangan', 'waktu-keuangan',
-            'waktu-produk-channel' // Add this section to the list
+            'waktu-produk-channel', 'general-penjualan'
         ].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
         
         if (targetId === 'general-keuangan') {
             await setupGeneralKeuanganPeriodSelector();
-            await generateGeneralKeuanganSection();
+        }
+
+        if (targetId === 'general-penjualan') {
+            await setupGeneralPenjualanSelectors();
         }
 
         if (targetId === 'waktu-keuangan') {
@@ -6263,7 +6294,6 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             await setupWaktuPenjualanSelectors(); 
         }
 
-        // --- MODIFICATION: Call the new setup function ---
         if (targetId === 'waktu-produk-channel') {
             await setupWaktuProdukChannelSelectors();
         }
@@ -6278,6 +6308,10 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
 
         if (targetId === 'cabang-produk-channel') {
             await setupCabangProdukChannelSelectors();
+        }
+
+        if (targetId === 'general-produk-channel') {
+            await setupGeneralProdukChannelSelectors();
         }
         
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
@@ -11194,7 +11228,7 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
  * Displays a modal comparing P&L targets to actual performance for a specific period,
  * with a conditional "Achievement" column.
  */
-async function showPnlTargetModal(targetData: any) {
+async function showPnlTargetModal(targetData: any, reportId: string) {
     const modal = document.getElementById('pnl-target-modal');
     const titleEl = document.getElementById('pnl-target-modal-title');
     const bodyEl = document.getElementById('pnl-target-modal-body');
@@ -11213,7 +11247,7 @@ async function showPnlTargetModal(targetData: any) {
     titleEl.textContent = `P&L Target vs Actual for ${formattedPeriod}`;
 
     try {
-        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, period);
+        const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, reportId);
         const pnlDocSnap = await getDoc(pnlDocRef);
 
         let actualValues = {
@@ -11281,7 +11315,6 @@ async function showPnlTargetModal(targetData: any) {
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
         ];
 
-        // --- MODIFICATION: List of metrics that will show the achievement bar ---
         const achievementMetrics = [
             "Pendapatan (Revenue)",
             "Laba Kotor (Gross Profit)",
@@ -11312,7 +11345,6 @@ async function showPnlTargetModal(targetData: any) {
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">`;
 
-            // --- MODIFICATION: Conditionally render the achievement bar ---
             if (achievementMetrics.includes(metric)) {
                 tableHtml += `
                         <div class="flex items-center">
@@ -11322,7 +11354,6 @@ async function showPnlTargetModal(targetData: any) {
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>`;
             }
-            // If the metric is not in the list, the cell will be empty.
             tableHtml += `</td></tr>`;
         });
         
@@ -11334,6 +11365,7 @@ async function showPnlTargetModal(targetData: any) {
         bodyEl.innerHTML = `<p class="text-center text-red-500">Error: Could not display P&L target comparison. ${error.message}</p>`;
     }
 }
+
 
 /**
  * Generates all charts for the new "Analisa Penjualan" section.
@@ -11887,17 +11919,24 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
  * New orchestrator function for the "Aspek Produk dan Channel" section.
  */
 function generateGeneralProdukChannelSection(summaries: any[]) {
-    // We will refactor `generateMenuSalesTrendChart` to be reusable
-    setupGeneralMenuTrendChart(summaries, 'general-menu-trend-select', 'general-menu-trend-chart');
+    const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;
+    const selectedBranch = branchSelect?.value;
 
-    // We will refactor `generatePenjualanChannelChartFromSummaries` as well
-    generatePenjualanChannelChartFromSummaries(summaries, 'general-channel-donut-chart', 'doughnut');
+    let filteredSummaries = summaries;
 
-    // Call our new specific functions
-    generateOrderByCategoryDonutChart(summaries, 'general-category-donut-chart');
-    generateTopItemsDonutChart(summaries, 'general-top-makanan-donut-chart', 'MAKANAN');
-    generateTopItemsDonutChart(summaries, 'general-top-minuman-donut-chart', 'MINUMAN');
+    // If a specific branch is selected, filter the summaries further
+    if (selectedBranch && selectedBranch !== 'ALL') {
+        filteredSummaries = summaries.filter(s => s.branches.includes(selectedBranch));
+    }
+
+    // Now, generate all charts using the correctly filtered data
+    setupGeneralMenuTrendChart(filteredSummaries, 'general-menu-trend-select', 'general-menu-trend-chart');
+    generatePenjualanChannelChartFromSummaries(filteredSummaries, 'general-channel-donut-chart', 'doughnut');
+    generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart');
+    generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
+    generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
 }
+
 
 /**
  * Orchestrator for the "Analisis Perbandingan Waktu > Aspek Keuangan" section.
@@ -11948,34 +11987,37 @@ async function setupWaktuKeuanganPeriodSelectors() {
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
 
-    // 1. Fetch all reports ONCE to get the list of unique branches
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const reportsSnap = await getDocs(reportsRef);
+    
+    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].sort().reverse();
     const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
 
-    if (branches.length === 0) {
+    if (periods.length < 2 || branches.length === 0) {
+        selectA.innerHTML = '<option>Not enough data</option>';
+        selectB.innerHTML = '<option>Not enough data</option>';
         branchSelect.innerHTML = '<option>No branches found</option>';
         return;
     }
 
-    // 2. Populate ONLY the branch selector
+    const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = periodOptionsHtml;
+    selectB.innerHTML = periodOptionsHtml;
+    
     branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
-    branchSelect.value = branches[0]; // Set a default branch
+    
+    selectA.value = periods[1];
+    selectB.value = periods[0];
+    branchSelect.value = branches[0];
 
-    // 3. Add event listeners
-    // The period selectors will just re-run the main generation function
-    selectA.addEventListener('change', () => generateWaktuKeuanganSection());
-    selectB.addEventListener('change', () => generateWaktuKeuanganSection());
-
-    // The branch selector's listener will call our new function to update the periods
-    branchSelect.addEventListener('change', async () => {
-        await updatePeriodSelectorsForBranch(branchSelect.value);
-    });
+    const handler = () => generateWaktuKeuanganSection();
+    selectA.addEventListener('change', handler);
+    selectB.addEventListener('change', handler);
+    branchSelect.addEventListener('change', handler);
     
     waktuKeuanganSelectorsInitialized = true;
     
-    // 4. Trigger the initial population of period selectors for the default branch
-    await updatePeriodSelectorsForBranch(branches[0]);
+    generateWaktuKeuanganSection();
 }
 
 // Add this entire new function to your main.ts file
@@ -12041,7 +12083,6 @@ function generateWaktuProdukChannelSection() {
 
     if (!periodA || !periodB || !selectedBranch) return;
 
-    // Filter by branch first, then by period
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
@@ -12049,6 +12090,35 @@ function generateWaktuProdukChannelSection() {
     setupWaktuMenuTrendChart(periodAData, periodBData);
     generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
+}
+
+
+async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
+    if (!currentUser) return;
+    const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
+
+    periodSelect.innerHTML = '<option>Loading periods...</option>';
+    
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const q = query(pnlReportsRef, where("branchName", "==", selectedBranch));
+    const reportsSnap = await getDocs(q);
+
+    const periods = reportsSnap.docs
+        .map(doc => doc.data().period)
+        .filter(Boolean)
+        .sort()
+        .reverse();
+
+    if (periods.length === 0) {
+        periodSelect.innerHTML = '<option>No P&L data for this branch</option>';
+        return;
+    }
+
+    const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    periodSelect.innerHTML = periodOptionsHtml;
+    periodSelect.value = periods[0]; 
+
+    await generateGeneralKeuanganSection();
 }
 
 async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
@@ -12236,10 +12306,9 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
  */
 function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string) {
     const container = document.getElementById(containerId);
-    container.innerHTML = ''; // Clear previous content
+    container.innerHTML = ''; 
 
     try {
-        // --- MODIFICATION: Get P&L data directly from the passed objects ---
         const pnlDataA = reportA?.pnlData || {};
         const pnlDataB = reportB?.pnlData || {};
 
@@ -12270,7 +12339,6 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
         const valuesB = calculateAllMetrics(pnlDataB);
 
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-        // --- MODIFICATION: Get period labels from the report objects ---
         const labelA = reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A';
         const labelB = reportB ? new Date(reportB.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period B';
         
@@ -12328,23 +12396,21 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
     }
 }
 
+
 /**
  * Reusable function to generate a dual-axis comparison chart for a financial ratio.
  */
 function generateRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string }) {
-    // --- MODIFICATION: The function no longer needs to fetch data ---
-    
     const pnlDataA = reportA?.pnlData;
     const pnlDataB = reportB?.pnlData;
     
     const getMetricValue = (pnlData) => {
-         // This is a simplified calculation logic
         const revenue = Object.values(pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number, v:number) => s + v, 0);
-        if (!revenue) return 0; // Return 0 if no revenue data exists
+        if (!revenue) return 0;
 
         if (config.metric.includes('Profit') || config.metric.includes('Income')) {
             const hpp = Object.values(pnlData?.["Harga Pokok Produksi"] || {}).reduce((s:number, v:number) => s + v, 0);
-            return revenue - hpp; // Simplified Gross Profit
+            return revenue - hpp;
         }
         return Object.values(pnlData?.[config.metric] || {}).reduce((s:number, v:number) => s + v, 0);
     };
