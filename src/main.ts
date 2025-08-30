@@ -407,7 +407,6 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
   }
   document.getElementById('user-management-btn').classList.toggle('hidden', currentUserRole !== 'admin')
   showView('main-menu')
-  await loadUploadHistory()
   await populateCompiledDataTable(); // Load the new compiled table
   loadGeminiConfig()
 }
@@ -5819,7 +5818,8 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         }
 
         if (targetId === 'waktu-produk-channel') {
-            await setupWaktuProdukChannelPeriodSelectors();
+            await setupWaktuProdukChannelPeriodSelectors(); // Sets up dropdowns (runs once)
+            await generateWaktuProdukChannelSection();      // Loads data (runs every time)
         }
 
         // Existing conditions
@@ -11526,26 +11526,33 @@ function generateWaktuProdukChannelSection() {
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
 }
 
-/**
- * Sets up the period selectors for the "Waktu > Produk dan Channel" section.
- */
 async function setupWaktuProdukChannelPeriodSelectors() {
     if (waktuProdukChannelSelectorsInitialized) return;
+    if (!currentUser) return;
+
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
-    // ... (This function's logic is identical to setupWaktuPenjualanPeriodSelectors, just with different IDs)
+    
     const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
-    if (periods.length < 2) { /* handle not enough data */ return; }
+
+    if (periods.length < 2) {
+        selectA.innerHTML = '<option>Not enough data to compare</option>';
+        selectB.innerHTML = '<option>Not enough data to compare</option>';
+        return;
+    }
+
     const optionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
     selectA.innerHTML = optionsHtml;
     selectB.innerHTML = optionsHtml;
     selectA.value = periods[1];
     selectB.value = periods[0];
+    
     const handler = () => generateWaktuProdukChannelSection();
     selectA.addEventListener('change', handler);
     selectB.addEventListener('change', handler);
     waktuProdukChannelSelectorsInitialized = true;
-    generateWaktuProdukChannelSection();
+    
+    // The line that called generateWaktuProdukChannelSection() has been removed from here.
 }
 
 /**
