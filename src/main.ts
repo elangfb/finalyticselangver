@@ -85,7 +85,9 @@ let waktuPenjualanSelectorsInitialized = false;
 let waktuProdukChannelSelectorsInitialized = false;
 let waktuMenuTrendSelect: SlimSelect | null = null;
 let cabangKeuanganSelectorsInitialized = false;
-
+let cabangPenjualanSelectorsInitialized = false;
+let cabangProdukChannelSelectorsInitialized = false;
+let cabangMenuTrendSelect: SlimSelect | null = null;
 
 
 const plAnalysisView = document.getElementById('pl-analysis-view');
@@ -2923,140 +2925,6 @@ function generateWaktuPenjualanSection() {
     generateYoYComparisonChart(periodB); // YoY only needs the second period for comparison
 }
 
-/**
- * Orchestrator for the "Analisis Perbandingan Cabang > Aspek Keuangan" section.
- */
-// function generateCabangKeuanganSection() {
-//     if (!currentUser) return;
-//     const period = (document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement).value;
-//     const branchA = (document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement).value;
-//     const branchB = (document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement).value;
-
-//     if (!period || !branchA || !branchB) return;
-
-//     const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
-
-//     generateCabangGpComparisonTable(periodData, branchA, branchB, 'cabang-gp-comparison-container');
-//     generateCabangGpCogsComparisonChart(periodData, branchA, branchB, 'cabang-gp-cogs-comparison-chart');
-//     generateCabangGpmComparisonChart(periodData, branchA, branchB, 'cabang-gpm-comparison-chart');
-// }
-
-// /**
-//  * Sets up the period and branch selectors for the "Cabang > Keuangan" section.
-//  */
-// async function setupCabangKeuanganSelectors() {
-//     if (cabangKeuanganSelectorsInitialized) return;
-    
-//     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
-//     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
-//     const branchBSelect = document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement;
-
-//     const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
-    
-//     // --- THIS IS THE CORRECTED LINE ---
-//     const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
-
-//     if (periods.length === 0 || branches.length < 2) {
-//         periodSelect.innerHTML = '<option>Not enough data</option>';
-//         branchASelect.innerHTML = '<option>Not enough data</option>';
-//         branchBSelect.innerHTML = '<option>Not enough data</option>';
-//         return;
-//     }
-
-//     periodSelect.innerHTML = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
-//     branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
-//     branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
-    
-//     branchASelect.value = branches[0];
-//     branchBSelect.value = branches[1];
-
-//     const handler = () => generateCabangKeuanganSection();
-//     periodSelect.addEventListener('change', handler);
-//     branchASelect.addEventListener('change', handler);
-//     branchBSelect.addEventListener('change', handler);
-    
-//     cabangKeuanganSelectorsInitialized = true;
-//     generateCabangKeuanganSection();
-// }
-
-// const calculateGrossProfitStats = (data, branchName) => {
-//     const stats = data.reduce((acc, summary) => {
-//         // Use the new per-branch data from the summary
-//         const branchRevenue = summary.revenueByBranch?.[branchName] || 0;
-//         const branchCogs = summary.cogsByBranch?.[branchName] || 0;
-
-//         acc.revenue += branchRevenue;
-//         acc.cogs += branchCogs;
-//         return acc;
-//     }, { revenue: 0, cogs: 0 });
-
-//     const grossProfit = stats.revenue - stats.cogs;
-//     const grossProfitMargin = stats.revenue > 0 ? (grossProfit / stats.revenue) * 100 : 0;
-    
-//     return { ...stats, grossProfit, grossProfitMargin };
-// };
-
-/**
- * Generates the Gross Profit comparison table.
- */
-// function generateCabangGpComparisonTable(periodData, branchA, branchB, containerId) {
-//     const statsA = calculateGrossProfitStats(periodData, branchA);
-//     const statsB = calculateGrossProfitStats(periodData, branchB);
-//     const container = document.getElementById(containerId);
-
-//     const metrics = [
-//         { name: 'Total Revenue', valA: statsA.revenue, valB: statsB.revenue, format: shortenCurrency },
-//         { name: 'Total COGS', valA: statsA.cogs, valB: statsB.cogs, format: shortenCurrency },
-//         { name: 'Gross Profit (Rp)', valA: statsA.grossProfit, valB: statsB.grossProfit, format: shortenCurrency },
-//         { name: 'Gross Profit Margin (%)', valA: statsA.grossProfitMargin, valB: statsB.grossProfitMargin, format: (v) => `${v.toFixed(1)}%` }
-//     ];
-
-//     let tableHtml = `<table class="min-w-full divide-y divide-gray-200">...<thead>...</thead><tbody>`;
-//     metrics.forEach(m => {
-//         tableHtml += `<tr>
-//             <td class="px-6 py-4 text-sm font-medium">${m.name}</td>
-//             <td class="px-6 py-4 text-sm text-right">${m.format(m.valA)}</td>
-//             <td class="px-6 py-4 text-sm text-right">${m.format(m.valB)}</td>
-//         </tr>`;
-//     });
-//     tableHtml += `</tbody></table>`;
-//     container.innerHTML = tableHtml;
-// }
-
-/**
- * Generates the Gross Profit & COGS grouped bar chart.
- */
-// function generateCabangGpCogsComparisonChart(periodData, branchA, branchB, canvasId) {
-//     const statsA = calculateGrossProfitStats(periodData, branchA);
-//     const statsB = calculateGrossProfitStats(periodData, branchB);
-
-//     createChart(canvasId, 'bar', {
-//         labels: ['Gross Profit', 'COGS'],
-//         datasets: [
-//             { label: branchA, data: [statsA.grossProfit, statsA.cogs], backgroundColor: '#9CA3AF' },
-//             { label: branchB, data: [statsB.grossProfit, statsB.cogs], backgroundColor: '#4F46E5' }
-//         ]
-//     }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
-// }
-
-/**
- * Generates the Gross Profit Margin bar chart.
- */
-// function generateCabangGpmComparisonChart(periodData, branchA, branchB, canvasId) {
-//     const statsA = calculateGrossProfitStats(periodData, branchA);
-//     const statsB = calculateGrossProfitStats(periodData, branchB);
-
-//     createChart(canvasId, 'bar', {
-//         labels: [branchA, branchB],
-//         datasets: [{
-//             label: 'Gross Profit Margin (%)',
-//             data: [statsA.grossProfitMargin, statsB.grossProfitMargin],
-//             backgroundColor: ['#9CA3AF', '#4F46E5']
-//         }]
-//     }, { scales: { y: { ticks: { callback: (v) => `${v.toFixed(1)}%` } } } });
-// }
-
-// Replace the existing setupCabangKeuanganSelectors function
 async function setupCabangKeuanganSelectors() {
     if (cabangKeuanganSelectorsInitialized) return;
 
@@ -3115,6 +2983,113 @@ async function generateCabangKeuanganSection() {
     generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
 
     hideLoading();
+}
+
+/**
+ * Orchestrator for the "Analisis Perbandingan Cabang > Aspek Penjualan" section.
+ */
+function generateCabangPenjualanSection() {
+    if (!currentUser) return;
+    const period = (document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement).value;
+    const branchA = (document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement).value;
+    const branchB = (document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement).value;
+
+    if (!period || !branchA || !branchB || branchA === branchB) return;
+
+    const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
+
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-apc-comparison-chart', metric: 'apc', title: 'ATC' });
+    generateBranchWeeklyTrendComparisonChart(periodData, branchA, branchB, 'cabang-weekly-trend-comparison-chart');
+}
+
+/**
+ * Sets up the selectors for the "Cabang > Penjualan" section.
+ */
+async function setupCabangPenjualanSelectors() {
+    if (cabangPenjualanSelectorsInitialized) return;
+    const periodSelect = document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement;
+    const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
+    const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
+
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
+
+    if (periods.length === 0 || branches.length < 2) { return; }
+
+    periodSelect.innerHTML = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    branchASelect.value = branches[0];
+    branchBSelect.value = branches[1];
+
+    const handler = () => generateCabangPenjualanSection();
+    periodSelect.addEventListener('change', handler);
+    branchASelect.addEventListener('change', handler);
+    branchBSelect.addEventListener('change', handler);
+
+    cabangPenjualanSelectorsInitialized = true;
+    generateCabangPenjualanSection();
+}
+
+/**
+ * Reusable function to compare a daily metric trend between two branches.
+ */
+function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string }) {
+    const labels = Array.from({ length: 31 }, (_, i) => i + 1);
+
+    const getDailyData = (branchName) => {
+        const daily = Array(31).fill(null);
+        const branchSummaries = periodData.filter(s => s.revenueByBranch?.[branchName] !== undefined);
+        branchSummaries.forEach(s => {
+            const dayIndex = s.date.getDate() - 1;
+            daily[dayIndex] = s[config.metric]; // Note: This assumes TC and APC are top-level on the summary
+        });
+        return daily;
+    };
+
+    createChart(config.canvasId, 'line', {
+        labels,
+        datasets: [
+            { label: `${config.title} ${branchA}`, data: getDailyData(branchA), borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} ${branchB}`, data: getDailyData(branchB), borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+        ]
+    });
+}
+
+/**
+ * Generates a chart comparing average sales by day of the week for two branches.
+ */
+function generateBranchWeeklyTrendComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const getAvgWeeklyData = (branchName) => {
+        const weeklyTotals = Array(7).fill(0);
+        const weeklyCounts = Array(7).fill(0);
+        const seenDates = new Set();
+        const branchSummaries = periodData.filter(s => s.revenueByBranch?.[branchName] !== undefined);
+
+        branchSummaries.forEach(s => {
+            const dateStr = s.date.toISOString().split('T')[0];
+            const dayIndex = s.date.getDay();
+            weeklyTotals[dayIndex] += s.revenueByBranch[branchName];
+            if (!seenDates.has(dateStr)) {
+                weeklyCounts[dayIndex]++;
+                seenDates.add(dateStr);
+            }
+        });
+        return weeklyTotals.map((total, i) => weeklyCounts[i] > 0 ? total / weeklyCounts[i] : 0);
+    };
+
+    createChart(canvasId, 'line', {
+        labels: dayLabels,
+        datasets: [
+            { label: `Avg Sales ${branchA}`, data: getAvgWeeklyData(branchA), borderColor: '#9CA3AF', tension: 0.1 },
+            { label: `Avg Sales ${branchB}`, data: getAvgWeeklyData(branchB), borderColor: '#4F46E5', tension: 0.1 }
+        ]
+    });
 }
 
 // Add this new helper function
@@ -5058,6 +5033,184 @@ function generateCabangAnalysis(data: any[]): void {
   chartDataForAI['cabangDetail'] = sortedByRevenue
 }
 
+/**
+ * Orchestrator for the "Analisis Perbandingan Cabang > Aspek Produk dan Channel" section.
+ */
+function generateCabangProdukChannelSection() {
+    if (!currentUser) return;
+    const period = (document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement).value;
+    const branchA = (document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement).value;
+    const branchB = (document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement).value;
+
+    if (!period || !branchA || !branchB || branchA === branchB) return;
+
+    const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
+
+    setupBranchMenuTrendChart(periodData, branchA, branchB);
+    generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart');
+    generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart');
+}
+
+/**
+ * Sets up the selectors for the "Cabang > Produk dan Channel" section.
+ */
+async function setupCabangProdukChannelSelectors() {
+    if (cabangProdukChannelSelectorsInitialized) return;
+    const periodSelect = document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement;
+    const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
+    const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
+
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
+
+    if (periods.length === 0 || branches.length < 2) { return; }
+
+    periodSelect.innerHTML = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    branchASelect.value = branches[0];
+    branchBSelect.value = branches[1];
+
+    const handler = () => generateCabangProdukChannelSection();
+    periodSelect.addEventListener('change', handler);
+    branchASelect.addEventListener('change', handler);
+    branchBSelect.addEventListener('change', handler);
+
+    cabangProdukChannelSelectorsInitialized = true;
+    generateCabangProdukChannelSection();
+}
+
+/**
+ * Sets up the interactive menu trend chart for comparing two branches.
+ */
+function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
+    if (cabangMenuTrendSelect) {
+        cabangMenuTrendSelect.destroy();
+    }
+    const selectEl = document.getElementById('cabang-menu-trend-select') as HTMLSelectElement;
+    const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
+    const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
+    const combinedData = [...branchAData, ...branchBData];
+
+    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].sort();
+
+    selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
+    cabangMenuTrendSelect = new SlimSelect({
+        select: '#cabang-menu-trend-select',
+        events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
+    });
+    cabangMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+}
+
+function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
+    if (!cabangMenuTrendSelect) return;
+
+    const selectedMenus = cabangMenuTrendSelect.getSelected() as string[];
+    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+
+    // Helper function to get daily sales quantity for a specific menu at a specific branch
+    const getDailyMenuDataForBranch = (data: any[], branchName: string, menuName: string) => {
+        const dailyQuantities = Array(31).fill(null);
+        const branchData = data.filter(s => s.revenueByBranch?.[branchName] !== undefined);
+
+        branchData.forEach(s => {
+            const dayIndex = s.date.getDate() - 1;
+            let qty = 0;
+            // Sum quantity from all categories in case menu name exists in multiple
+            if (s.menuItemQuantities) {
+                for (const category in s.menuItemQuantities) {
+                    if (s.menuItemQuantities[category][menuName]) {
+                        qty += s.menuItemQuantities[category][menuName];
+                    }
+                }
+            }
+            if (qty > 0) {
+                 dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
+            }
+        });
+        return dailyQuantities;
+    };
+
+    // Create a pair of datasets (Branch A and Branch B) for each selected menu
+    const datasets = selectedMenus.flatMap((menuName, index) => {
+        const color = colors[index % colors.length];
+        return [
+            {
+                label: `${menuName} (${branchA})`,
+                data: getDailyMenuDataForBranch(periodData, branchA, menuName),
+                borderColor: color,
+                borderDash: [5, 5], // Dashed line for Branch A
+                tension: 0.1,
+                spanGaps: true,
+            },
+            {
+                label: `${menuName} (${branchB})`,
+                data: getDailyMenuDataForBranch(periodData, branchB, menuName),
+                borderColor: color,
+                borderDash: [], // Solid line for Branch B
+                tension: 0.1,
+                spanGaps: true
+            }
+        ];
+    });
+
+    createChart('cabang-menu-trend-chart', 'line', {
+        labels,
+        datasets
+    }, {
+        plugins: {
+            tooltip: {
+                mode: 'index',
+                intersect: false
+            }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Day of Month' } },
+            y: { title: { display: true, text: 'Quantity Sold' } }
+        }
+    });
+}
+
+/**
+ * Generates a grouped bar chart comparing menu category quantities between two branches.
+ */
+function generateBranchCategoryComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+    const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
+    const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
+    const allCategories = [...new Set([...branchAData, ...branchBData].flatMap(s => Object.keys(s.menuCategories || {})))];
+
+    const getData = (data) => allCategories.map(cat => data.reduce((sum, s) => sum + (s.menuCategories?.[cat]?.quantity || 0), 0));
+
+    createChart(canvasId, 'bar', {
+        labels: allCategories,
+        datasets: [
+            { label: branchA, data: getData(branchAData), backgroundColor: '#9CA3AF' },
+            { label: branchB, data: getData(branchBData), backgroundColor: '#4F46E5' }
+        ]
+    });
+}
+
+/**
+ * Generates a grouped bar chart comparing channel revenue between two branches.
+ */
+function generateBranchChannelComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+    const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
+    const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
+    const allChannels = [...new Set([...branchAData, ...branchBData].flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
+
+    const getData = (data) => allChannels.map(chan => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0));
+
+    createChart(canvasId, 'bar', {
+        labels: allChannels,
+        datasets: [
+            { label: branchA, data: getData(branchAData), backgroundColor: '#9CA3AF' },
+            { label: branchB, data: getData(branchBData), backgroundColor: '#4F46E5' }
+        ]
+    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+}
+
 // Add these two new functions to main.ts
 
 /**
@@ -6101,6 +6254,13 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             await setupCabangKeuanganSelectors();
         }
 
+         if (targetId === 'cabang-penjualan') {
+            await setupCabangPenjualanSelectors();
+        }
+
+        if (targetId === 'cabang-produk-channel') {
+            await setupCabangProdukChannelSelectors();
+        }
         // Existing conditions
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
         if (targetId === 'waktu-penjualan') setupMonthlyOmzetComparisonChart();

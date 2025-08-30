@@ -951,58 +951,47 @@
 </section>
 
 <section id="cabang-penjualan-section" class="analysis-section space-y-6">
-    <div class="bg-white rounded-lg shadow-md">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
-            <p class="text-sm text-gray-500 mt-1">Membandingkan total pendapatan kotor setiap cabang.</p>
-        </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="perbandingan-omzet-outlet-chart"></canvas>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-penjualan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-penjualan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-penjualan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-penjualan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-penjualan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-penjualan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
             </div>
         </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-md">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
-            <p class="text-sm text-gray-500 mt-1">Membandingkan pendapatan dan volume transaksi antar cabang.</p>
-        </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="perbandingan-omzet-check-chart"></canvas>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Penjualan / Omset Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-omset-comparison-chart"></canvas>
             </div>
         </div>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-md">
-        <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Average Check per Cabang</h3>
-            <p class="text-sm text-gray-500 mt-1">Menganalisis daya beli pelanggan di setiap cabang.</p>
-        </div>
-        <div class="px-6 pb-6">
-            <div class="chart-container">
-                <canvas id="perbandingan-apc-chart"></canvas>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Check Harian (TC)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-tc-comparison-chart"></canvas>
             </div>
         </div>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-xl font-semibold text-gray-700 mb-4">Detail Performa Cabang</h3>
-        <p class="text-sm text-gray-500 mt-1 mb-4">Laporan detail yang merangkum semua metrik penjualan per cabang.</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cabang</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Omzet</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Check</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Check (APC)</th>
-                    </tr>
-                </thead>
-                <tbody id="perbandingan-cabang-detail-tbody" class="bg-white divide-y divide-gray-200">
-                </tbody>
-            </table>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren ATC (Average Transaction Check) Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-apc-comparison-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Trend Penjualan Rata-Rata per Hari</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-weekly-trend-comparison-chart"></canvas>
+            </div>
         </div>
     </div>
 </section>
@@ -1306,6 +1295,56 @@
             <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin (%)</h3>
             <div class="chart-container mt-4">
                 <canvas id="cabang-npm-comparison-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cabang-produk-channel-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-produk-channel-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-produk-channel-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-produk-channel-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-produk-channel-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-produk-channel-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-produk-channel-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <p class="text-sm text-gray-500 mt-1">Pilih menu untuk membandingkan tren penjualannya antara dua cabang.</p>
+            <div class="mt-4">
+                <label for="cabang-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+                <select id="cabang-menu-trend-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="cabang-menu-trend-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category (Qty)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-category-comparison-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Rp)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-channel-comparison-chart"></canvas>
             </div>
         </div>
     </div>
