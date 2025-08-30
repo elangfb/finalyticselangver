@@ -80,6 +80,10 @@ let currentPnlPeriod: string | null = null;
 let menuTrend24MonthSelect: SlimSelect | null = null;
 let generalKeuanganSelectorInitialized = false;
 let generalMenuTrendSelect: SlimSelect | null = null;
+let waktuKeuanganSelectorsInitialized = false;
+let waktuPenjualanSelectorsInitialized = false;
+let waktuProdukChannelSelectorsInitialized = false;
+let waktuMenuTrendSelect: SlimSelect | null = null;
 
 
 
@@ -2876,25 +2880,131 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: 
 }
 
 /**
- * Generates all charts and tables for the consolidated "Perbandingan Waktu (Penjualan)" section.
+ * Orchestrator for the "Analisis Perbandingan Waktu > Aspek Penjualan" section.
  */
-function generateWaktuPenjualanSection(summaries: any[]) {
-    // Perbandingan Jangka Pendek
-    setupMonthlyOmzetComparisonChart(); // This function already exists and uses `allSalesData` globally
-    setupMonthlyComparison(summaries);
+function generateWaktuPenjualanSection() {
+    if (!currentUser) return;
+    const periodA = (document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement).value;
+    const periodB = (document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement).value;
 
-    // Analisis Tren Jangka Panjang
-    generateYoYAnalysisFromSummaries(summaries);
-    generatePenjualanBulananChartFromSummaries(summaries, 'waktu-penjualan-bulanan-chart');
-    
-    generate24MonthTcApcTrend(summaries);
-    setup24MonthMenuTrendChart(summaries);
-    generate24MonthChannelTrendChart(summaries);
-    generate24MonthCategoryTrendChart(summaries);
+    if (!periodA || !periodB) return;
 
+    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
 
+    // Generate the three main comparison charts using a reusable function
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC' });
 
+    generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
+    generateYoYComparisonChart(periodB); // YoY only needs the second period for comparison
 }
+
+/**
+ * Sets up the period selectors for the "Waktu > Penjualan" section.
+ */
+async function setupWaktuPenjualanPeriodSelectors() {
+    if (waktuPenjualanSelectorsInitialized) return;
+    if (!currentUser) return;
+
+    const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
+
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+
+    if (periods.length < 2) {
+        selectA.innerHTML = '<option>Not enough data</option>';
+        selectB.innerHTML = '<option>Not enough data</option>';
+        return;
+    }
+
+    const optionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = optionsHtml;
+    selectB.innerHTML = optionsHtml;
+    selectA.value = periods[1];
+    selectB.value = periods[0];
+
+    const handler = () => generateWaktuPenjualanSection();
+    selectA.addEventListener('change', handler);
+    selectB.addEventListener('change', handler);
+    waktuPenjualanSelectorsInitialized = true;
+
+    generateWaktuPenjualanSection(); // Initial call
+}
+
+/**
+ * Reusable function to generate a line chart comparing a metric between two periods.
+ */
+function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[], config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string }) {
+    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+
+    const getDailyData = (data) => {
+        const daily = Array(31).fill(null);
+        data.forEach(s => {
+            const dayIndex = s.date.getDate() - 1;
+            daily[dayIndex] = s[config.metric];
+        });
+        return daily;
+    };
+
+    createChart(config.canvasId, 'line', {
+        labels,
+        datasets: [
+            { label: `${config.title} Period A`, data: getDailyData(periodAData), borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} Period B`, data: getDailyData(periodBData), borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+        ]
+    });
+}
+
+/**
+ * Generates a line chart comparing average sales by day of the week for two periods.
+ */
+function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const getAvgWeeklyData = (data) => {
+        const weeklyTotals = Array(7).fill(0);
+        const weeklyCounts = Array(7).fill(0);
+        const seenDates = new Set();
+
+        data.forEach(s => {
+            const dateStr = s.date.toISOString().split('T')[0];
+            const dayIndex = s.date.getDay();
+            weeklyTotals[dayIndex] += s.totalOmzet;
+            if (!seenDates.has(dateStr)) {
+                weeklyCounts[dayIndex]++;
+                seenDates.add(dateStr);
+            }
+        });
+        return weeklyTotals.map((total, i) => weeklyCounts[i] > 0 ? total / weeklyCounts[i] : 0);
+    };
+
+    createChart(canvasId, 'line', {
+        labels: dayLabels,
+        datasets: [
+            { label: `Avg Sales Period A`, data: getAvgWeeklyData(periodAData), borderColor: '#9CA3AF', tension: 0.1 },
+            { label: `Avg Sales Period B`, data: getAvgWeeklyData(periodBData), borderColor: '#4F46E5', tension: 0.1 }
+        ]
+    });
+}
+
+/**
+ * Generates a line chart comparing daily sales for a month vs. the same month last year.
+ */
+function generateYoYComparisonChart(periodB: string) {
+    const dateB = new Date(periodB + '-02');
+    const yearB = dateB.getFullYear();
+    const yearA = yearB - 1;
+    const month = dateB.getMonth();
+
+    const periodA = `${yearA}-${String(month + 1).padStart(2, '0')}`;
+
+    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
+
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
+} 
 
 /**
  * Orchestrator for the "Analisis General > Aspek Keuangan" section.
@@ -5655,7 +5765,6 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
 
 document.getElementById('analysis-view').addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
-
     const link = target.closest('.sidebar-link');
     const toggleBtn = target.closest('.submenu-toggle');
 
@@ -5675,13 +5784,17 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         const parentToggle = link.closest('.submenu-container')?.querySelector('.submenu-toggle');
         if (parentToggle) parentToggle.classList.add('active');
         
-        const targetId = link.dataset.target;
-
+       const targetId = link.dataset.target;
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
         if (targetSection) targetSection.classList.add('active');
         
-        const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 'analisa-pnl', 'general-keuangan'].includes(targetId);
+      
+
+        const showMainFilters = ![
+            'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 
+            'analisa-pnl', 'general-keuangan', 'waktu-keuangan' // Add 'waktu-keuangan' here
+        ].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
         
         // --- MODIFICATION IS HERE ---
@@ -5690,8 +5803,25 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             await setupGeneralKeuanganPeriodSelector(); // Sets up the dropdown (runs only once)
             await generateGeneralKeuanganSection();      // Loads the data (runs every time)
         }
+
+        if (targetId === 'waktu-keuangan') {
+            await setupWaktuKeuanganPeriodSelectors(); // Sets up dropdowns (runs once)
+            await generateWaktuKeuanganSection();      // Loads data (runs every time)
+        }
         // --- END OF MODIFICATION ---
         
+        if (targetId === 'waktu-keuangan') {
+            await setupWaktuKeuanganPeriodSelectors();
+        }
+
+        if (targetId === 'waktu-penjualan') {
+            await setupWaktuPenjualanPeriodSelectors();
+        }
+
+        if (targetId === 'waktu-produk-channel') {
+            await setupWaktuProdukChannelPeriodSelectors();
+        }
+
         // Existing conditions
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
         if (targetId === 'waktu-penjualan') setupMonthlyOmzetComparisonChart();
@@ -11311,6 +11441,382 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
     generateOrderByCategoryDonutChart(summaries, 'general-category-donut-chart');
     generateTopItemsDonutChart(summaries, 'general-top-makanan-donut-chart', 'MAKANAN');
     generateTopItemsDonutChart(summaries, 'general-top-minuman-donut-chart', 'MINUMAN');
+}
+
+/**
+ * Orchestrator for the "Analisis Perbandingan Waktu > Aspek Keuangan" section.
+ */
+async function generateWaktuKeuanganSection() {
+    if (!currentUser) return;
+    const periodA = (document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement).value;
+    const periodB = (document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement).value;
+
+    if (!periodA || !periodB) return;
+
+    showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
+
+    await generatePnlComparisonTable(periodA, periodB, 'waktu-pnl-comparison-container');
+
+    // Use the reusable function for all comparison charts
+    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
+    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
+    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
+    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+
+    hideLoading();
+}
+
+/**
+ * Sets up the period selectors for the "Waktu > Keuangan" section.
+ */
+async function setupWaktuKeuanganPeriodSelectors() {
+    if (waktuKeuanganSelectorsInitialized) return;
+    if (!currentUser) return;
+
+    const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
+
+    try {
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const reportsSnap = await getDocs(reportsRef);
+        const periods = reportsSnap.docs.map(doc => doc.data().period).filter(Boolean).sort().reverse();
+
+        if (periods.length < 2) {
+            selectA.innerHTML = '<option>Not enough data to compare</option>';
+            selectB.innerHTML = '<option>Not enough data to compare</option>';
+            return;
+        }
+
+        const optionsHtml = periods.map(p => {
+            const dateLabel = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+            return `<option value="${p}">${dateLabel}</option>`;
+        }).join('');
+
+        selectA.innerHTML = optionsHtml;
+        selectB.innerHTML = optionsHtml;
+        selectA.value = periods[1]; // Default to second most recent
+        selectB.value = periods[0]; // Default to most recent
+
+        const handler = () => generateWaktuKeuanganSection();
+        selectA.addEventListener('change', handler);
+        selectB.addEventListener('change', handler);
+        waktuKeuanganSelectorsInitialized = true;
+
+        // The data load trigger that was here has been removed.
+    } catch (error) {
+        console.error("Error setting up P&L period selectors:", error);
+    }
+}
+
+/**
+ * Orchestrator for the "Analisis Perbandingan Waktu > Aspek Produk dan Channel" section.
+ */
+function generateWaktuProdukChannelSection() {
+    if (!currentUser) return;
+    const periodA = (document.getElementById('waktu-produk-period-a') as HTMLSelectElement).value;
+    const periodB = (document.getElementById('waktu-produk-period-b') as HTMLSelectElement).value;
+
+    if (!periodA || !periodB) return;
+
+    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
+
+    setupWaktuMenuTrendChart(periodAData, periodBData);
+    generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
+    generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
+}
+
+/**
+ * Sets up the period selectors for the "Waktu > Produk dan Channel" section.
+ */
+async function setupWaktuProdukChannelPeriodSelectors() {
+    if (waktuProdukChannelSelectorsInitialized) return;
+    const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
+    // ... (This function's logic is identical to setupWaktuPenjualanPeriodSelectors, just with different IDs)
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    if (periods.length < 2) { /* handle not enough data */ return; }
+    const optionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = optionsHtml;
+    selectB.innerHTML = optionsHtml;
+    selectA.value = periods[1];
+    selectB.value = periods[0];
+    const handler = () => generateWaktuProdukChannelSection();
+    selectA.addEventListener('change', handler);
+    selectB.addEventListener('change', handler);
+    waktuProdukChannelSelectorsInitialized = true;
+    generateWaktuProdukChannelSection();
+}
+
+/**
+ * Sets up the interactive menu trend chart for comparing two periods.
+ */
+function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
+    if (waktuMenuTrendSelect) {
+        waktuMenuTrendSelect.destroy(); // Destroy old instance to repopulate options
+    }
+    const selectEl = document.getElementById('waktu-menu-trend-select') as HTMLSelectElement;
+    const combinedData = [...periodAData, ...periodBData];
+    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].sort();
+
+    selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
+    waktuMenuTrendSelect = new SlimSelect({
+        select: '#waktu-menu-trend-select',
+        events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
+    });
+    waktuMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+}
+
+/**
+ * Draws the menu trend comparison chart.
+ */
+function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
+    if (!waktuMenuTrendSelect) return;
+
+    const selectedMenus = waktuMenuTrendSelect.getSelected() as string[];
+    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+
+    // Helper function to get daily sales quantity for a specific menu
+    const getDailyMenuData = (data, menuName) => {
+        const dailyQuantities = Array(31).fill(null);
+        const menuData = data.filter(s => {
+            // Check if the menu exists in any category for this summary
+            return s.menuItemQuantities && Object.values(s.menuItemQuantities).some(cat => cat[menuName] !== undefined);
+        });
+
+        menuData.forEach(s => {
+            const dayIndex = s.date.getDate() - 1;
+            let qty = 0;
+            // Sum quantity from all categories in case menu name exists in multiple
+            for (const category in s.menuItemQuantities) {
+                if (s.menuItemQuantities[category][menuName]) {
+                    qty += s.menuItemQuantities[category][menuName];
+                }
+            }
+            dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
+        });
+        return dailyQuantities;
+    };
+
+    // Create a pair of datasets (Period A and Period B) for each selected menu
+    const datasets = selectedMenus.flatMap((menuName, index) => {
+        const color = colors[index % colors.length];
+        return [
+            {
+                label: `${menuName} (Period A)`,
+                data: getDailyMenuData(periodAData, menuName),
+                borderColor: color,
+                borderDash: [5, 5], // Dashed line for Period A
+                tension: 0.1,
+                spanGaps: true,
+                hidden: true // Initially hide Period A to reduce clutter
+            },
+            {
+                label: `${menuName} (Period B)`,
+                data: getDailyMenuData(periodBData, menuName),
+                borderColor: color,
+                borderDash: [], // Solid line for Period B
+                tension: 0.1,
+                spanGaps: true
+            }
+        ];
+    });
+
+    createChart('waktu-menu-trend-chart', 'line', {
+        labels,
+        datasets
+    }, {
+        plugins: {
+            tooltip: {
+                mode: 'index',
+                intersect: false
+            }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Day of Month' } },
+            y: { title: { display: true, text: 'Quantity Sold' } }
+        }
+    });
+}
+
+/**
+ * Generates a grouped bar chart comparing menu category quantities between two periods.
+ */
+function generateCategoryComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+    const allCategories = [...new Set([...periodAData, ...periodBData].flatMap(s => Object.keys(s.menuCategories || {})))];
+
+    const getData = (data) => allCategories.map(cat => data.reduce((sum, s) => sum + (s.menuCategories?.[cat]?.quantity || 0), 0));
+
+    createChart(canvasId, 'bar', {
+        labels: allCategories,
+        datasets: [
+            { label: 'Period A', data: getData(periodAData), backgroundColor: '#9CA3AF' },
+            { label: 'Period B', data: getData(periodBData), backgroundColor: '#4F46E5' }
+        ]
+    });
+}
+
+/**
+ * Generates a grouped bar chart comparing channel revenue between two periods.
+ */
+function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+    const allChannels = [...new Set([...periodAData, ...periodBData].flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
+
+    const getData = (data) => allChannels.map(chan => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0));
+
+    createChart(canvasId, 'bar', {
+        labels: allChannels,
+        datasets: [
+            { label: 'Period A', data: getData(periodAData), backgroundColor: '#9CA3AF' },
+            { label: 'Period B', data: getData(periodBData), backgroundColor: '#4F46E5' }
+        ]
+    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+}
+
+/**
+ * Generates a detailed P&L comparison table between two periods,
+ * formatted similarly to the P&L vs. Target table.
+ */
+async function generatePnlComparisonTable(periodA: string, periodB: string, containerId: string) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '<p class="text-gray-500 p-4">Loading comparison table...</p>';
+
+    try {
+        const [reportASnap, reportBSnap] = await Promise.all([
+            getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodA)),
+            getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodB))
+        ]);
+
+        // Safely get P&L data, defaulting to an empty object
+        const pnlDataA = reportASnap.data()?.pnlData || {};
+        const pnlDataB = reportBSnap.data()?.pnlData || {};
+
+        const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+        const subtotals = {
+            "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+        };
+        const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
+
+        // --- MORE ROBUST CALCULATION LOGIC ---
+        const calculateAllMetrics = (pnlData) => {
+            const results = {};
+            const categoryTotals = {};
+            categoryOrder.forEach(cat => {
+                // Safely access pnlData and sum up values
+                const total = Object.values(pnlData?.[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                results[cat] = total;
+                categoryTotals[cat] = total;
+            });
+            Object.keys(subtotals).forEach(sub => {
+                results[sub] = subtotals[sub](categoryTotals);
+            });
+            return results;
+        };
+
+        const valuesA = calculateAllMetrics(pnlDataA);
+        const valuesB = calculateAllMetrics(pnlDataB);
+
+        const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+        const labelA = new Date(periodA + '-02').toLocaleString('default', { month: 'short', year: 'numeric' });
+        const labelB = new Date(periodB + '-02').toLocaleString('default', { month: 'short', year: 'numeric' });
+        
+        let tableHtml = `
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${labelA}</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${labelB}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">`;
+
+        allMetrics.forEach(metric => {
+            const valueA = valuesA[metric] || 0;
+            const valueB = valuesB[metric] || 0;
+            // Correctly identify all cost types
+            const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok produksi');
+            
+            let achievement = 0;
+            if (valueA !== 0) {
+                achievement = isCost ? (valueA / valueB) * 100 : (valueB / valueA) * 100;
+            } else if (valueB > 0) {
+                achievement = 100;
+            }
+
+            const change = valueB - valueA;
+            let changeColor = change >= 0 ? 'text-green-600' : 'text-red-600';
+            if (isCost && change > 0) changeColor = 'text-red-600'; // Higher cost is bad
+            if (isCost && change < 0) changeColor = 'text-green-600'; // Lower cost is good
+
+            tableHtml += `
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueA)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueB)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
+                            </div>
+                            <span class="font-semibold ${changeColor}">${change >= 0 ? '+' : ''}${shortenCurrency(change)}</span>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+        
+        tableHtml += `</tbody></table>`;
+        container.innerHTML = tableHtml;
+
+    } catch(error) {
+        console.error("Error generating P&L comparison table:", error);
+        container.innerHTML = `<p class="text-red-500 p-4">Error loading data for comparison. One of the selected periods may be missing a P&L report.</p>`;
+    }
+}
+
+/**
+ * Reusable function to generate a dual-axis comparison chart for a financial ratio.
+ */
+async function generateRatioComparisonChart(periodA: string, periodB: string, config: { canvasId: string, metric: string, title: string }) {
+    const [reportASnap, reportBSnap] = await Promise.all([
+        getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodA)),
+        getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodB))
+    ]);
+
+    const getMetricValue = (pnlData) => {
+         // Simplified calculation logic for demonstration
+        const revenue = Object.values(pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number, v:number) => s + v, 0);
+        if (config.metric.includes('Profit') || config.metric.includes('Income')) {
+            const hpp = Object.values(pnlData?.["Harga Pokok Produksi"] || {}).reduce((s:number, v:number) => s + v, 0);
+            return revenue - hpp;
+        }
+        return Object.values(pnlData?.[config.metric] || {}).reduce((s:number, v:number) => s + v, 0);
+    };
+
+    const valueA = getMetricValue(reportASnap.data()?.pnlData);
+    const valueB = getMetricValue(reportBSnap.data()?.pnlData);
+    const revenueA = Object.values(reportASnap.data()?.pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
+    const revenueB = Object.values(reportBSnap.data()?.pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
+    const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
+    const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
+
+    const labels = [
+        new Date(periodA + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }),
+        new Date(periodB + '-02').toLocaleString('default', { month: 'short', year: 'numeric' })
+    ];
+
+    createChart(config.canvasId, 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: `${config.title} (Rp)`, data: [valueA, valueB], backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
+            { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
+        ]
+    }, { /* ... scale options from previous dual-axis charts ... */ });
 }
 
 function generateAnalisaPenjualanSection(summaries: any[]) {
