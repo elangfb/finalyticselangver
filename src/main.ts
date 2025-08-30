@@ -6231,23 +6231,18 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             await generateGeneralKeuanganSection();      // Loads the data (runs every time)
         }
 
+        // --- MODIFICATION: Removed the direct call to generateWaktuKeuanganSection() from here ---
         if (targetId === 'waktu-keuangan') {
-            await setupWaktuKeuanganPeriodSelectors(); // Sets up dropdowns (runs once)
-            await generateWaktuKeuanganSection();      // Loads data (runs every time)
+            await setupWaktuKeuanganPeriodSelectors(); // This will now handle the initial data load
         }
-        // --- END OF MODIFICATION ---
         
-        if (targetId === 'waktu-keuangan') {
-            await setupWaktuKeuanganPeriodSelectors();
-        }
-
         if (targetId === 'waktu-penjualan') {
             await setupWaktuPenjualanPeriodSelectors();
         }
 
         if (targetId === 'waktu-produk-channel') {
-            await setupWaktuProdukChannelPeriodSelectors(); // Sets up dropdowns (runs once)
-            await generateWaktuProdukChannelSection();      // Loads data (runs every time)
+            await setupWaktuProdukChannelPeriodSelectors();
+            await generateWaktuProdukChannelSection();
         }
 
          if (targetId === 'cabang-keuangan') {
@@ -11889,18 +11884,35 @@ async function generateWaktuKeuanganSection() {
     if (!currentUser) return;
     const periodA = (document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement).value;
     const periodB = (document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement).value;
+    const selectedBranch = (document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement).value;
 
     if (!periodA || !periodB) return;
 
     showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
+    
+    // This function will now query all P&L reports and then filter by branch on the client-side.
+    // This is necessary because the document ID is now a composite key.
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(pnlReportsRef);
+    const allReports = reportsSnap.docs.map(doc => doc.data());
 
-    await generatePnlComparisonTable(periodA, periodB, 'waktu-pnl-comparison-container');
+    const findReport = (period, branch) => {
+        if (branch === 'ALL') {
+            // Logic to aggregate all reports for a period if "All Branches" is selected.
+            // For now, this is a placeholder. A full implementation would sum up all branches.
+            return allReports.find(r => r.period === period); 
+        }
+        return allReports.find(r => r.period === period && r.branchName === branch);
+    };
 
-    // Use the reusable function for all comparison charts
-    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
-    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
-    generateRatioComparisonChart(periodA, periodB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+    const reportA = findReport(periodA, selectedBranch);
+    const reportB = findReport(periodB, selectedBranch);
+
+    generatePnlComparisonTable(reportA, reportB, 'waktu-pnl-comparison-container');
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
 
     hideLoading();
 }
@@ -11910,41 +11922,90 @@ async function generateWaktuKeuanganSection() {
  */
 async function setupWaktuKeuanganPeriodSelectors() {
     if (waktuKeuanganSelectorsInitialized) return;
-    if (!currentUser) return;
-
     const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
+    const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
 
-    try {
-        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-        const reportsSnap = await getDocs(reportsRef);
-        const periods = reportsSnap.docs.map(doc => doc.data().period).filter(Boolean).sort().reverse();
+    // 1. Fetch all reports ONCE to get the list of unique branches
+    const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(reportsRef);
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
 
-        if (periods.length < 2) {
-            selectA.innerHTML = '<option>Not enough data to compare</option>';
-            selectB.innerHTML = '<option>Not enough data to compare</option>';
-            return;
-        }
-
-        const optionsHtml = periods.map(p => {
-            const dateLabel = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
-            return `<option value="${p}">${dateLabel}</option>`;
-        }).join('');
-
-        selectA.innerHTML = optionsHtml;
-        selectB.innerHTML = optionsHtml;
-        selectA.value = periods[1]; // Default to second most recent
-        selectB.value = periods[0]; // Default to most recent
-
-        const handler = () => generateWaktuKeuanganSection();
-        selectA.addEventListener('change', handler);
-        selectB.addEventListener('change', handler);
-        waktuKeuanganSelectorsInitialized = true;
-
-        // The data load trigger that was here has been removed.
-    } catch (error) {
-        console.error("Error setting up P&L period selectors:", error);
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches found</option>';
+        return;
     }
+
+    // 2. Populate ONLY the branch selector
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchSelect.value = branches[0]; // Set a default branch
+
+    // 3. Add event listeners
+    // The period selectors will just re-run the main generation function
+    selectA.addEventListener('change', () => generateWaktuKeuanganSection());
+    selectB.addEventListener('change', () => generateWaktuKeuanganSection());
+
+    // The branch selector's listener will call our new function to update the periods
+    branchSelect.addEventListener('change', async () => {
+        await updatePeriodSelectorsForBranch(branchSelect.value);
+    });
+    
+    waktuKeuanganSelectorsInitialized = true;
+    
+    // 4. Trigger the initial population of period selectors for the default branch
+    await updatePeriodSelectorsForBranch(branches[0]);
+}
+
+// Add this entire new function to your main.ts file
+
+/**
+ * Updates the Period A and Period B selectors based on the selected branch.
+ * @param {string} selectedBranch - The name of the branch that was selected.
+ */
+async function updatePeriodSelectorsForBranch(selectedBranch: string) {
+    if (!currentUser) return;
+    const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
+    const container = document.getElementById('waktu-pnl-comparison-container');
+
+    selectA.innerHTML = '<option>Loading periods...</option>';
+    selectB.innerHTML = '<option>Loading periods...</option>';
+    
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    // Create a query to find all P&L reports for the selected branch
+    const q = query(pnlReportsRef, where("branchName", "==", selectedBranch));
+    const reportsSnap = await getDocs(q);
+
+    const periods = reportsSnap.docs
+        .map(doc => doc.data().period)
+        .filter(Boolean) // Remove any null/undefined periods
+        .sort()
+        .reverse(); // Show most recent first
+
+    // If there aren't at least 2 periods, we can't do a comparison
+    if (periods.length < 2) {
+        selectA.innerHTML = '<option>Not enough data for comparison</option>';
+        selectB.innerHTML = '<option>Not enough data for comparison</option>';
+        // Clear out any old charts or tables
+        if (container) container.innerHTML = '<p class="text-gray-500 p-4 text-center">This branch does not have enough P&L reports to compare.</p>';
+        // You might want to clear the charts here as well
+        Object.values(charts).forEach(chart => {
+            if (chart.canvas.id.startsWith('waktu-')) chart.destroy();
+        });
+        return;
+    }
+
+    // Populate the period selectors with the filtered list of periods
+    const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = periodOptionsHtml;
+    selectB.innerHTML = periodOptionsHtml;
+
+    // Set default values (e.g., the two most recent periods)
+    selectA.value = periods[1];
+    selectB.value = periods[0];
+
+    // Finally, trigger the chart and table generation with the new valid selections
+    await generateWaktuKeuanganSection();
 }
 
 /**
@@ -12124,19 +12185,14 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
  * Generates a detailed P&L comparison table between two periods,
  * formatted similarly to the P&L vs. Target table.
  */
-async function generatePnlComparisonTable(periodA: string, periodB: string, containerId: string) {
+function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string) {
     const container = document.getElementById(containerId);
-    container.innerHTML = '<p class="text-gray-500 p-4">Loading comparison table...</p>';
+    container.innerHTML = ''; // Clear previous content
 
     try {
-        const [reportASnap, reportBSnap] = await Promise.all([
-            getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodA)),
-            getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodB))
-        ]);
-
-        // Safely get P&L data, defaulting to an empty object
-        const pnlDataA = reportASnap.data()?.pnlData || {};
-        const pnlDataB = reportBSnap.data()?.pnlData || {};
+        // --- MODIFICATION: Get P&L data directly from the passed objects ---
+        const pnlDataA = reportA?.pnlData || {};
+        const pnlDataB = reportB?.pnlData || {};
 
         const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
         const subtotals = {
@@ -12147,12 +12203,10 @@ async function generatePnlComparisonTable(periodA: string, periodB: string, cont
         };
         const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
 
-        // --- MORE ROBUST CALCULATION LOGIC ---
         const calculateAllMetrics = (pnlData) => {
             const results = {};
             const categoryTotals = {};
             categoryOrder.forEach(cat => {
-                // Safely access pnlData and sum up values
                 const total = Object.values(pnlData?.[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
                 results[cat] = total;
                 categoryTotals[cat] = total;
@@ -12167,8 +12221,9 @@ async function generatePnlComparisonTable(periodA: string, periodB: string, cont
         const valuesB = calculateAllMetrics(pnlDataB);
 
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-        const labelA = new Date(periodA + '-02').toLocaleString('default', { month: 'short', year: 'numeric' });
-        const labelB = new Date(periodB + '-02').toLocaleString('default', { month: 'short', year: 'numeric' });
+        // --- MODIFICATION: Get period labels from the report objects ---
+        const labelA = reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A';
+        const labelB = reportB ? new Date(reportB.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period B';
         
         let tableHtml = `
             <table class="min-w-full divide-y divide-gray-200">
@@ -12185,7 +12240,6 @@ async function generatePnlComparisonTable(periodA: string, periodB: string, cont
         allMetrics.forEach(metric => {
             const valueA = valuesA[metric] || 0;
             const valueB = valuesB[metric] || 0;
-            // Correctly identify all cost types
             const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok produksi');
             
             let achievement = 0;
@@ -12197,8 +12251,8 @@ async function generatePnlComparisonTable(periodA: string, periodB: string, cont
 
             const change = valueB - valueA;
             let changeColor = change >= 0 ? 'text-green-600' : 'text-red-600';
-            if (isCost && change > 0) changeColor = 'text-red-600'; // Higher cost is bad
-            if (isCost && change < 0) changeColor = 'text-green-600'; // Lower cost is good
+            if (isCost && change > 0) changeColor = 'text-red-600';
+            if (isCost && change < 0) changeColor = 'text-green-600';
 
             tableHtml += `
                 <tr>
@@ -12228,32 +12282,34 @@ async function generatePnlComparisonTable(periodA: string, periodB: string, cont
 /**
  * Reusable function to generate a dual-axis comparison chart for a financial ratio.
  */
-async function generateRatioComparisonChart(periodA: string, periodB: string, config: { canvasId: string, metric: string, title: string }) {
-    const [reportASnap, reportBSnap] = await Promise.all([
-        getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodA)),
-        getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, periodB))
-    ]);
-
+function generateRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string }) {
+    // --- MODIFICATION: The function no longer needs to fetch data ---
+    
+    const pnlDataA = reportA?.pnlData;
+    const pnlDataB = reportB?.pnlData;
+    
     const getMetricValue = (pnlData) => {
-         // Simplified calculation logic for demonstration
+         // This is a simplified calculation logic
         const revenue = Object.values(pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number, v:number) => s + v, 0);
+        if (!revenue) return 0; // Return 0 if no revenue data exists
+
         if (config.metric.includes('Profit') || config.metric.includes('Income')) {
             const hpp = Object.values(pnlData?.["Harga Pokok Produksi"] || {}).reduce((s:number, v:number) => s + v, 0);
-            return revenue - hpp;
+            return revenue - hpp; // Simplified Gross Profit
         }
         return Object.values(pnlData?.[config.metric] || {}).reduce((s:number, v:number) => s + v, 0);
     };
 
-    const valueA = getMetricValue(reportASnap.data()?.pnlData);
-    const valueB = getMetricValue(reportBSnap.data()?.pnlData);
-    const revenueA = Object.values(reportASnap.data()?.pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
-    const revenueB = Object.values(reportBSnap.data()?.pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
+    const valueA = getMetricValue(pnlDataA);
+    const valueB = getMetricValue(pnlDataB);
+    const revenueA = Object.values(pnlDataA?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
+    const revenueB = Object.values(pnlDataB?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
     const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
     const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
 
     const labels = [
-        new Date(periodA + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }),
-        new Date(periodB + '-02').toLocaleString('default', { month: 'short', year: 'numeric' })
+        reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A',
+        reportB ? new Date(reportB.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period B'
     ];
 
     createChart(config.canvasId, 'bar', {
@@ -12262,7 +12318,12 @@ async function generateRatioComparisonChart(periodA: string, periodB: string, co
             { type: 'bar', label: `${config.title} (Rp)`, data: [valueA, valueB], backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
             { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
         ]
-    }, { /* ... scale options from previous dual-axis charts ... */ });
+    }, {
+        scales: {
+            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+        }
+    });
 }
 
 function generateAnalisaPenjualanSection(summaries: any[]) {
