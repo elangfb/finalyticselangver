@@ -1,18 +1,3 @@
-/**
- * Finalytics - AI-Powered Sales Analysis Application
- *
- * Main file that manages all application logic, including:
- * - Firebase Authentication
- * - Excel data processing
- * - Chart.js visualization
- * - AI analysis with Gemini API
- * - PDF Export
- * - User management
- */
-
-/* eslint-disable */
-// @ts-nocheck
-
 declare const XLSX: any;
 
 // Firebase Imports
@@ -93,6 +78,8 @@ let monthlyComparisonTargets = {};
 let omzetComparisonSelect: SlimSelect | null = null;
 let currentPnlPeriod: string | null = null;
 let menuTrend24MonthSelect: SlimSelect | null = null;
+let generalKeuanganSelectorInitialized = false;
+let generalMenuTrendSelect: SlimSelect | null = null;
 
 
 
@@ -212,14 +199,6 @@ function setupMonthlyOmzetComparisonChart() {
 }
 
 
-/**
- * Renders the final, calculated P&L statement.
- * @param {object} pnlData - The mapped P&L data, categorized.
- */
-/**
- * Renders the final, calculated P&L statement with all subtotals.
- * @param {object} pnlData - The mapped P&L data, categorized.
- */
 function renderPnlResults(pnlData) {
     currentPnlData = pnlData;
     const container = document.getElementById('pnl-results-container');
@@ -651,8 +630,14 @@ quickUploadConfirmBtn.addEventListener('click', async () => {
         quickUploadProcessingStatus.className = 'mt-2 text-sm text-green-600';
         quickUploadProcessingStatus.classList.remove('hidden');
 
-        await populateCompiledDataTable(); // Refresh the main table
-        setTimeout(() => quickUploadModal.classList.add('hidden'), 2000);
+        // Always refresh the main data hub table in the background
+        await populateCompiledDataTable(); 
+
+        // ALSO, if the user is currently viewing the financial analysis page, refresh it.
+        const generalKeuanganSection = document.getElementById('general-keuangan-section');
+        if (generalKeuanganSection && generalKeuanganSection.classList.contains('active')) {
+            await generateGeneralKeuanganSection();
+        }setTimeout(() => quickUploadModal.classList.add('hidden'), 2000);
 
     } catch (error) {
         console.error("Quick upload failed:", error);
@@ -664,7 +649,7 @@ quickUploadConfirmBtn.addEventListener('click', async () => {
 });
 
 // Add event listener for the new table
-document.getElementById('compiled-data-tbody').addEventListener('click', async (e) => {
+document.getElementById('app').addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
     // Use .closest() to correctly find the button, even if the icon inside is clicked
     const viewBtn = target.closest('.view-compiled-btn');
@@ -2155,6 +2140,7 @@ function runMonthlyComparison(summaries: any[]) {
     };
 } 
 
+
 function runAnalysis(): void {
   const currentStartDate = new Date(document.getElementById('date-start').value);
   const currentEndDate = new Date(document.getElementById('date-end').value);
@@ -2164,24 +2150,32 @@ function runAnalysis(): void {
   const lastPeriodEndDate = new Date(document.getElementById('last-period-end').value);
   lastPeriodEndDate.setHours(23, 59, 59, 999);
 
-  // Filter summaries based on the selected date range
   const currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
   const lastPeriodData = allSalesData.filter((summary) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
 
   destroyCharts();
 
-  // --- Call all the NEW summary-based functions ---
-  generateRingkasanFromSummaries(currentData, lastPeriodData);
-  generateOmzetHarianChartFromSummaries(currentData);
-  generateTcApcHarianChartFromSummaries(currentData);
-  generateDailyOmzetHeatmapFromSummaries(currentData);
-  generateOmzetHeatmapFromSummaries(currentData);
-  generateOmzetMingguanChartFromSummaries(currentData);
+  // Tinjauan Umum Section
+  generateRingkasanFromSummaries(currentData, lastPeriodData, {
+      omzet: 'ringkasan-total-omzet',
+      check: 'ringkasan-total-check',
+      avgCheck: 'ringkasan-avg-check',
+      omzetGrowth: 'ringkasan-omzet-growth',
+      checkGrowth: 'ringkasan-check-growth',
+      avgCheckGrowth: 'ringkasan-avg-check-growth'
+  });
+  generateDailyOmzetHeatmapFromSummaries(currentData, 'daily-omzet-heatmap-container');
+  generateOmzetHeatmapFromSummaries(currentData, 'omzet-heatmap-container');
+  generateTcApcHarianChartFromSummaries(currentData, 'tc-apc-harian-chart');
+  generateOmzetHarianChartFromSummaries(currentData, 'omzet-harian-chart');
+  generateOmzetMingguanChartFromSummaries(currentData, 'omzet-mingguan-chart', 'line');
   generateOmzetBulananChartFromSummaries(currentData);
   generateOmzetOutletChartFromSummaries(currentData, 'omzet-outlet-chart');
-  generatePenjualanChannelChartFromSummaries(currentData);
-  generateSalesTrendHourlyDailyChartFromSummaries(currentData);
+
+  // Analisa Produk Section
   generateProductAnalysisChartsFromSummaries(currentData);
+
+  // Analisa Cabang Section
   generateCabangAnalysisFromSummaries(currentData, {
       topOmzetNameId: 'cabang-omzet-tertinggi-nama',
       topOmzetValueId: 'cabang-omzet-tertinggi-nilai',
@@ -2193,18 +2187,17 @@ function runAnalysis(): void {
       apcCanvasId: 'cabang-apc-chart',
       detailTableId: 'cabang-detail-tbody'
   });
-  generateMenuSalesTrendChart(currentData);
-  generatePnlAnalysisTable(currentStartDate, currentEndDate);
-  setupMonthlyOmzetComparisonChart();
-  generateAnalisaPenjualanCharts(currentData);
+
+  // Call all other section orchestrators
   generateWaktuPenjualanSection(currentData);
-  generateAnalisaPnlTable();
-  generatePenjualanBulananChartFromSummaries(currentData, 'penjualan-bulanan-chart');
+  generateAnalisaPenjualanCharts(currentData); // This is the "Analisa Penjualan (New)"
   generateCabangPenjualanSection(currentData);
+  generateGeneralPenjualanSection(currentData, lastPeriodData);
+  generateGeneralProdukChannelSection(currentData);
 
+  // --- NEW: Call the orchestrator for the original "Analisa Penjualan" section ---
+  generateAnalisaPenjualanSection(currentData);
 
-  
-  
   console.log("Analysis complete with pre-calculated summaries.");
 }
 
@@ -2605,11 +2598,18 @@ async function setupPnlPeriodSelector() {
     }
 } 
 
-function generateMenuSalesTrendChart(summaries: any[]) {
-    const menuSelectElement = document.getElementById('menu-select') as HTMLSelectElement;
-    
-    // 1. Get a list of all unique, non-package menu items from the summaries
+function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string) {
+    // This check is to prevent re-creating the dropdown over and over.
+    // We will create it once and then just update the chart.
+    if (window.generalMenuTrendSelect) {
+        drawGeneralMenuTrendChart(summaries, canvasId);
+        return;
+    }
+
+    const menuSelectElement = document.getElementById(selectId) as HTMLSelectElement;
     const allMenuItems = new Set<string>();
+
+    // --- THIS IS THE CORRECTED LOGIC THAT WAS MISSING ---
     summaries.forEach(s => {
         if (s.menuItemQuantities) {
             for (const category in s.menuItemQuantities) {
@@ -2621,73 +2621,62 @@ function generateMenuSalesTrendChart(summaries: any[]) {
             }
         }
     });
+    // --- END OF CORRECTION ---
 
     const sortedMenuItems = Array.from(allMenuItems).sort();
     
-    // 2. Populate the dropdown with all available menu items
+    if(sortedMenuItems.length === 0) {
+        menuSelectElement.innerHTML = `<option disabled>No menu items found in this period</option>`;
+        return;
+    }
+
     menuSelectElement.innerHTML = sortedMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
-    // 3. Initialize the Slim Select dropdown
-    const slim = new SlimSelect({
-        select: '#menu-select',
-        settings: {
-            placeholderText: 'Choose menu items...',
-            searchPlaceholder: 'Search for a menu item',
-        },
-        // When the selection changes, redraw the chart
+    window.generalMenuTrendSelect = new SlimSelect({
+        select: `#${selectId}`,
+        settings: { placeholderText: 'Select menus...' },
         events: {
-            afterChange: () => drawChart()
+            afterChange: () => drawGeneralMenuTrendChart(allSalesData, canvasId)
         }
     });
+    window.generalMenuTrendSelect.setSelected(sortedMenuItems.slice(0, 3));
+}
 
-    // Set some initial items to display on the chart
-    slim.setSelected(sortedMenuItems.slice(0, 3)); // Select the first 3 items by default
-
-    // 4. Create the function that draws/updates the chart
-    function drawChart() {
-        const selectedMenus = slim.getSelected() as string[];
-        if (selectedMenus.length === 0) {
-            if (charts['menu-sales-trend-chart']) charts['menu-sales-trend-chart'].destroy();
-            return;
-        }
-
-        const labels = summaries.map(s => s.date.toISOString().split('T')[0]).sort();
-        const datasets = selectedMenus.map((menuName, index) => {
-            const dataPoints = labels.map(dateStr => {
-                const summaryForDay = summaries.find(s => s.date.toISOString().startsWith(dateStr));
-                let quantity = 0;
-                if (summaryForDay && summaryForDay.menuItemQuantities) {
-                    // Find the quantity for the menu item, regardless of its category
-                    for (const category in summaryForDay.menuItemQuantities) {
-                        if (summaryForDay.menuItemQuantities[category][menuName]) {
-                            quantity = summaryForDay.menuItemQuantities[category][menuName];
-                            break;
-                        }
+function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
+    if (!window.generalMenuTrendSelect) return;
+    
+    const selectedMenus = window.generalMenuTrendSelect.getSelected() as string[];
+    const labels = summaries.map(s => s.date.toISOString().split('T')[0]).sort();
+    
+    const datasets = selectedMenus.map((menuName, index) => {
+        const dataPoints = labels.map(dateStr => {
+            const summaryForDay = summaries.find(s => s.date.toISOString().startsWith(dateStr));
+            let quantity = 0;
+            if (summaryForDay && summaryForDay.menuItemQuantities) {
+                for (const category in summaryForDay.menuItemQuantities) {
+                    if (summaryForDay.menuItemQuantities[category][menuName]) {
+                        quantity = summaryForDay.menuItemQuantities[category][menuName];
+                        break;
                     }
                 }
-                return quantity;
-            });
-            
-            const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
-            return {
-                label: menuName,
-                data: dataPoints,
-                borderColor: colors[index % colors.length],
-                tension: 0.1,
-                fill: false
-            };
+            }
+            return quantity;
         });
         
-        chartDataForAI['menuSalesTrend'] = { selectedMenus, datasets };
-
-        createChart('menu-sales-trend-chart', 'line', {
-            labels,
-            datasets
-        }, deepmerge(
-            chartYTicks(shortenNumber),
-            chartXTicks(shortenDateTickCallback)
-        ));
-    }
+        const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+        return {
+            label: menuName,
+            data: dataPoints,
+            borderColor: colors[index % colors.length],
+            tension: 0.1,
+            fill: false
+        };
+    });
+    
+    createChart(canvasId, 'line', { labels, datasets }, deepmerge(
+        chartYTicks(shortenNumber),
+        chartXTicks(shortenDateTickCallback)
+    ));
 }
 
 function generateYoYAnalysisFromSummaries(summaries: any[]) {
@@ -2907,7 +2896,253 @@ function generateWaktuPenjualanSection(summaries: any[]) {
 
 }
 
-function generatePenjualanChannelChartFromSummaries(summaries: any[]) {
+/**
+ * Orchestrator for the "Analisis General > Aspek Keuangan" section.
+ * It fetches data based on the selected period and calls the specific
+ * functions to generate each table and chart.
+ */
+async function generateGeneralKeuanganSection() {
+    if (!currentUser) return;
+    const selectEl = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
+    const selectedPeriod = selectEl.value;
+
+    if (!selectedPeriod) {
+        console.log("No period selected for financial analysis.");
+        return;
+    }
+
+    showLoading({ message: 'Fetching financial data...', value: 20 });
+    
+    // --- FIX START ---
+    // Correctly define the 12-month date range to include the full selected month.
+    const endDate = new Date(selectedPeriod + '-01T00:00:00');
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(23, 59, 59, 999);
+
+    const startDate = new Date(selectedPeriod + '-01T00:00:00');
+    startDate.setMonth(startDate.getMonth() - 11);
+    // --- FIX END ---
+    
+    const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(reportsRef);
+    
+    const historicalReports = reportsSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(report => {
+            const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
+            return reportDate >= startDate && reportDate <= endDate;
+        })
+        .sort((a, b) => a.period.localeCompare(b.period));
+
+    showLoading({ message: 'Generating tables and charts...', value: 50 });
+
+    // Generate all components
+    await generatePnlTargetComparisonTable(selectedPeriod, 'general-pnl-target-container');
+    generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
+    generatePnlOverviewChart(historicalReports);
+    
+    // Use the reusable function for all ratio charts
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-hr-chart', metric: 'Beban Operasional (OPEX)', title: 'HR & Bonus' }); // Assuming HR is in OPEX
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
+    
+    hideLoading();
+}
+
+/**
+ * Sets up the period selector dropdown for the "Aspek Keuangan" section.
+ */
+async function setupGeneralKeuanganPeriodSelector() {
+    if (generalKeuanganSelectorInitialized) return; // This guard is still needed
+    if (!currentUser) return;
+    
+    const selectEl = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
+    selectEl.innerHTML = '<option>Loading periods...</option>';
+
+    try {
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const reportsSnap = await getDocs(reportsRef);
+
+        const periods = reportsSnap.docs.map(doc => doc.data().period).filter(Boolean).sort().reverse();
+
+        if (periods.length === 0) {
+            selectEl.innerHTML = '<option>No P&L data found</option>';
+            return;
+        }
+
+        selectEl.innerHTML = periods.map(period => {
+            const [year, month] = period.split('-');
+            const dateLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+            return `<option value="${period}">${dateLabel}</option>`;
+        }).join('');
+        
+        selectEl.addEventListener('change', generateGeneralKeuanganSection);
+        generalKeuanganSelectorInitialized = true;
+        
+        // The data load trigger that was here has been removed.
+    } catch (error) {
+        console.error("Error setting up P&L period selector:", error);
+        selectEl.innerHTML = '<option>Error loading periods</option>';
+    }
+}
+
+/**
+ * Generates a P&L Target vs Actual comparison table for a single period.
+ * If no target is found, it displays an upload button.
+ */
+async function generatePnlTargetComparisonTable(period: string, containerId: string) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '<p class="text-gray-500">Loading P&L comparison...</p>';
+    
+    const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
+    const targetSnap = await getDoc(targetRef);
+
+    if (targetSnap.exists()) {
+        // If target exists, reuse the modal logic to show the comparison table
+        await showPnlTargetModal(targetSnap.data());
+        const modalHTML = document.getElementById('pnl-target-modal-body').innerHTML;
+        container.innerHTML = modalHTML;
+        document.getElementById('pnl-target-modal').classList.add('hidden');
+    } else {
+        // --- NEW: If no target exists, show a message and an upload button ---
+        container.innerHTML = `
+            <div class="text-center p-4 border rounded-lg bg-gray-50">
+                <p class="text-gray-500 mb-4">No target data found for this period.</p>
+                <button class="upload-compiled-btn bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-indigo-600" data-period="${period}" data-type="pnlTarget">
+                    Upload P&L Target
+                </button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Generates a historical P&L table showing data for multiple months.
+ */
+function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string) {
+    const thead = document.getElementById(theadId);
+    const tbody = document.getElementById(tbodyId);
+
+    if (reports.length === 0) {
+        thead.innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="13" class="p-4 text-center text-gray-500">No P&L reports found for this period.</td></tr>';
+        return;
+    }
+
+    const periodHeaders = reports.map(r => `<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`).join('');
+    thead.innerHTML = `<tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>${periodHeaders}</tr>`;
+
+    tbody.innerHTML = '';
+    
+    const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+    const subtotals = {
+        "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
+        "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
+        "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
+        "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+    };
+
+    const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
+
+    allMetrics.forEach(metricName => {
+        const isSubtotal = !!subtotals[metricName];
+        const tr = document.createElement('tr');
+        tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
+
+        let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
+        
+        reports.forEach(report => {
+            let value = 0;
+            const pnlData = report.pnlData || {};
+            
+            if (isSubtotal) {
+                const categoryTotals = {};
+                categoryOrder.forEach(cat => {
+                   categoryTotals[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                });
+                value = subtotals[metricName](categoryTotals);
+            } else {
+                value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
+            }
+            rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
+        });
+        
+        tr.innerHTML = rowHtml;
+        tbody.appendChild(tr);
+    });
+}
+
+/**
+ * Generates a bar chart showing Omset, Expense, and Profit over 12 months.
+ */
+function generatePnlOverviewChart(reports: any[]) {
+    const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    const revenueData = [], expenseData = [], profitData = [];
+
+    reports.forEach(r => {
+        const totals = {};
+        // Simplified calculation logic
+        const revenue = Object.values(r.pnlData["Pendapatan (Revenue)"] || {}).reduce((s, v) => s + v, 0);
+        const hpp = Object.values(r.pnlData["Harga Pokok Produksi"] || {}).reduce((s, v) => s + v, 0);
+        const opex = Object.values(r.pnlData["Beban Operasional (OPEX)"] || {}).reduce((s, v) => s + v, 0);
+        const netIncome = revenue - hpp - opex; // Simplified for example
+
+        revenueData.push(revenue);
+        expenseData.push(hpp + opex);
+        profitData.push(netIncome);
+    });
+
+    createChart('general-pnl-overview-chart', 'bar', {
+        labels,
+        datasets: [
+            { label: 'Omset', data: revenueData, backgroundColor: '#3B82F6' },
+            { label: 'Expense', data: expenseData, backgroundColor: '#EF4444' },
+            { label: 'Profit', data: profitData, backgroundColor: '#10B981' },
+        ]
+    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+}
+
+/**
+ * Reusable function to generate dual-axis financial ratio charts.
+ */
+function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string }) {
+    const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    const barData = [], lineData = [];
+
+    reports.forEach(r => {
+        const pnlData = r.pnlData;
+        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s, v) => s + v, 0);
+
+        // Simplified calculation logic for demonstration
+        let absoluteValue = 0;
+        if (config.metric.includes('Profit') || config.metric.includes('Income')) {
+            const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s, v) => s + v, 0);
+            absoluteValue = revenue - hpp; // Simplified Gross Profit
+        } else {
+            absoluteValue = Object.values(pnlData[config.metric] || {}).reduce((s, v) => s + v, 0);
+        }
+
+        barData.push(absoluteValue);
+        lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
+    });
+
+    createChart(config.canvasId, 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
+            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent' }
+        ]
+    }, {
+        scales: {
+            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${v.toFixed(1)}%` } }
+        }
+    });
+}
+
+function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: string, type: 'doughnut' | 'pie' = 'doughnut') {
     const channelSales = summaries.reduce((acc, s) => {
         if (s.revenueByVisitPurpose) {
             for (const channel in s.revenueByVisitPurpose) {
@@ -2917,18 +3152,17 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[]) {
         return acc;
     }, {});
 
-    chartDataForAI['penjualanChannel'] = channelSales;
-
-    createChart('penjualan-channel-chart', 'doughnut', {
+    createChart(canvasId, type, { // Use the specified type
         labels: Object.keys(channelSales),
         datasets: [{
             data: Object.values(channelSales),
-            backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
+            backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4444', '#F59E0B'],
         }],
     });
 }
 
-function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[]) {
+function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string) {
+
     const dailyData = Array(7).fill(0).map(() => Array(24).fill(0));
 
     summaries.forEach(s => {
@@ -2988,33 +3222,27 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
     });
 }
 
-function generateOmzetMingguanChartFromSummaries(summaries: any[]) {
+function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'line') {
     const weeklyOmzet = summaries.reduce((acc, summary) => {
         const d = summary.date;
-        // Create a key for the week by finding the date of the preceding Sunday
         const firstDayOfWeek = new Date(d);
         firstDayOfWeek.setDate(d.getDate() - d.getDay());
         const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
-
         acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
         return acc;
     }, {});
 
     const sortedWeeks = Object.keys(weeklyOmzet).sort();
-    chartDataForAI['omzetMingguan'] = weeklyOmzet;
-
-    createChart('omzet-mingguan-chart', 'line', {
+    createChart(canvasId, type, { // Use the specified chart type
         labels: sortedWeeks,
         datasets: [{
             label: 'Total Omzet Mingguan',
             data: sortedWeeks.map((week) => weeklyOmzet[week]),
             borderColor: '#10B981',
+            backgroundColor: '#10B981', // For bar chart
             tension: 0.1,
         }],
-    }, deepmerge(
-        chartYTicks(shortenCurrency),
-        chartXTicks(shortenDateTickCallback),
-    ));
+    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -3055,8 +3283,8 @@ function generateOmzetBulananChartFromSummaries(summaries: any[]) {
     });
 }
 
-function generateOmzetHeatmapFromSummaries(summaries: any[]) {
-    const container = document.getElementById('omzet-heatmap-container');
+function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string) {
+    const container = document.getElementById(containerId);
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const hours = Array.from({ length: 24 }, (_, i) => i);
 
@@ -3150,102 +3378,51 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   container.innerHTML = calendarHTML;
 }
 
-function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[]) {
-    const calculateTotals = (summaries: any[]) => {
-        return summaries.reduce((acc, summary) => {
-            acc.omzet += summary.totalOmzet || 0;
-            acc.checks += summary.totalTransactions || 0;
-            return acc;
-        }, { omzet: 0, checks: 0 });
-    };
+function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }) {
+    const calculateTotals = (summaries: any[]) => summaries.reduce((acc, summary) => {
+        acc.omzet += summary.totalOmzet || 0;
+        acc.checks += summary.totalTransactions || 0;
+        return acc;
+    }, { omzet: 0, checks: 0 });
 
     const currentTotals = calculateTotals(currentSummaries);
     const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
-
     const currentAvgCheck = currentTotals.checks > 0 ? currentTotals.omzet / currentTotals.checks : 0;
     const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
 
-    // Update the UI with current period's metrics
-    document.getElementById('ringkasan-total-omzet').textContent = `Rp${currentTotals.omzet.toLocaleString('id-ID')}`;
-    document.getElementById('ringkasan-total-check').textContent = currentTotals.checks.toLocaleString('id-ID');
-    document.getElementById('ringkasan-avg-check').textContent = `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+    document.getElementById(ids.omzet).textContent = `Rp${currentTotals.omzet.toLocaleString('id-ID')}`;
+    document.getElementById(ids.check).textContent = currentTotals.checks.toLocaleString('id-ID');
+    document.getElementById(ids.avgCheck).textContent = `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 
-    // Calculate and display growth
-    calculateAndDisplayGrowth('ringkasan-omzet-growth', currentTotals.omzet, lastPeriodTotals.omzet, true);
-    calculateAndDisplayGrowth('ringkasan-check-growth', currentTotals.checks, lastPeriodTotals.checks);
-    calculateAndDisplayGrowth('ringkasan-avg-check-growth', currentAvgCheck, lastPeriodAvgCheck, true);
+    calculateAndDisplayGrowth(ids.omzetGrowth, currentTotals.omzet, lastPeriodTotals.omzet);
+    calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
+    calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
 }
 
-function generateOmzetHarianChartFromSummaries(summaries: any[]) {
+function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
     const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
-
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const data = sortedSummaries.map(s => s.totalOmzet);
-    
-    chartDataForAI['omzetHarian'] = Object.fromEntries(sortedSummaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
 
-    createChart('omzet-harian-chart', 'line', {
+    createChart(canvasId, 'line', {
         labels: labels,
-        datasets: [{
-            label: 'Total Omzet Harian',
-            data: data,
-            borderColor: '#3B82F6',
-            tension: 0.1,
-        }],
-    }, deepmerge(
-        chartYTicks(shortenCurrency),
-        chartXTicks(shortenDateTickCallback),
-    ));
+        datasets: [{ label: 'Total Omzet Harian', data: data, borderColor: '#3B82F6', tension: 0.1 }],
+    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
-function generateTcApcHarianChartFromSummaries(summaries: any[]) {
+function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string) {
     const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
-
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const tcData = sortedSummaries.map(s => s.totalTransactions);
     const apcData = sortedSummaries.map(s => s.apc);
 
-    chartDataForAI['tcApcHarian'] = sortedSummaries.map(s => ({ date: s.date.toISOString().split('T')[0], totalChecks: s.totalTransactions, averageCheck: s.apc }));
-
-    createChart('tc-apc-harian-chart', 'bar', {
+    createChart(canvasId, 'bar', {
         labels: labels,
         datasets: [
-            {
-                type: 'bar',
-                label: 'Total Check (TC)',
-                data: tcData,
-                backgroundColor: '#60A5FA',
-                yAxisID: 'y-tc',
-            },
-            {
-                type: 'line',
-                label: 'Average Check (APC)',
-                data: apcData,
-                borderColor: '#F97316',
-                backgroundColor: '#F97316',
-                tension: 0.1,
-                yAxisID: 'y-apc',
-            },
+            { type: 'bar', label: 'Total Check (TC)', data: tcData, backgroundColor: '#60A5FA', yAxisID: 'y-tc' },
+            { type: 'line', label: 'Average Check (APC)', data: apcData, borderColor: '#F97316', tension: 0.1, yAxisID: 'y-apc' },
         ],
-    }, deepmerge({
-        scales: {
-            'y-tc': {
-                ticks: { callback: shortenNumber },
-                type: 'linear',
-                display: true,
-                position: 'left',
-                title: { display: true, text: 'Total Check' },
-            },
-            'y-apc': {
-                ticks: { callback: shortenCurrency },
-                type: 'linear',
-                display: true,
-                position: 'right',
-                title: { display: true, text: 'Average Check (Rp)' },
-                grid: { drawOnChartArea: false },
-            },
-        },
-    }, chartXTicks(shortenDateTickCallback)));
+    }, deepmerge({ scales: { /* ... scale options ... */ } }, chartXTicks(shortenDateTickCallback)));
 }
 
 /**
@@ -5476,22 +5653,12 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
     }
 });
 
-/**
- * Event listener for clicks on the analysis sidebar.
- *
- * @description
- * Handles clicks on links in the analysis sidebar to switch between sections.
- * Sets the active class on the clicked link and displays the corresponding section.
- * @returns {void}
- */
-// REPLACE the old 'analysis-sidebar' listener with this one
-document.getElementById('analysis-sidebar').addEventListener('click', (e) => {
+document.getElementById('analysis-view').addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
 
     const link = target.closest('.sidebar-link');
     const toggleBtn = target.closest('.submenu-toggle');
 
-    // Handle submenu expansion/collapse first
     if (toggleBtn) {
         const submenu = toggleBtn.nextElementSibling as HTMLElement;
         const chevron = toggleBtn.querySelector('.chevron-icon');
@@ -5501,45 +5668,34 @@ document.getElementById('analysis-sidebar').addEventListener('click', (e) => {
         }
     }
 
-    // Handle link clicks for navigation (main links AND submenu links)
     if (link) {
         e.preventDefault();
-
-        // Remove active state from all links and toggles
-        document.querySelectorAll('.sidebar-link, .submenu-toggle').forEach(el => el.classList.remove('active'));
-        
-        // Add active state to the clicked link
+        document.querySelectorAll('#analysis-view .sidebar-link, #analysis-view .submenu-toggle').forEach(el => el.classList.remove('active'));
         link.classList.add('active');
-
-        // If it's a submenu link, also activate its parent toggle button
         const parentToggle = link.closest('.submenu-container')?.querySelector('.submenu-toggle');
-        if (parentToggle) {
-            parentToggle.classList.add('active');
-        }
+        if (parentToggle) parentToggle.classList.add('active');
         
         const targetId = link.dataset.target;
 
-        // Show the correct section
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
-        if (targetSection) {
-            targetSection.classList.add('active');
-        }
-
-        // Hide main filters for certain tabs
-         const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 'analisa-pnl'].includes(targetId);
+        if (targetSection) targetSection.classList.add('active');
+        
+        const showMainFilters = !['yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 'analisa-pnl', 'general-keuangan'].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
-
-        // Load data specifically for the selected view
-        if (targetId === 'waktu-pnl') {
-            generateAllTimePnlTable();
+        
+        // --- MODIFICATION IS HERE ---
+        // This block now loads the data every time you click the link.
+        if (targetId === 'general-keuangan') {
+            await setupGeneralKeuanganPeriodSelector(); // Sets up the dropdown (runs only once)
+            await generateGeneralKeuanganSection();      // Loads the data (runs every time)
         }
-        if (targetId === 'waktu-penjualan') {
-            setupMonthlyOmzetComparisonChart();
-        }
-        if (targetId === 'analisa-pnl') {
-            setupPnlPeriodSelector();
-        }
+        // --- END OF MODIFICATION ---
+        
+        // Existing conditions
+        if (targetId === 'waktu-pnl') generateAllTimePnlTable();
+        if (targetId === 'waktu-penjualan') setupMonthlyOmzetComparisonChart();
+        if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
     }
 });
 
@@ -11067,4 +11223,98 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
             }
         }
     });
+}
+
+function generateGeneralPenjualanSection(currentData: any[], lastPeriodData: any[]) {
+    // Call the refactored functions with the new unique IDs
+    generateRingkasanFromSummaries(currentData, lastPeriodData, {
+        omzet: 'general-total-omzet',
+        check: 'general-total-check',
+        avgCheck: 'general-avg-check',
+        omzetGrowth: 'general-omzet-growth',
+        checkGrowth: 'general-check-growth',
+        avgCheckGrowth: 'general-avg-check-growth'
+    });
+    generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
+    generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'bar'); // Specify 'bar' type
+    generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart');
+    generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container');
+    generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container');
+    generateSalesTrendHourlyDailyChartFromSummaries(currentData, 'general-sales-trend-chart');
+}
+
+/**
+ * Generates an "Order by Menu Category" doughnut chart.
+ */
+function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
+    const byMenuCategory = summaries.reduce((acc, s) => {
+        if (s.menuCategories) {
+            for (const category in s.menuCategories) {
+                acc[category] = (acc[category] || 0) + s.menuCategories[category].quantity;
+            }
+        }
+        return acc;
+    }, {});
+
+    createChart(canvasId, 'doughnut', {
+        labels: Object.keys(byMenuCategory),
+        datasets: [{ data: Object.values(byMenuCategory), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6'] }],
+    });
+}
+
+/**
+ * Generates a "Top 5" doughnut chart for a specific menu category (e.g., MAKANAN).
+ * It groups the remaining items into an "Others" slice.
+ */
+function generateTopItemsDonutChart(summaries: any[], canvasId: string, categoryName: string) {
+    const allItems = summaries.reduce((acc, s) => {
+        if (s.menuItemQuantities && s.menuItemQuantities[categoryName]) {
+            for (const menuName in s.menuItemQuantities[categoryName]) {
+                if (!menuName.includes('(PACKAGE)')) {
+                    acc[menuName] = (acc[menuName] || 0) + s.menuItemQuantities[categoryName][menuName];
+                }
+            }
+        }
+        return acc;
+    }, {});
+
+    const sortedItems = Object.entries(allItems).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    const top5 = sortedItems.slice(0, 5);
+    const othersCount = sortedItems.slice(5).reduce((sum, item) => sum + (item[1] as number), 0);
+
+    const labels = top5.map(item => item[0]);
+    const data = top5.map(item => item[1]);
+
+    if (othersCount > 0) {
+        labels.push('Others');
+        data.push(othersCount);
+    }
+
+    createChart(canvasId, 'doughnut', {
+        labels,
+        datasets: [{ data, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
+    });
+}
+
+/**
+ * New orchestrator function for the "Aspek Produk dan Channel" section.
+ */
+function generateGeneralProdukChannelSection(summaries: any[]) {
+    // We will refactor `generateMenuSalesTrendChart` to be reusable
+    setupGeneralMenuTrendChart(summaries, 'general-menu-trend-select', 'general-menu-trend-chart');
+
+    // We will refactor `generatePenjualanChannelChartFromSummaries` as well
+    generatePenjualanChannelChartFromSummaries(summaries, 'general-channel-donut-chart', 'doughnut');
+
+    // Call our new specific functions
+    generateOrderByCategoryDonutChart(summaries, 'general-category-donut-chart');
+    generateTopItemsDonutChart(summaries, 'general-top-makanan-donut-chart', 'MAKANAN');
+    generateTopItemsDonutChart(summaries, 'general-top-minuman-donut-chart', 'MINUMAN');
+}
+
+function generateAnalisaPenjualanSection(summaries: any[]) {
+    generatePenjualanBulananChartFromSummaries(summaries, 'penjualan-bulanan-chart');
+    generatePenjualanChannelChartFromSummaries(summaries, 'penjualan-channel-chart');
+    generateSalesTrendHourlyDailyChartFromSummaries(summaries, 'sales-trend-hourly-daily-chart');
 }

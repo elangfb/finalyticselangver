@@ -462,6 +462,47 @@
 <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="yoy">Analisa YoY</a>
                         </nav>
 
+                        <nav id="new-analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md mt-4">
+    
+    <div class="submenu-container">
+        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+            <span>Analisis General</span>
+            <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div class="submenu hidden pl-4 mt-1 space-y-1">
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-keuangan">Aspek Keuangan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-penjualan">Aspek Penjualan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-produk-channel">Aspek Produk dan Channel</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-investasi">Aspek Investasi</a>
+        </div>
+    </div>
+
+    <div class="submenu-container">
+        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+            <span>Analisis Perbandingan Waktu</span>
+            <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div class="submenu hidden pl-4 mt-1 space-y-1">
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-keuangan">Aspek Keuangan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-penjualan">Aspek Penjualan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-produk-channel">Aspek Produk dan Channel</a>
+        </div>
+    </div>
+
+    <div class="submenu-container">
+        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+            <span>Analisis Perbandingan Cabang</span>
+            <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div class="submenu hidden pl-4 mt-1 space-y-1">
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-keuangan">Aspek Keuangan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-penjualan">Aspek Penjualan</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-produk-channel">Aspek Produk dan Channel</a>
+            <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-investasi">Aspek Investasi</a>
+        </div>
+    </div>
+</nav>
+
                         <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full">
                             Analyze All Charts
                         </button>
@@ -1091,6 +1132,171 @@
         </div>
     </div>
 </section>
+
+<section id="general-keuangan-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="flex items-center gap-2">
+            <label for="general-keuangan-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
+            <select id="general-keuangan-period-select" class="p-2 border rounded-md text-sm bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500"></select>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L bulanan vs. Target</h3>
+        <p class="text-sm text-gray-500 mt-1">Perbandingan performa P&L bulan terpilih dengan target yang sudah ditetapkan.</p>
+        <div id="general-pnl-target-container" class="overflow-x-auto mt-4">
+            </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Historis (12 Bulan)</h3>
+        <p class="text-sm text-gray-500 mt-1">Perbandingan P&L dari bulan ke bulan untuk melihat tren jangka panjang.</p>
+        <div class="overflow-x-auto mt-4">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead id="general-pnl-history-thead" class="bg-gray-50"></thead>
+                <tbody id="general-pnl-history-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Grafik P&L (Omset, Expense, Profit)</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-pnl-overview-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-cogs-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-gpm-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus % dari Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-hr-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-npm-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="general-penjualan-section" class="analysis-section space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
+            <p id="general-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="general-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
+            <p id="general-total-check" class="text-4xl font-bold mt-2">0</p>
+            <p id="general-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
+            <p id="general-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="general-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-omzet-harian-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan dalam sebulan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-omzet-mingguan-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-tc-apc-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
+        <div id="general-heatmap-harian-container" class="overflow-x-auto mt-4"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
+        <div id="general-heatmap-jam-hari-container" class="overflow-x-auto mt-4"></div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-sales-trend-chart"></canvas>
+        </div>
+    </div>
+</section>
+
+<section id="general-produk-channel-section" class="analysis-section space-y-6">
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <p class="text-sm text-gray-500 mt-1">Pilih beberapa menu untuk membandingkan tren penjualannya dari hari ke hari.</p>
+            <div class="mt-4">
+                <label for="general-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+                <select id="general-menu-trend-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="general-menu-trend-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-channel-donut-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-category-donut-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Top 5 Makanan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-top-makanan-donut-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Top 5 Minuman</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-top-minuman-donut-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
+
 
 
 
