@@ -384,19 +384,21 @@
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Data</th>
-                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Target</th>
-                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Data</th>
-                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Target</th>
-                        </tr>
-                    </thead>
-                    <tbody id="compiled-data-tbody" class="bg-white divide-y divide-gray-200">
-                        <tr>
-                            <td colspan="5" class="text-center p-4 text-gray-500">Loading data...</td>
-                        </tr>
-                    </tbody>
+    <tr>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+        
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Data</th>
+        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Target</th>
+        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Data</th>
+        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Target</th>
+    </tr>
+</thead>
+<tbody id="compiled-data-tbody" class="bg-white divide-y divide-gray-200">
+    <tr>
+        <td colspan="6" class="text-center p-4 text-gray-500">Loading data...</td>
+    </tr>
+</tbody>
                 </table>
             </div>
         </div>
@@ -1258,6 +1260,52 @@
             <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
             <div class="chart-container mt-4">
                 <canvas id="waktu-channel-comparison-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cabang-keuangan-section" class="analysis-section space-y-6">
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-keuangan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-keuangan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-keuangan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-keuangan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-keuangan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Comparison</h3>
+        <div id="cabang-pnl-comparison-container" class="overflow-x-auto mt-4">
+            </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-cogs-comparison-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin (%)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-gpm-comparison-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin (%)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-npm-comparison-chart"></canvas>
             </div>
         </div>
     </div>

@@ -84,6 +84,7 @@ let waktuKeuanganSelectorsInitialized = false;
 let waktuPenjualanSelectorsInitialized = false;
 let waktuProdukChannelSelectorsInitialized = false;
 let waktuMenuTrendSelect: SlimSelect | null = null;
+let cabangKeuanganSelectorsInitialized = false;
 
 
 
@@ -427,18 +428,21 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
         throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
     }
     
-    // Get the actual period from the file content
+    // --- ADD THIS: Read the Business Name from cell B1 ---
+    const businessNameCell = worksheet['B1'];
+    const branchName = businessNameCell ? String(businessNameCell.v).trim() : 'Unknown Branch';
+    // --- END OF ADDITION ---
+
     const actualPeriod = getPeriodFromFile(worksheet);
     if (!actualPeriod) {
         throw new Error("Could not determine the period from the file. Please check cell B2.");
     }
 
-    // If an expected period is passed (from the quick upload modal), validate it
     if (expectedPeriod && actualPeriod !== expectedPeriod) {
         throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
     }
 
-    const parsedData = XLSX.utils.sheet_to_json(worksheet, { range: 3 }); // Start reading from row 4
+    const parsedData = XLSX.utils.sheet_to_json(worksheet, { range: 3 });
     if (!parsedData || parsedData.length === 0) {
         throw new Error("The 'P&L Data' sheet is empty or contains no data in the specified range.");
     }
@@ -464,11 +468,14 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
         throw new Error("No valid P&L rows could be parsed from the file.");
     }
 
-    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, actualPeriod);
+    const safeBranchName = branchName.replace(/\s+/g, '_'); // Replace spaces with underscores
+    const docId = `${actualPeriod}_${safeBranchName}`;
+    const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, docId);
     await setDoc(pnlDocRef, {
         title: `${file.name} (from template)`,
         fileName: file.name,
         period: actualPeriod,
+        branchName: branchName, // --- ADD THIS FIELD ---
         lastUpdatedAt: new Date(),
         pnlData: pnlData
     });
@@ -479,7 +486,7 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
 async function populateCompiledDataTable() {
     if (!currentUser) return;
     const tbody = document.getElementById('compiled-data-tbody');
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">Loading data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">Loading data...</td></tr>';
 
     try {
         const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
@@ -490,31 +497,47 @@ async function populateCompiledDataTable() {
         ]);
 
         const aggregatedData = {};
+
         const processSnap = (snap, type) => {
             snap.forEach(doc => {
                 const data = doc.data();
                 const period = data.period || doc.id;
                 if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
-                if (!aggregatedData[period]) aggregatedData[period] = {};
-                aggregatedData[period][type] = { id: doc.id, name: data.name || data.title || data.fileName };
+
+                // --- MODIFICATION: Check for branchName on ALL data types ---
+                const branch = data.branchName || 'Company-Wide';
+                const key = `${branch}|${period}`;
+
+                if (!aggregatedData[key]) {
+                    aggregatedData[key] = { branch: branch, period: period };
+                }
+                aggregatedData[key][type] = { id: doc.id, name: data.name || data.title || data.fileName };
             });
         };
+
         processSnap(salesSnap, 'salesData');
         processSnap(salesTargetSnap, 'salesTarget');
         processSnap(pnlSnap, 'pnlData');
         processSnap(pnlTargetSnap, 'pnlTarget');
         
         tbody.innerHTML = '';
-        const sortedPeriods = Object.keys(aggregatedData).sort().reverse();
+        
+        const sortedKeys = Object.keys(aggregatedData).sort((a, b) => {
+            const [branchA, periodA] = a.split('|');
+            const [branchB, periodB] = b.split('|');
+            if (branchA < branchB) return -1;
+            if (branchA > branchB) return 1;
+            return periodB.localeCompare(periodA);
+        });
 
-        if (sortedPeriods.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">No data periods found. Please upload a Sales Data file to begin.</td></tr>';
+        if (sortedKeys.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">No data periods found. Please upload a Sales Data file to begin.</td></tr>';
             return;
         }
 
-        sortedPeriods.forEach(period => {
-            const data = aggregatedData[period];
-            const [year, month] = period.split('-');
+        sortedKeys.forEach(key => {
+            const data = aggregatedData[key];
+            const [year, month] = data.period.split('-');
             const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
 
             const createCell = (type) => {
@@ -529,10 +552,9 @@ async function populateCompiledDataTable() {
                             </div>
                         </td>`;
                 } else {
-                    // --- MODIFICATION: Show "Upload" button instead of "Not Yet Uploaded" ---
                     return `
                         <td class="px-6 py-4 text-center">
-                            <button class="upload-compiled-btn bg-gray-200 text-gray-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-gray-300" data-period="${period}" data-type="${type}">
+                            <button class="upload-compiled-btn bg-gray-200 text-gray-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-gray-300" data-period="${data.period}" data-type="${type}">
                                 Upload
                             </button>
                         </td>`;
@@ -541,7 +563,8 @@ async function populateCompiledDataTable() {
 
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formattedPeriod}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800">${data.branch}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${formattedPeriod}</td>
                 ${createCell('salesData')}
                 ${createCell('salesTarget')}
                 ${createCell('pnlData')}
@@ -552,7 +575,7 @@ async function populateCompiledDataTable() {
 
     } catch (error) {
         console.error("Error populating compiled data table:", error);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-red-500">Could not load data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-red-500">Could not load data.</td></tr>';
     }
 }
 
@@ -2898,6 +2921,258 @@ function generateWaktuPenjualanSection() {
 
     generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
     generateYoYComparisonChart(periodB); // YoY only needs the second period for comparison
+}
+
+/**
+ * Orchestrator for the "Analisis Perbandingan Cabang > Aspek Keuangan" section.
+ */
+// function generateCabangKeuanganSection() {
+//     if (!currentUser) return;
+//     const period = (document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement).value;
+//     const branchA = (document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement).value;
+//     const branchB = (document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement).value;
+
+//     if (!period || !branchA || !branchB) return;
+
+//     const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
+
+//     generateCabangGpComparisonTable(periodData, branchA, branchB, 'cabang-gp-comparison-container');
+//     generateCabangGpCogsComparisonChart(periodData, branchA, branchB, 'cabang-gp-cogs-comparison-chart');
+//     generateCabangGpmComparisonChart(periodData, branchA, branchB, 'cabang-gpm-comparison-chart');
+// }
+
+// /**
+//  * Sets up the period and branch selectors for the "Cabang > Keuangan" section.
+//  */
+// async function setupCabangKeuanganSelectors() {
+//     if (cabangKeuanganSelectorsInitialized) return;
+    
+//     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
+//     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
+//     const branchBSelect = document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement;
+
+//     const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    
+//     // --- THIS IS THE CORRECTED LINE ---
+//     const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
+
+//     if (periods.length === 0 || branches.length < 2) {
+//         periodSelect.innerHTML = '<option>Not enough data</option>';
+//         branchASelect.innerHTML = '<option>Not enough data</option>';
+//         branchBSelect.innerHTML = '<option>Not enough data</option>';
+//         return;
+//     }
+
+//     periodSelect.innerHTML = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+//     branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+//     branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    
+//     branchASelect.value = branches[0];
+//     branchBSelect.value = branches[1];
+
+//     const handler = () => generateCabangKeuanganSection();
+//     periodSelect.addEventListener('change', handler);
+//     branchASelect.addEventListener('change', handler);
+//     branchBSelect.addEventListener('change', handler);
+    
+//     cabangKeuanganSelectorsInitialized = true;
+//     generateCabangKeuanganSection();
+// }
+
+// const calculateGrossProfitStats = (data, branchName) => {
+//     const stats = data.reduce((acc, summary) => {
+//         // Use the new per-branch data from the summary
+//         const branchRevenue = summary.revenueByBranch?.[branchName] || 0;
+//         const branchCogs = summary.cogsByBranch?.[branchName] || 0;
+
+//         acc.revenue += branchRevenue;
+//         acc.cogs += branchCogs;
+//         return acc;
+//     }, { revenue: 0, cogs: 0 });
+
+//     const grossProfit = stats.revenue - stats.cogs;
+//     const grossProfitMargin = stats.revenue > 0 ? (grossProfit / stats.revenue) * 100 : 0;
+    
+//     return { ...stats, grossProfit, grossProfitMargin };
+// };
+
+/**
+ * Generates the Gross Profit comparison table.
+ */
+// function generateCabangGpComparisonTable(periodData, branchA, branchB, containerId) {
+//     const statsA = calculateGrossProfitStats(periodData, branchA);
+//     const statsB = calculateGrossProfitStats(periodData, branchB);
+//     const container = document.getElementById(containerId);
+
+//     const metrics = [
+//         { name: 'Total Revenue', valA: statsA.revenue, valB: statsB.revenue, format: shortenCurrency },
+//         { name: 'Total COGS', valA: statsA.cogs, valB: statsB.cogs, format: shortenCurrency },
+//         { name: 'Gross Profit (Rp)', valA: statsA.grossProfit, valB: statsB.grossProfit, format: shortenCurrency },
+//         { name: 'Gross Profit Margin (%)', valA: statsA.grossProfitMargin, valB: statsB.grossProfitMargin, format: (v) => `${v.toFixed(1)}%` }
+//     ];
+
+//     let tableHtml = `<table class="min-w-full divide-y divide-gray-200">...<thead>...</thead><tbody>`;
+//     metrics.forEach(m => {
+//         tableHtml += `<tr>
+//             <td class="px-6 py-4 text-sm font-medium">${m.name}</td>
+//             <td class="px-6 py-4 text-sm text-right">${m.format(m.valA)}</td>
+//             <td class="px-6 py-4 text-sm text-right">${m.format(m.valB)}</td>
+//         </tr>`;
+//     });
+//     tableHtml += `</tbody></table>`;
+//     container.innerHTML = tableHtml;
+// }
+
+/**
+ * Generates the Gross Profit & COGS grouped bar chart.
+ */
+// function generateCabangGpCogsComparisonChart(periodData, branchA, branchB, canvasId) {
+//     const statsA = calculateGrossProfitStats(periodData, branchA);
+//     const statsB = calculateGrossProfitStats(periodData, branchB);
+
+//     createChart(canvasId, 'bar', {
+//         labels: ['Gross Profit', 'COGS'],
+//         datasets: [
+//             { label: branchA, data: [statsA.grossProfit, statsA.cogs], backgroundColor: '#9CA3AF' },
+//             { label: branchB, data: [statsB.grossProfit, statsB.cogs], backgroundColor: '#4F46E5' }
+//         ]
+//     }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+// }
+
+/**
+ * Generates the Gross Profit Margin bar chart.
+ */
+// function generateCabangGpmComparisonChart(periodData, branchA, branchB, canvasId) {
+//     const statsA = calculateGrossProfitStats(periodData, branchA);
+//     const statsB = calculateGrossProfitStats(periodData, branchB);
+
+//     createChart(canvasId, 'bar', {
+//         labels: [branchA, branchB],
+//         datasets: [{
+//             label: 'Gross Profit Margin (%)',
+//             data: [statsA.grossProfitMargin, statsB.grossProfitMargin],
+//             backgroundColor: ['#9CA3AF', '#4F46E5']
+//         }]
+//     }, { scales: { y: { ticks: { callback: (v) => `${v.toFixed(1)}%` } } } });
+// }
+
+// Replace the existing setupCabangKeuanganSelectors function
+async function setupCabangKeuanganSelectors() {
+    if (cabangKeuanganSelectorsInitialized) return;
+
+    const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
+    const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
+    const branchBSelect = document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement;
+
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(pnlReportsRef);
+
+    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].sort().reverse();
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
+
+    if (periods.length === 0 || branches.length < 2) { return; }
+
+    periodSelect.innerHTML = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    branchASelect.value = branches[0];
+    branchBSelect.value = branches[1];
+
+    const handler = () => generateCabangKeuanganSection();
+    periodSelect.addEventListener('change', handler);
+    branchASelect.addEventListener('change', handler);
+    branchBSelect.addEventListener('change', handler);
+
+    cabangKeuanganSelectorsInitialized = true;
+    generateCabangKeuanganSection();
+}
+
+// Replace the existing generateCabangKeuanganSection function
+async function generateCabangKeuanganSection() {
+    if (!currentUser) return;
+    const period = (document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement).value;
+    const branchA = (document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement).value;
+    const branchB = (document.getElementById('cabang-keuangan-branch-b-select') as HTMLSelectElement).value;
+
+    if (!period || !branchA || !branchB || branchA === branchB) {
+        // Optional: Show a message to select different branches
+        return;
+    }
+
+    showLoading({ message: 'Comparing P&L data...', value: 30 });
+
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const q = query(pnlReportsRef, where("period", "==", period));
+    const reportsSnap = await getDocs(q);
+
+    const reportA = reportsSnap.docs.find(doc => doc.data().branchName === branchA)?.data();
+    const reportB = reportsSnap.docs.find(doc => doc.data().branchName === branchB)?.data();
+
+    generateBranchPnlComparisonTable(reportA, reportB, 'cabang-pnl-comparison-container');
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+
+    hideLoading();
+}
+
+// Add this new helper function
+function calculatePnlMetrics(pnlData) {
+    if (!pnlData) return {};
+    const results = {};
+    const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)"];
+    const categoryTotals = {};
+    categoryOrder.forEach(cat => {
+        const total = Object.values(pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+        results[cat] = total;
+        categoryTotals[cat] = total;
+    });
+    results['Laba Kotor (Gross Profit)'] = (categoryTotals['Pendapatan (Revenue)'] || 0) - (categoryTotals['Harga Pokok Produksi'] || 0);
+    results['Pendapatan Bersih (Net Income)'] = results['Laba Kotor (Gross Profit)'] - (categoryTotals['Beban Operasional (OPEX)'] || 0);
+    return results;
+};
+
+// Add this new function to generate the table
+function generateBranchPnlComparisonTable(reportA, reportB, containerId) {
+    const metricsA = calculatePnlMetrics(reportA?.pnlData);
+    const metricsB = calculatePnlMetrics(reportB?.pnlData);
+    const container = document.getElementById(containerId);
+
+    const metricsToShow = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)", "Beban Operasional (OPEX)", "Pendapatan Bersih (Net Income)"];
+    let tableHtml = `<table class="min-w-full divide-y divide-gray-200"><thead>...</thead><tbody>`; // Simplified header
+    metricsToShow.forEach(metric => {
+        const valA = metricsA[metric] || 0;
+        const valB = metricsB[metric] || 0;
+        tableHtml += `<tr>
+            <td class="px-6 py-4 text-sm font-medium">${metric}</td>
+            <td class="px-6 py-4 text-sm text-right">${shortenCurrency(valA)}</td>
+            <td class="px-6 py-4 text-sm text-right">${shortenCurrency(valB)}</td>
+        </tr>`;
+    });
+    tableHtml += `</tbody></table>`;
+    container.innerHTML = tableHtml;
+}
+
+// Add this new reusable function for the charts
+function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId: string, metric: string, title: string }) {
+    const metricsA = calculatePnlMetrics(reportA?.pnlData);
+    const metricsB = calculatePnlMetrics(reportB?.pnlData);
+
+    const valueA = metricsA[config.metric] || 0;
+    const valueB = metricsB[config.metric] || 0;
+    const revenueA = metricsA['Pendapatan (Revenue)'] || 0;
+    const revenueB = metricsB['Pendapatan (Revenue)'] || 0;
+    const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
+    const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
+
+    createChart(config.canvasId, 'bar', {
+        labels: [reportA?.branchName || 'Branch A', reportB?.branchName || 'Branch B'],
+        datasets: [
+            { type: 'bar', label: `${config.title} (Rp)`, data: [valueA, valueB], backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
+            { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
+        ]
+    }, { /* ... standard dual-axis scale options ... */ });
 }
 
 /**
@@ -5820,6 +6095,10 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         if (targetId === 'waktu-produk-channel') {
             await setupWaktuProdukChannelPeriodSelectors(); // Sets up dropdowns (runs once)
             await generateWaktuProdukChannelSection();      // Loads data (runs every time)
+        }
+
+         if (targetId === 'cabang-keuangan') {
+            await setupCabangKeuanganSelectors();
         }
 
         // Existing conditions
