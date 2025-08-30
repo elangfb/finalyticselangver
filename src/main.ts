@@ -2903,26 +2903,26 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: 
     });
 }
 
-/**
- * Orchestrator for the "Analisis Perbandingan Waktu > Aspek Penjualan" section.
- */
 function generateWaktuPenjualanSection() {
     if (!currentUser) return;
     const periodA = (document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement).value;
     const periodB = (document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement).value;
+    // --- MODIFICATION: Read the selected branch ---
+    const selectedBranch = (document.getElementById('waktu-penjualan-branch-select') as HTMLSelectElement).value;
 
-    if (!periodA || !periodB) return;
+    if (!periodA || !periodB || !selectedBranch) return;
 
-    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
-    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
+    // --- MODIFICATION: Filter data by selected branch first ---
+    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    
+    const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
-    // Generate the three main comparison charts using a reusable function
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC' });
-
     generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
-    generateYoYComparisonChart(periodB); // YoY only needs the second period for comparison
+    generateYoYComparisonChart(periodB, selectedBranch); // Pass branch to YoY function
 }
 
 async function setupCabangKeuanganSelectors() {
@@ -3150,36 +3150,61 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
     }, { /* ... standard dual-axis scale options ... */ });
 }
 
-/**
- * Sets up the period selectors for the "Waktu > Penjualan" section.
- */
-async function setupWaktuPenjualanPeriodSelectors() {
+async function setupWaktuPenjualanSelectors() {
     if (waktuPenjualanSelectorsInitialized) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
+    const branchSelect = document.getElementById('waktu-penjualan-branch-select') as HTMLSelectElement;
 
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    // Get a unique list of all branches from the entire dataset
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
 
-    if (periods.length < 2) {
-        selectA.innerHTML = '<option>Not enough data</option>';
-        selectB.innerHTML = '<option>Not enough data</option>';
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches found</option>';
         return;
     }
 
-    const optionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
-    selectA.innerHTML = optionsHtml;
-    selectB.innerHTML = optionsHtml;
+    // Populate ONLY the branch selector first
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchSelect.value = branches[0];
+
+    // Add event listeners
+    selectA.addEventListener('change', () => generateWaktuPenjualanSection());
+    selectB.addEventListener('change', () => generateWaktuPenjualanSection());
+    branchSelect.addEventListener('change', async () => {
+        await updatePeriodSelectorsForPenjualan(branchSelect.value);
+    });
+    
+    waktuPenjualanSelectorsInitialized = true;
+    
+    // Trigger the initial population of the period selectors for the default branch
+    await updatePeriodSelectorsForPenjualan(branches[0]);
+}
+
+async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
+    const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
+
+    // Filter the main sales data to get only summaries for the selected branch
+    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+
+    if (periods.length < 2) {
+        selectA.innerHTML = '<option>Not enough data for comparison</option>';
+        selectB.innerHTML = '<option>Not enough data for comparison</option>';
+        return;
+    }
+
+    const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = periodOptionsHtml;
+    selectB.innerHTML = periodOptionsHtml;
+
     selectA.value = periods[1];
     selectB.value = periods[0];
 
-    const handler = () => generateWaktuPenjualanSection();
-    selectA.addEventListener('change', handler);
-    selectB.addEventListener('change', handler);
-    waktuPenjualanSelectorsInitialized = true;
-
-    generateWaktuPenjualanSection(); // Initial call
+    await generateWaktuPenjualanSection();
 }
 
 /**
@@ -3238,22 +3263,22 @@ function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any
     });
 }
 
-/**
- * Generates a line chart comparing daily sales for a month vs. the same month last year.
- */
-function generateYoYComparisonChart(periodB: string) {
+function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
     const dateB = new Date(periodB + '-02');
     const yearB = dateB.getFullYear();
     const yearA = yearB - 1;
     const month = dateB.getMonth();
 
     const periodA = `${yearA}-${String(month + 1).padStart(2, '0')}`;
+    
+    // --- MODIFICATION: Filter by selected branch ---
+    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
 
-    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
-    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
+    const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
-} 
+}
 
 /**
  * Orchestrator for the "Analisis General > Aspek Keuangan" section.
@@ -6220,29 +6245,27 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
 
         const showMainFilters = ![
             'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 
-            'analisa-pnl', 'general-keuangan', 'waktu-keuangan' // Add 'waktu-keuangan' here
+            'analisa-pnl', 'general-keuangan', 'waktu-keuangan',
+            'waktu-produk-channel' // Add this section to the list
         ].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
         
-        // --- MODIFICATION IS HERE ---
-        // This block now loads the data every time you click the link.
         if (targetId === 'general-keuangan') {
-            await setupGeneralKeuanganPeriodSelector(); // Sets up the dropdown (runs only once)
-            await generateGeneralKeuanganSection();      // Loads the data (runs every time)
+            await setupGeneralKeuanganPeriodSelector();
+            await generateGeneralKeuanganSection();
         }
 
-        // --- MODIFICATION: Removed the direct call to generateWaktuKeuanganSection() from here ---
         if (targetId === 'waktu-keuangan') {
-            await setupWaktuKeuanganPeriodSelectors(); // This will now handle the initial data load
+            await setupWaktuKeuanganPeriodSelectors();
         }
         
         if (targetId === 'waktu-penjualan') {
-            await setupWaktuPenjualanPeriodSelectors();
+            await setupWaktuPenjualanSelectors(); 
         }
 
+        // --- MODIFICATION: Call the new setup function ---
         if (targetId === 'waktu-produk-channel') {
-            await setupWaktuProdukChannelPeriodSelectors();
-            await generateWaktuProdukChannelSection();
+            await setupWaktuProdukChannelSelectors();
         }
 
          if (targetId === 'cabang-keuangan') {
@@ -6256,9 +6279,8 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         if (targetId === 'cabang-produk-channel') {
             await setupCabangProdukChannelSelectors();
         }
-        // Existing conditions
+        
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
-        if (targetId === 'waktu-penjualan') setupMonthlyOmzetComparisonChart();
         if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
     }
 });
@@ -12015,45 +12037,72 @@ function generateWaktuProdukChannelSection() {
     if (!currentUser) return;
     const periodA = (document.getElementById('waktu-produk-period-a') as HTMLSelectElement).value;
     const periodB = (document.getElementById('waktu-produk-period-b') as HTMLSelectElement).value;
+    const selectedBranch = (document.getElementById('waktu-produk-branch-select') as HTMLSelectElement).value;
 
-    if (!periodA || !periodB) return;
+    if (!periodA || !periodB || !selectedBranch) return;
 
-    const periodAData = allSalesData.filter(s => s.date.toISOString().startsWith(periodA));
-    const periodBData = allSalesData.filter(s => s.date.toISOString().startsWith(periodB));
+    // Filter by branch first, then by period
+    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
     setupWaktuMenuTrendChart(periodAData, periodBData);
     generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
 }
 
-async function setupWaktuProdukChannelPeriodSelectors() {
+async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
+    const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
+    const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
+
+    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+
+    if (periods.length < 2) {
+        selectA.innerHTML = '<option>Not enough data for comparison</option>';
+        selectB.innerHTML = '<option>Not enough data for comparison</option>';
+        return;
+    }
+
+    const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+    selectA.innerHTML = periodOptionsHtml;
+    selectB.innerHTML = periodOptionsHtml;
+
+    selectA.value = periods[1];
+    selectB.value = periods[0];
+
+    await generateWaktuProdukChannelSection();
+}
+
+async function setupWaktuProdukChannelSelectors() {
     if (waktuProdukChannelSelectorsInitialized) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
-    
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const branchSelect = document.getElementById('waktu-produk-branch-select') as HTMLSelectElement;
 
-    if (periods.length < 2) {
-        selectA.innerHTML = '<option>Not enough data to compare</option>';
-        selectB.innerHTML = '<option>Not enough data to compare</option>';
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No branches found</option>';
         return;
     }
 
-    const optionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
-    selectA.innerHTML = optionsHtml;
-    selectB.innerHTML = optionsHtml;
-    selectA.value = periods[1];
-    selectB.value = periods[0];
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    branchSelect.value = branches[0];
+
+    selectA.addEventListener('change', () => generateWaktuProdukChannelSection());
+    selectB.addEventListener('change', () => generateWaktuProdukChannelSection());
+    branchSelect.addEventListener('change', async () => {
+        await updatePeriodSelectorsForProdukChannel(branchSelect.value);
+    });
     
-    const handler = () => generateWaktuProdukChannelSection();
-    selectA.addEventListener('change', handler);
-    selectB.addEventListener('change', handler);
     waktuProdukChannelSelectorsInitialized = true;
     
-    // The line that called generateWaktuProdukChannelSection() has been removed from here.
+    await updatePeriodSelectorsForProdukChannel(branches[0]);
 }
+
 
 /**
  * Sets up the interactive menu trend chart for comparing two periods.
