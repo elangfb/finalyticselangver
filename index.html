@@ -1069,32 +1069,37 @@
 
 <section id="general-penjualan-section" class="analysis-section space-y-6">
     <div class="bg-white p-4 rounded-lg shadow-md">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-            <div>
-                <label for="general-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                <select id="general-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-            </div>
-            <div>
-                <label for="general-penjualan-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
-                <select id="general-penjualan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-            </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+            <label for="general-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+            <select id="general-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
         </div>
+        <div>
+            <label for="general-penjualan-start-date" class="text-sm font-medium">Start Date</label>
+            <input type="date" id="general-penjualan-start-date" class="mt-1 w-full p-2 border rounded-md">
+        </div>
+        <div>
+            <label for="general-penjualan-end-date" class="text-sm font-medium">End Date</label>
+            <input type="date" id="general-penjualan-end-date" class="mt-1 w-full p-2 border rounded-md">
+        </div>
+        <button id="general-penjualan-apply-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-10">Apply</button>
     </div>
+</div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
             <p id="general-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
-            <p id="general-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+            <p id="general-omzet-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
             <p id="general-total-check" class="text-4xl font-bold mt-2">0</p>
-            <p id="general-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+            <p id="general-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
             <p id="general-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
-            <p id="general-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+            <p id="general-avg-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
         </div>
     </div>
 

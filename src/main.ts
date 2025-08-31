@@ -89,6 +89,8 @@ let cabangPenjualanSelectorsInitialized = false;
 let cabangProdukChannelSelectorsInitialized = false;
 let cabangMenuTrendSelect: SlimSelect | null = null;
 let generalPenjualanSelectorInitialized = false;
+let generalProdukChannelSelectorInitialized = false;
+
 
 const plAnalysisView = document.getElementById('pl-analysis-view');
 
@@ -3379,14 +3381,26 @@ async function updatePeriodSelectorsForGeneralPenjualan(selectedBranch: string) 
     await generateGeneralPenjualanSection();
 }
 
-async function setupGeneralPenjualanSelectors() {
-    if (generalPenjualanSelectorInitialized) return;
+/**
+ * A reusable function to set up section-specific filters (Branch and Date Range).
+ * @param {object} config - Configuration object with element IDs and the callback function.
+ */
+async function setupSectionSpecificFilters(config: {
+    branchSelectId: string,
+    startDateId: string,
+    endDateId: string,
+    applyBtnId: string,
+    initializationFlag: boolean,
+    callback: () => void
+}) {
+    if (config.initializationFlag) return; // Prevent re-running
     if (!currentUser) return;
 
-    const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('general-penjualan-period-select') as HTMLSelectElement;
+    const branchSelect = document.getElementById(config.branchSelectId) as HTMLSelectElement;
+    const applyBtn = document.getElementById(config.applyBtnId);
+    const startDateInput = document.getElementById(config.startDateId) as HTMLInputElement;
+    const endDateInput = document.getElementById(config.endDateId) as HTMLInputElement;
 
-    // Get a unique list of all branches from the entire dataset
     const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
 
     if (branches.length === 0) {
@@ -3394,24 +3408,49 @@ async function setupGeneralPenjualanSelectors() {
         return;
     }
 
-    // Populate the branch selector, including an "All Branches" option
     branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
-    
-    // Set up cascading listeners
-    branchSelect.addEventListener('change', async () => {
-        // When branch changes, update the available periods
-        await updatePeriodSelectorsForGeneralPenjualan(branchSelect.value);
-    });
-    periodSelect.addEventListener('change', () => {
-        // When period changes, regenerate the charts
-        generateGeneralPenjualanSection();
-    });
 
-    generalPenjualanSelectorInitialized = true;
-    
-    // Initial population of the period selector for the default "All Branches" view
-    await updatePeriodSelectorsForGeneralPenjualan('ALL');
+    // Set default date range to the last 30 days of available data
+    if (allSalesData.length > 0) {
+        const lastDate = allSalesData[allSalesData.length - 1].date;
+        const firstDate = new Date(lastDate);
+        firstDate.setDate(lastDate.getDate() - 29);
+        
+        endDateInput.value = lastDate.toISOString().split('T')[0];
+        startDateInput.value = firstDate.toISOString().split('T')[0];
+    }
+
+    // When the apply button is clicked, run the specific generator function for that section
+    applyBtn.addEventListener('click', config.callback);
+
+    // Trigger the initial chart generation
+    await config.callback();
 }
+
+async function setupGeneralPenjualanSelectors() {
+    await setupSectionSpecificFilters({
+        branchSelectId: 'general-penjualan-branch-select',
+        startDateId: 'general-penjualan-start-date',
+        endDateId: 'general-penjualan-end-date',
+        applyBtnId: 'general-penjualan-apply-btn',
+        initializationFlag: generalPenjualanSelectorInitialized,
+        callback: generateGeneralPenjualanSection
+    });
+    generalPenjualanSelectorInitialized = true;
+}
+
+async function setupGeneralProdukChannelSelectors() {
+    await setupSectionSpecificFilters({
+        branchSelectId: 'general-produk-channel-branch-select',
+        startDateId: 'general-produk-channel-start-date',
+        endDateId: 'general-produk-channel-end-date',
+        applyBtnId: 'general-produk-channel-apply-btn',
+        initializationFlag: generalProdukChannelSelectorInitialized,
+        callback: generateGeneralProdukChannelSection
+    });
+    generalProdukChannelSelectorInitialized = true;
+}
+
 
 async function setupGeneralProdukChannelSelectors() {
     if (!currentUser) return;
@@ -3837,18 +3876,29 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
     }, { omzet: 0, checks: 0 });
 
     const currentTotals = calculateTotals(currentSummaries);
-    const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
     const currentAvgCheck = currentTotals.checks > 0 ? currentTotals.omzet / currentTotals.checks : 0;
-    const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
 
     document.getElementById(ids.omzet).textContent = `Rp${currentTotals.omzet.toLocaleString('id-ID')}`;
     document.getElementById(ids.check).textContent = currentTotals.checks.toLocaleString('id-ID');
     document.getElementById(ids.avgCheck).textContent = `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 
-    calculateAndDisplayGrowth(ids.omzetGrowth, currentTotals.omzet, lastPeriodTotals.omzet);
-    calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
-    calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
+    // MODIFICATION START: Check if there is comparison data before trying to display it.
+    if (lastPeriodSummaries && lastPeriodSummaries.length > 0) {
+        const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
+        const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
+
+        calculateAndDisplayGrowth(ids.omzetGrowth, currentTotals.omzet, lastPeriodTotals.omzet);
+        calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
+        calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
+    } else {
+        // If there is no comparison data, clear the text content of the growth elements.
+        document.getElementById(ids.omzetGrowth).textContent = '';
+        document.getElementById(ids.checkGrowth).textContent = '';
+        document.getElementById(ids.avgCheckGrowth).textContent = '';
+    }
+    // MODIFICATION END
 }
+
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
     const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
@@ -11881,41 +11931,30 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
 }
 
 function generateGeneralPenjualanSection() {
-    // Get selections from the section-specific dropdowns
     const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('general-penjualan-period-select') as HTMLSelectElement;
+    const startDateInput = document.getElementById('general-penjualan-start-date') as HTMLInputElement;
+    const endDateInput = document.getElementById('general-penjualan-end-date') as HTMLInputElement;
+    
     const selectedBranch = branchSelect.value;
-    const selectedPeriod = periodSelect.value;
+    const startDate = new Date(startDateInput.value);
+    const endDate = new Date(endDateInput.value);
+    endDate.setHours(23, 59, 59, 999); // Ensure the full end day is included
 
-    if (!selectedPeriod || !selectedBranch) {
-        // If there's no period (e.g., a branch with no data), clear the charts and return
+    if (!selectedBranch || !startDateInput.value || !endDateInput.value) {
         destroyCharts();
         return;
     }
 
-    // Filter the global data based on the new selectors
-    const currentStartDate = new Date(selectedPeriod + '-01T00:00:00Z');
-    const currentEndDate = new Date(currentStartDate);
-    currentEndDate.setMonth(currentEndDate.getMonth() + 1);
-    currentEndDate.setDate(0); // Sets it to the last day of the month
-    currentEndDate.setHours(23, 59, 59, 999);
-
-    const lastPeriodStartDate = new Date(currentStartDate);
-    lastPeriodStartDate.setMonth(lastPeriodStartDate.getMonth() - 1);
-    const lastPeriodEndDate = new Date(currentStartDate);
-    lastPeriodEndDate.setDate(0);
-    lastPeriodEndDate.setHours(23, 59, 59, 999);
-
-    let currentData = allSalesData.filter(s => s.date >= currentStartDate && s.date <= currentEndDate);
-    let lastPeriodData = allSalesData.filter(s => s.date >= lastPeriodStartDate && s.date <= lastPeriodEndDate);
-
+    // Filter data based on the new date range selector
+    let currentData = allSalesData.filter(s => s.date >= startDate && s.date <= endDate);
+    
     if (selectedBranch !== 'ALL') {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
-        lastPeriodData = lastPeriodData.filter(s => s.branches.includes(selectedBranch));
     }
 
-    // Call all the chart generation functions with the newly filtered data
-    generateRingkasanFromSummaries(currentData, lastPeriodData, {
+    // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
+    // This will still display the main KPI values but will not show any growth percentages.
+    generateRingkasanFromSummaries(currentData, [], {
         omzet: 'general-total-omzet',
         check: 'general-total-check',
         avgCheck: 'general-avg-check',
@@ -11923,6 +11962,8 @@ function generateGeneralPenjualanSection() {
         checkGrowth: 'general-check-growth',
         avgCheckGrowth: 'general-avg-check-growth'
     });
+    
+    // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
     generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'bar');
     generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart');
