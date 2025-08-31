@@ -6496,8 +6496,42 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
     // Handle Download Chart button clicks
     const downloadBtn = target.closest('.download-chart-btn');
     if (downloadBtn) {
-        const chartId = (downloadBtn as HTMLElement).dataset.chartId;
-        downloadChartAsImage(chartId);
+        const elementId = (downloadBtn as HTMLElement).dataset.chartId;
+        const elementToDownload = document.getElementById(elementId);
+        
+        if (!elementToDownload) {
+            console.error(`Element with ID "${elementId}" not found for download.`);
+            alert('Could not download element. Instance not found.');
+            return;
+        }
+
+        // Check if the ID corresponds to a Chart.js instance
+        if (charts[elementId]) {
+            // It's a chart, use the fast, built-in method
+            const chartInstance = charts[elementId];
+            const imageUrl = chartInstance.toBase64Image('image/png', 1);
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = `${elementId}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            // It's not a chart (e.g., a table container), use html2canvas
+            alert('Preparing table image... this may take a moment.');
+            html2canvas(elementToDownload, { scale: 2, useCORS: true }).then(canvas => {
+                const imageUrl = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = imageUrl;
+                link.download = `${elementId}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(err => {
+                console.error('Failed to capture element with html2canvas:', err);
+                alert('Sorry, there was an error generating the image.');
+            });
+        }
     }
 
     // Handle chart accordion toggle clicks

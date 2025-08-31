@@ -841,56 +841,83 @@
                      </div>
                   </section>
                   <section id="waktu-penjualan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="waktu-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="waktu-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-penjualan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
-                              <select id="waktu-penjualan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-penjualan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
-                              <select id="waktu-penjualan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Total Penjualan / Omset Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-omset-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Total Check Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-tc-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren ATC (Average Transaction Check) Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-apc-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Trend Penjualan Rata-Rata per Hari</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-weekly-trend-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Penjualan Year-on-Year</h3>
-                        <p class="text-sm text-gray-500 mt-1">Membandingkan tren penjualan harian pada bulan di Period B dengan bulan yang sama di tahun sebelumnya.</p>
-                        <div class="chart-container mt-4">
-                           <canvas id="waktu-yoy-comparison-chart"></canvas>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="waktu-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="waktu-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-penjualan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
+                <select id="waktu-penjualan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-penjualan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
+                <select id="waktu-penjualan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Penjualan / Omset Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-omset-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-omset-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuOmsetComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuOmsetComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Check Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-tc-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-tc-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuTcComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuTcComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren ATC (Average Transaction Check) Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-apc-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-apc-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuApcComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuApcComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Trend Penjualan Rata-Rata per Hari</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-weekly-trend-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-weekly-trend-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuWeeklyTrendComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuWeeklyTrendComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Penjualan Year-on-Year</h3>
+        <p class="text-sm text-gray-500 mt-1">Membandingkan tren penjualan harian pada bulan di Period B dengan bulan yang sama di tahun sebelumnya.</p>
+        <div class="chart-container mt-4">
+            <canvas id="waktu-yoy-comparison-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-yoy-comparison-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuYoyComparison">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-waktuYoyComparison" class="analysis-result-container hidden"></div>
+    </div>
+</section>
                   <section id="waktu-pnl-section" class="analysis-section space-y-6">
                      <div class="bg-white rounded-lg shadow-md p-6">
                         <h3 class="text-xl font-semibold text-gray-700 mb-4">Perbandingan P&L (Last 24 Months)</h3>
@@ -908,418 +935,621 @@
                      </div>
                   </section>
                   <section id="cabang-penjualan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="cabang-penjualan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
-                              <select id="cabang-penjualan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-penjualan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
-                              <select id="cabang-penjualan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-penjualan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
-                              <select id="cabang-penjualan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Total Penjualan / Omset Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-omset-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Total Check Harian (TC)</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-tc-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren ATC (Average Transaction Check) Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-apc-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Trend Penjualan Rata-Rata per Hari</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-weekly-trend-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-penjualan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-penjualan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-penjualan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-penjualan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-penjualan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-penjualan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Penjualan / Omset Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-omset-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-omset-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangOmsetComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangOmsetComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Total Check Harian (TC)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-tc-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-tc-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangTcComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangTcComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren ATC (Average Transaction Check) Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-apc-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-apc-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangApcComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangApcComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Trend Penjualan Rata-Rata per Hari</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-weekly-trend-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-weekly-trend-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangWeeklyTrendComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangWeeklyTrendComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="general-keuangan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                           <div>
-                              <label for="general-keuangan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="general-keuangan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="general-keuangan-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
-                              <select id="general-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L bulanan vs. Target</h3>
-                        <p class="text-sm text-gray-500 mt-1">Perbandingan performa P&L bulan terpilih dengan target yang sudah ditetapkan.</p>
-                        <div id="general-pnl-target-container" class="overflow-x-auto mt-4">
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Historis (12 Bulan)</h3>
-                        <p class="text-sm text-gray-500 mt-1">Perbandingan P&L dari bulan ke bulan untuk melihat tren jangka panjang.</p>
-                        <div class="overflow-x-auto mt-4">
-                           <table class="min-w-full divide-y divide-gray-200">
-                              <thead id="general-pnl-history-thead" class="bg-gray-50"></thead>
-                              <tbody id="general-pnl-history-tbody" class="bg-white divide-y divide-gray-200"></tbody>
-                           </table>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Grafik P&L (Omset, Expense, Profit)</h3>
-                        <div class="chart-container mt-4">
-                           <canvas id="general-pnl-overview-chart"></canvas>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-cogs-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-gpm-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus % dari Pendapatan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-hr-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-npm-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <div>
+                <label for="general-keuangan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="general-keuangan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="general-keuangan-period-select" class="text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="general-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L bulanan vs. Target</h3>
+        <p class="text-sm text-gray-500 mt-1">Perbandingan performa P&L bulan terpilih dengan target yang sudah ditetapkan.</p>
+        <div id="general-pnl-target-container" class="overflow-x-auto mt-4">
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-pnl-target-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalPnlTargetTable">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalPnlTargetTable" class="analysis-result-container hidden"></div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Historis (12 Bulan)</h3>
+        <p class="text-sm text-gray-500 mt-1">Perbandingan P&L dari bulan ke bulan untuk melihat tren jangka panjang.</p>
+        <div id="general-pnl-history-table-container" class="overflow-x-auto mt-4">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead id="general-pnl-history-thead" class="bg-gray-50"></thead>
+                <tbody id="general-pnl-history-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+            </table>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-pnl-history-table-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalPnlHistoryTable">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalPnlHistoryTable" class="analysis-result-container hidden"></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Grafik P&L (Omset, Expense, Profit)</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-pnl-overview-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-pnl-overview-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalPnlOverview">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalPnlOverview" class="analysis-result-container hidden"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-cogs-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-cogs-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalCogs">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalCogs" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-gpm-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-gpm-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalGpm">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalGpm" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus % dari Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-hr-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-hr-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalHr">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalHr" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-npm-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-npm-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalNpm">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalNpm" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="general-penjualan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                           <div>
-                              <label for="general-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="general-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="general-penjualan-start-date" class="text-sm font-medium">Start Date</label>
-                              <input type="date" id="general-penjualan-start-date" class="mt-1 w-full p-2 border rounded-md">
-                           </div>
-                           <div>
-                              <label for="general-penjualan-end-date" class="text-sm font-medium">End Date</label>
-                              <input type="date" id="general-penjualan-end-date" class="mt-1 w-full p-2 border rounded-md">
-                           </div>
-                           <button id="general-penjualan-apply-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-10">Apply</button>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
-                           <p id="general-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
-                           <p id="general-omzet-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
-                           <p id="general-total-check" class="text-4xl font-bold mt-2">0</p>
-                           <p id="general-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
-                           <p id="general-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
-                           <p id="general-avg-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-omzet-harian-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan dalam sebulan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-omzet-mingguan-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
-                        <div class="chart-container mt-4">
-                           <canvas id="general-tc-apc-chart"></canvas>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
-                        <div id="general-heatmap-harian-container" class="overflow-x-auto mt-4"></div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
-                        <div id="general-heatmap-jam-hari-container" class="overflow-x-auto mt-4"></div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
-                        <div class="chart-container mt-4">
-                           <canvas id="general-sales-trend-chart"></canvas>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label for="general-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="general-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="general-penjualan-start-date" class="text-sm font-medium">Start Date</label>
+                <input type="date" id="general-penjualan-start-date" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+                <label for="general-penjualan-end-date" class="text-sm font-medium">End Date</label>
+                <input type="date" id="general-penjualan-end-date" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <button id="general-penjualan-apply-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-10">Apply</button>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
+            <p id="general-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="general-omzet-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
+            <p id="general-total-check" class="text-4xl font-bold mt-2">0</p>
+            <p id="general-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
+            <p id="general-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
+            <p id="general-avg-check-growth" class="text-sm mt-1 font-medium hidden">vs comparison period</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-omzet-harian-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-omzet-harian-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalOmzetHarian">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalOmzetHarian" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan dalam sebulan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-omzet-mingguan-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-omzet-mingguan-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalOmzetMingguan">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalOmzetMingguan" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-tc-apc-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-tc-apc-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalTcApc">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalTcApc" class="analysis-result-container hidden"></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
+        <div id="general-heatmap-harian-container" class="overflow-x-auto mt-4"></div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-heatmap-harian-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalHeatmapHarian">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalHeatmapHarian" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
+        <div id="general-heatmap-jam-hari-container" class="overflow-x-auto mt-4"></div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-heatmap-jam-hari-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalHeatmapJamHari">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalHeatmapJamHari" class="analysis-result-container hidden"></div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-sales-trend-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-sales-trend-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalSalesTrend">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalSalesTrend" class="analysis-result-container hidden"></div>
+    </div>
+</section>
                   <section id="general-produk-channel-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md mb-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3">
-                           <div>
-                              <label for="general-produk-channel-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="general-produk-channel-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
-                           <p class="text-sm text-gray-500 mt-1">Pilih beberapa menu untuk membandingkan tren penjualannya dari hari ke hari.</p>
-                           <div class="mt-4">
-                              <label for="general-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
-                              <select id="general-menu-trend-select" multiple></select>
-                           </div>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="general-menu-trend-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-channel-donut-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-category-donut-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Top 5 Makanan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-top-makanan-donut-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Top 5 Minuman</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="general-top-minuman-donut-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label for="general-produk-channel-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="general-produk-channel-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+         </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <p class="text-sm text-gray-500 mt-1">Pilih beberapa menu untuk membandingkan tren penjualannya dari hari ke hari.</p>
+            <div class="mt-4">
+                <label for="general-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+                <select id="general-menu-trend-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="general-menu-trend-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-menu-trend-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalMenuTrend">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalMenuTrend" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-channel-donut-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-channel-donut-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalChannelDonut">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalChannelDonut" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-category-donut-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-category-donut-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalCategoryDonut">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalCategoryDonut" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Top 5 Makanan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-top-makanan-donut-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-top-makanan-donut-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalTopMakananDonut">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalTopMakananDonut" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Top 5 Minuman</h3>
+            <div class="chart-container mt-4">
+                <canvas id="general-top-minuman-donut-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="general-top-minuman-donut-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="generalTopMinumanDonut">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-generalTopMinumanDonut" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="waktu-keuangan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="waktu-keuangan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
-                              <select id="waktu-keuangan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-keuangan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
-                              <select id="waktu-keuangan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-keuangan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="waktu-keuangan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Comparison</h3>
-                        <div id="waktu-pnl-comparison-container" class="overflow-x-auto mt-4">
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-cogs-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-gpm-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus %</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-hr-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-npm-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="waktu-keuangan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
+                <select id="waktu-keuangan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-keuangan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
+                <select id="waktu-keuangan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-keuangan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="waktu-keuangan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Comparison</h3>
+        <div id="waktu-pnl-comparison-container" class="overflow-x-auto mt-4">
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-pnl-comparison-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuPnlComparison">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-waktuPnlComparison" class="analysis-result-container hidden"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-cogs-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-cogs-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuCogsComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuCogsComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-gpm-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-gpm-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuGpmComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuGpmComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus %</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-hr-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-hr-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuHrComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuHrComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-npm-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-npm-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuNpmComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuNpmComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="waktu-produk-channel-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="waktu-produk-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                              <select id="waktu-produk-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-produk-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
-                              <select id="waktu-produk-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="waktu-produk-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
-                              <select id="waktu-produk-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
-                           <p class="text-sm text-gray-500 mt-1">Pilih menu untuk membandingkan tren penjualannya antara dua periode.</p>
-                           <div class="mt-4">
-                              <label for="waktu-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
-                              <select id="waktu-menu-trend-select" multiple></select>
-                           </div>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="waktu-menu-trend-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-category-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="waktu-channel-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="waktu-produk-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                <select id="waktu-produk-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-produk-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
+                <select id="waktu-produk-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="waktu-produk-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
+                <select id="waktu-produk-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <p class="text-sm text-gray-500 mt-1">Pilih menu untuk membandingkan tren penjualannya antara dua periode.</p>
+            <div class="mt-4">
+                <label for="waktu-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+                <select id="waktu-menu-trend-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="waktu-menu-trend-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-menu-trend-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuMenuTrend">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuMenuTrend" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-category-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-category-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuCategoryComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuCategoryComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel</h3>
+            <div class="chart-container mt-4">
+                <canvas id="waktu-channel-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="waktu-channel-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="waktuChannelComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-waktuChannelComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="cabang-keuangan-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="cabang-keuangan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
-                              <select id="cabang-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-keuangan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
-                              <select id="cabang-keuangan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-keuangan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
-                              <select id="cabang-keuangan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Comparison</h3>
-                        <div id="cabang-pnl-comparison-container" class="overflow-x-auto mt-4">
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-cogs-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin (%)</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-gpm-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin (%)</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-npm-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-keuangan-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-keuangan-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-keuangan-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-keuangan-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-keuangan-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-keuangan-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Tabel P&L Comparison</h3>
+        <div id="cabang-pnl-comparison-container" class="overflow-x-auto mt-4">
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-pnl-comparison-container">Download Table</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangPnlComparison">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-cabangPnlComparison" class="analysis-result-container hidden"></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-cogs-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-cogs-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangCogsComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangCogsComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin (%)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-gpm-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-gpm-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangGpmComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangGpmComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin (%)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-npm-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-npm-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangNpmComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangNpmComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="cabang-produk-channel-section" class="analysis-section space-y-6">
-                     <div class="bg-white p-4 rounded-lg shadow-md">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                           <div>
-                              <label for="cabang-produk-channel-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
-                              <select id="cabang-produk-channel-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-produk-channel-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
-                              <select id="cabang-produk-channel-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                           <div>
-                              <label for="cabang-produk-channel-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
-                              <select id="cabang-produk-channel-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
-                           <p class="text-sm text-gray-500 mt-1">Pilih menu untuk membandingkan tren penjualannya antara dua cabang.</p>
-                           <div class="mt-4">
-                              <label for="cabang-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
-                              <select id="cabang-menu-trend-select" multiple></select>
-                           </div>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="cabang-menu-trend-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category (Qty)</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-category-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow-md p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Rp)</h3>
-                           <div class="chart-container mt-4">
-                              <canvas id="cabang-channel-comparison-chart"></canvas>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-produk-channel-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-produk-channel-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-produk-channel-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-produk-channel-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-produk-channel-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-produk-channel-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+            <p class="text-sm text-gray-500 mt-1">Pilih menu untuk membandingkan tren penjualannya antara dua cabang.</p>
+            <div class="mt-4">
+                <label for="cabang-menu-trend-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+                <select id="cabang-menu-trend-select" multiple></select>
+            </div>
+        </div>
+        <div class="px-6 pb-6">
+            <div class="chart-container">
+                <canvas id="cabang-menu-trend-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-menu-trend-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangMenuTrend">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangMenuTrend" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category (Qty)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-category-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-category-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangCategoryComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangCategoryComparison" class="analysis-result-container hidden"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Rp)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="cabang-channel-comparison-chart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end items-center gap-4">
+                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="cabang-channel-comparison-chart">Download Chart</button>
+                <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700" data-chart-id="cabangChannelComparison">Analyze with AI</button>
+            </div>
+            <div id="analysis-result-cabangChannelComparison" class="analysis-result-container hidden"></div>
+        </div>
+    </div>
+</section>
                   <section id="produk-section" class="analysis-section space-y-6">
                      <div class="bg-white rounded-lg shadow-md">
                         <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#order-by-category-content">
