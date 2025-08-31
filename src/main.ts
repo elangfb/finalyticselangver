@@ -90,6 +90,7 @@ let cabangProdukChannelSelectorsInitialized = false;
 let cabangMenuTrendSelect: SlimSelect | null = null;
 let generalPenjualanSelectorInitialized = false;
 let generalProdukChannelSelectorInitialized = false;
+let activeSalesTarget = {};
 
 
 const plAnalysisView = document.getElementById('pl-analysis-view');
@@ -710,7 +711,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
                     break;
                 }
                 // --- END OF MODIFICATION ---
-                case 'pnlData': {
+                   case 'pnlData': {
                     showLoading({ message: 'Loading P&L report...' });
                     const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
                     const pnlDocSnap = await getDoc(pnlDocRef);
@@ -720,6 +721,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
                     } else {
                         alert('Could not find the selected P&L data.');
                     }
+                    hideLoading()
                     break;
                 }
                 case 'salesTarget': {
@@ -823,11 +825,10 @@ async function showSalesTargetModal(data: any) {
     const titleEl = document.getElementById('sales-target-modal-title');
     const bodyEl = document.getElementById('sales-target-modal-body');
 
-    // --- 1. Show loading state and prepare period info ---
     bodyEl.innerHTML = '<p id="sales-target-loading-msg" class="text-center text-gray-500">Loading actual sales data...</p>';
     modal.classList.remove('hidden');
 
-    const period = data.period; // e.g., "2025-08"
+    const period = data.period;
     if (!period) {
         bodyEl.innerHTML = '<p class="text-center text-red-500">Error: Period not found in target data.</p>';
         return;
@@ -838,7 +839,6 @@ async function showSalesTargetModal(data: any) {
     titleEl.textContent = `Sales Target vs Actual for ${formattedPeriod}`;
 
     try {
-        // --- 2. Fetch all daily summaries for the matching period ---
         const summariesQuery = query(
             collectionGroup(db, 'dailySummaries'),
             where('userId', '==', currentUser.uid)
@@ -848,13 +848,11 @@ async function showSalesTargetModal(data: any) {
         const periodSummaries = [];
         querySnapshot.forEach(doc => {
             const summary = doc.data();
-            // The summary date is 'YYYY-MM-DD', so we check if it starts with the target period 'YYYY-MM'
             if (summary.date && summary.date.startsWith(period)) {
                 periodSummaries.push(summary);
             }
         });
 
-        // --- 3. Calculate actual performance from the summaries ---
         const actuals = periodSummaries.reduce((acc, summary) => {
             acc.totalOmzet += summary.totalOmzet || 0;
             acc.totalTransactions += summary.totalTransactions || 0;
@@ -870,7 +868,6 @@ async function showSalesTargetModal(data: any) {
             ? actuals.totalOmzet / actuals.totalTransactions 
             : 0;
 
-        // Map the calculated actuals to the metric names used in the target file
         const actualValues = {
             'Total Omzet': actuals.totalOmzet,
             'Total Transaction': actuals.totalTransactions,
@@ -878,10 +875,21 @@ async function showSalesTargetModal(data: any) {
             'Avg. Per Transaction': actualAvgPerTransaction
         };
 
-        // --- 4. Build the comparison table HTML ---
         const targets = data.targets || {};
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
         const formatNumber = (value) => Math.round(value).toLocaleString('id-ID');
+
+        // --- FIX START: Define which metrics to show and which are currency ---
+        const metricsToShow = [
+            'Total Omzet',
+            'Total Items Sold',
+            'Total Transaction',
+            'Avg. Per Transaction'
+        ];
+        
+        // Define which metrics should have the "Rp" prefix
+        const currencyMetrics = ['Total Omzet', 'Avg. Per Transaction'];
+        // --- FIX END ---
 
         let tableHtml = `
             <div class="overflow-x-auto">
@@ -897,11 +905,16 @@ async function showSalesTargetModal(data: any) {
                     <tbody class="bg-white divide-y divide-gray-200">
         `;
 
-        for (const metric in targets) {
+        // --- FIX START: Loop through the specified metrics only ---
+        metricsToShow.forEach(metric => {
+            if (!targets[metric]) return; // Skip if a target for this metric doesn't exist
+
             const targetValue = targets[metric];
             const actualValue = actualValues[metric] || 0;
             const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
-            const isCurrency = metric.toLowerCase().includes('omzet') || metric.toLowerCase().includes('transaction');
+            
+            // Use our new array to check if the metric is a currency value
+            const isCurrency = currencyMetrics.includes(metric);
 
             tableHtml += `
                 <tr>
@@ -922,7 +935,8 @@ async function showSalesTargetModal(data: any) {
                     </td>
                 </tr>
             `;
-        }
+        });
+        // --- FIX END ---
 
         tableHtml += `
                     </tbody>
@@ -1055,13 +1069,14 @@ async function handleModalTargetUpload(file: File, expectedPeriod: string, type:
         throw new Error(`Sheet '${sheetName}' not found. Please use the correct template.`);
     }
 
-    // Validate the period from the file
+    // --- FIX START: Read branch name and create correct composite ID ---
+    const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch';
     const actualPeriod = getPeriodFromFile(worksheet);
+
     if (actualPeriod !== expectedPeriod) {
         throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
     }
     
-    // Proceed with parsing if validation passes
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
 
     if (!jsonData || jsonData.length === 0) {
@@ -1080,13 +1095,19 @@ async function handleModalTargetUpload(file: File, expectedPeriod: string, type:
     }
 
     const collectionPath = type === 'sales' ? 'monthlySalesTargets' : 'monthlyPnlTargets';
-    const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, actualPeriod);
+    const safeBranchName = branchName.replace(/\s+/g, '_');
+    const docId = `${actualPeriod}_${safeBranchName}`; // Create composite ID
+    const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, docId);
+
+    // Save with the correct branchName field
     await setDoc(targetDocRef, {
         fileName: file.name,
         lastUpdatedAt: new Date(),
         targets: targets,
-        period: actualPeriod
+        period: actualPeriod,
+        branchName: branchName 
     }, { merge: true });
+    // --- FIX END ---
 }
 
 /**
@@ -1210,12 +1231,11 @@ async function handleSalesTargetUpload() {
         const worksheet = workbook.Sheets["Sales Target Data"];
         if (!worksheet) throw new Error("Sheet 'Sales Target Data' not found. Please use the template.");
 
-        // --- FIX START ---
-        // Read the branch name from cell B1 of the target template
+        // Reads the branch name from cell B1
         const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch';
         const period = getPeriodFromFile(worksheet);
         if (!period) throw new Error("Could not determine the period from the file.");
-
+        
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
         
         const targets = {};
@@ -1231,19 +1251,19 @@ async function handleSalesTargetUpload() {
             throw new Error("No valid targets found in the file. Please ensure the 'Target' column contains numbers.");
         }
 
+        // Creates the correct composite ID (e.g., "2025-08_Bakso_Tujuh_Pemuda")
         const safeBranchName = branchName.replace(/\s+/g, '_');
         const docId = `${period}_${safeBranchName}`;
         const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, docId);
         
-        // Save the branchName along with the other data
+        // Saves the branchName field to the database
         await setDoc(targetDocRef, { 
             period, 
             targets, 
-            branchName: branchName, 
+            branchName: branchName,
             fileName: file.name, 
             lastUpdatedAt: new Date() 
         });
-        // --- FIX END ---
         
         hideLoading();
         alert('Sales target file uploaded successfully!');
@@ -1275,19 +1295,24 @@ document.getElementById('upload-sales-target-btn').addEventListener('click', han
  */
 function downloadSalesTargetTemplate() {
     const instructions = [
-        { Step: 1, Instruction: "In the 'Sales Target Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
-        { Step: 2, Instruction: "Fill in the target values in the 'Target' column for each metric. These should be numbers without commas or currency symbols." },
+        { Step: 1, Instruction: "In the 'Sales Target Data' sheet, replace '[Enter Business Name Here]' with your business/branch name in cell B1." },
+        { Step: 2, Instruction: "In cell B2, enter a date from the desired month and year. Excel will format it (e.g., to '01/12/2024' for December 2024)." },
+        { Step: 3, Instruction: "Fill in the target values in the 'Target' column. These should be numbers without commas or currency symbols." },
     ];
-    // --- MODIFIED: The sheet data now reflects the new, simpler metrics ---
+    
     const sheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
+        { A: "Period:", B: "01/12/2024" }, // Updated Example Format
         {}, 
         { A: "Metric", B: "Target" }, 
         { A: "Total Omzet", B: 300000000 },
         { A: "Total Transaction", B: 6000 },
         { A: "Avg. Per Transaction", B: 50000 },
         { A: "Total Items Sold", B: 10000 },
+        { A: "Omzet Harian", B: 10000000 },
+        { A: "Omzet Mingguan", B: 70000000 },
+        { A: "Total Transaksi Per Hari", B: 200 },
+        { A: "Average Check", B: 50000 },
     ];
 
     const wsInstructions = XLSX.utils.json_to_sheet(instructions, { skipHeader: true });
@@ -2188,7 +2213,7 @@ function runMonthlyComparison(summaries: any[]) {
 } 
 
 
-function runAnalysis(): void {
+async function runAnalysis(): Promise<void> {
   const currentStartDate = new Date(document.getElementById('date-start').value);
   const currentEndDate = new Date(document.getElementById('date-end').value);
   currentEndDate.setHours(23, 59, 59, 999);
@@ -3696,7 +3721,8 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
 
     chartDataForAI['salesTrendHourlyDaily'] = datasets.map(ds => ({ [ds.label]: ds.data }));
 
-    createChart('sales-trend-hourly-daily-chart', 'line', { labels, datasets });
+    // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
+    createChart(canvasId, 'line', { labels, datasets });
 }
 
 function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: string) {
@@ -3729,27 +3755,46 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
     });
 }
 
-function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'line') {
+function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'bar') {
     const weeklyOmzet = summaries.reduce((acc, summary) => {
         const d = summary.date;
         const firstDayOfWeek = new Date(d);
-        firstDayOfWeek.setDate(d.getDate() - d.getDay());
+        firstDayOfWeek.setDate(d.getDate() - d.getDay()); 
         const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
         acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
         return acc;
     }, {});
 
     const sortedWeeks = Object.keys(weeklyOmzet).sort();
-    createChart(canvasId, type, { // Use the specified chart type
-        labels: sortedWeeks,
-        datasets: [{
-            label: 'Total Omzet Mingguan',
-            data: sortedWeeks.map((week) => weeklyOmzet[week]),
-            borderColor: '#10B981',
-            backgroundColor: '#10B981', // For bar chart
-            tension: 0.1,
-        }],
+    
+    // --- FIX START: The chartLabels constant has been removed ---
+    const datasets = [{
+        label: 'Total Omzet Mingguan',
+        data: sortedWeeks.map((week) => weeklyOmzet[week]),
+        backgroundColor: '#10B981',
+        borderColor: '#10B981',
+    }];
+
+    if (activeSalesTarget && activeSalesTarget['Omzet Mingguan']) {
+        datasets.push({
+            type: 'line',
+            label: 'Target Omzet Mingguan',
+            data: Array(sortedWeeks.length).fill(activeSalesTarget['Omzet Mingguan']),
+            borderColor: '#EF4444',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+            fill: false
+        });
+    }
+    
+    createChart(canvasId, type, {
+        // Use the raw sortedWeeks array for the labels. The chart's tick callback will format them.
+        labels: sortedWeeks, 
+        datasets: datasets,
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    // --- FIX END ---
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -3920,29 +3965,121 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
-    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
+    const sortedSummaries = summaries.sort((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const data = sortedSummaries.map(s => s.totalOmzet);
 
+    // --- FIX START: Create the datasets array and add the target line if it exists ---
+    const datasets = [{
+        label: 'Total Omzet Harian',
+        data: data,
+        borderColor: '#3B82F6',
+        tension: 0.1,
+        type: 'line' // Specify type for clarity
+    }];
+
+    // Check if the "Omzet Harian" target was loaded
+    if (activeSalesTarget && activeSalesTarget['Omzet Harian']) {
+        datasets.push({
+            label: 'Target Omzet Harian',
+            // Create an array filled with the target value, one for each day
+            data: Array(labels.length).fill(activeSalesTarget['Omzet Harian']),
+            borderColor: '#EF4444', // Red color for the target line
+            borderDash: [5, 5], // Make the line dashed
+            borderWidth: 2,
+            pointRadius: 0, // No dots on the target line
+            tension: 0,
+            type: 'line'
+        });
+    }
+    // --- FIX END ---
+
     createChart(canvasId, 'line', {
         labels: labels,
-        datasets: [{ label: 'Total Omzet Harian', data: data, borderColor: '#3B82F6', tension: 0.1 }],
+        datasets: datasets, // Use the new datasets array
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
+
 function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string) {
-    const sortedSummaries = summaries.sort((a, b) => a.date - b.date);
+    const sortedSummaries = summaries.sort((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const tcData = sortedSummaries.map(s => s.totalTransactions);
     const apcData = sortedSummaries.map(s => s.apc);
 
+    // --- FIX START: Add target lines for both TC and APC ---
+    const datasets = [
+        {
+            type: 'bar',
+            label: 'Total Check (TC)',
+            data: tcData,
+            backgroundColor: '#60A5FA',
+            yAxisID: 'y-tc',
+            order: 2
+
+        },
+        {
+            type: 'line',
+            label: 'Average Check (APC)',
+            data: apcData,
+            borderColor: '#F97316',
+            tension: 0.1,
+            yAxisID: 'y-apc',
+            order: 1
+        },
+    ];
+
+    // Add Target Line for "Total Transaksi Per Hari" (TC)
+    if (activeSalesTarget && activeSalesTarget['Total Transaksi Per Hari']) {
+        datasets.push({
+            type: 'line',
+            label: 'Target TC Harian',
+            data: Array(labels.length).fill(activeSalesTarget['Total Transaksi Per Hari']),
+            borderColor: '#3B82F6', // A darker blue for TC target
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            yAxisID: 'y-tc', // Ensure it uses the left axis
+        });
+    }
+
+    // Add Target Line for "Average Check" (APC)
+    if (activeSalesTarget && activeSalesTarget['Average Check']) {
+        datasets.push({
+            type: 'line',
+            label: 'Target Average Check',
+            data: Array(labels.length).fill(activeSalesTarget['Average Check']),
+            borderColor: '#EF4444', // Red for APC target
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            yAxisID: 'y-apc', // Ensure it uses the right axis
+        });
+    }
+    // --- FIX END ---
+
     createChart(canvasId, 'bar', {
         labels: labels,
-        datasets: [
-            { type: 'bar', label: 'Total Check (TC)', data: tcData, backgroundColor: '#60A5FA', yAxisID: 'y-tc' },
-            { type: 'line', label: 'Average Check (APC)', data: apcData, borderColor: '#F97316', tension: 0.1, yAxisID: 'y-apc' },
-        ],
-    }, deepmerge({ scales: { /* ... scale options ... */ } }, chartXTicks(shortenDateTickCallback)));
+        datasets: datasets, // Use the new datasets array
+    }, deepmerge({
+        scales: {
+            'y-tc': {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: { display: true, text: 'Total Check' },
+                ticks: { callback: shortenNumber }
+            },
+            'y-apc': {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: { display: true, text: 'Average Check (Rp)' },
+                grid: { drawOnChartArea: false },
+                ticks: { callback: shortenCurrency }
+            },
+        }
+    }, chartXTicks(shortenDateTickCallback)));
 }
 
 /**
@@ -11120,19 +11257,19 @@ function hideLoading() {
 
 function downloadPnlTemplate() {
     const instructions = [
-        { Step: 1, Instruction: "In the 'P&L Data' sheet, replace '[Enter Period Here]' with the period in 'Month Year' format (e.g., 'Agustus 2025')." },
+        { Step: 1, Instruction: "In the 'P&L Data' sheet, enter a date from the desired month and year in cell B2 (e.g., '01/12/2024' for December 2024)." },
         { Step: 2, Instruction: "For the 'Main Category' column, you MUST use the exact values from the list provided in these instructions." }
     ];
     const pnlSheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: "[Enter Period Here: e.g., Agustus 2025]" },
+        { A: "Period:", B: "01/12/2024" }, // Updated Example Format
         {},
         { A: "Main Category", B: "Sub-Category", C: "Amount" },
         { A: "Pendapatan (Revenue)", B: "Penjualan Kopi Susu", C: 5000000 },
         { A: "Beban Operasional (OPEX)", B: "Gaji Barista", C: 1500000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `${cat}` }))], { skipHeader: true });
+    const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
     wsInstructions['!cols'] = [{ wch: 25 }, { wch: 100 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
@@ -11146,29 +11283,40 @@ function downloadPnlTemplate() {
 document.getElementById('download-pnl-template-btn').addEventListener('click', downloadPnlTemplate);
 
 function getPeriodFromFile(worksheet) {
-    // The period is in cell B2 (row 2, column B).
     const periodCell = worksheet['B2'];
     if (!periodCell || !periodCell.v) {
         throw new Error("Period not found in cell B2. Please use the template and fill in the period.");
     }
 
-    const periodString = periodCell.v.toString(); // e.g., "Agustus 2025"
-    const monthNames = {
-        "januari": "01", "februari": "02", "maret": "03", "april": "04", "mei": "05", "juni": "06",
-        "juli": "07", "agustus": "08", "september": "09", "oktober": "10", "november": "11", "desember": "12"
-    };
+    let dateString: string;
 
-    const parts = periodString.toLowerCase().split(' ');
-    if (parts.length !== 2) return null;
-
-    const month = monthNames[parts[0]];
-    const year = parts[1];
-
-    if (!month || !/^\d{4}$/.test(year)) {
-        throw new Error(`Invalid period format: "${periodString}". Expected "Month Year", e.g., "Agustus 2025".`);
+    // Check if Excel stored the date as a number (serial date) or a string
+    if (periodCell.t === 'n') {
+        // If it's a number, format it into a recognizable date string
+        // Note: XLSX.SSF is a utility from the xlsx.full.min.js library
+        dateString = XLSX.SSF.format('dd/mm/yyyy', periodCell.v);
+    } else {
+        // If it's already a string, use it directly
+        dateString = periodCell.v.toString();
     }
 
-    return `${year}-${month}`;
+    // Now, parse the "DD/MM/YYYY" string
+    const parts = dateString.split('/');
+    if (parts.length !== 3) {
+        throw new Error(`Invalid period format: "${dateString}". Expected "DD/MM/YYYY".`);
+    }
+
+    const day = parts[0];
+    const month = parts[1];
+    const year = parts[2];
+
+    // Ensure month is two digits (e.g., '08') and year is four digits
+    if (!/^\d{4}$/.test(year) || !/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) {
+        throw new Error(`Could not correctly parse the date from "${dateString}".`);
+    }
+    
+    // Return in the required "YYYY-MM" format
+    return `${year}-${month.padStart(2, '0')}`;
 }
 
 async function handlePnlTargetUpload() {
@@ -11992,7 +12140,7 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
     });
 }
 
-function generateGeneralPenjualanSection() {
+async function generateGeneralPenjualanSection() {
     const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
     const startDateInput = document.getElementById('general-penjualan-start-date') as HTMLInputElement;
     const endDateInput = document.getElementById('general-penjualan-end-date') as HTMLInputElement;
@@ -12005,6 +12153,23 @@ function generateGeneralPenjualanSection() {
     if (!selectedBranch || !startDateInput.value || !endDateInput.value) {
         destroyCharts();
         return;
+    }
+
+      activeSalesTarget = {}; // Reset before fetching
+    if (selectedBranch && selectedBranch !== 'ALL') {
+        const period = endDate.toISOString().slice(0, 7); // Get period from the selected end date
+        const safeBranchName = selectedBranch.replace(/\s+/g, '_');
+        const targetDocId = `${period}_${safeBranchName}`;
+        
+        try {
+            const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetDocId);
+            const targetDocSnap = await getDoc(targetDocRef);
+            if (targetDocSnap.exists()) {
+                activeSalesTarget = targetDocSnap.data().targets || {};
+            }
+        } catch (error) {
+            console.error("Could not fetch sales target for the period:", error);
+        }
     }
 
     // Filter data based on the new date range selector
@@ -12027,11 +12192,12 @@ function generateGeneralPenjualanSection() {
     
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
-    generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'bar');
+    generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line');
     generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart');
     generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container');
     generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container');
     generateSalesTrendHourlyDailyChartFromSummaries(currentData, 'general-sales-trend-chart');
+
 }
 
 /**
