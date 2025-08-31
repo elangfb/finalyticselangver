@@ -508,7 +508,6 @@ async function populateCompiledDataTable() {
                 const period = data.period || doc.id;
                 if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
 
-                // --- MODIFICATION: Check for branchName on ALL data types ---
                 const branch = data.branchName || 'Company-Wide';
                 const key = `${branch}|${period}`;
 
@@ -533,13 +532,17 @@ async function populateCompiledDataTable() {
             if (branchA > branchB) return 1;
             return periodB.localeCompare(periodA);
         });
+        
+        // --- FIX START: Filter out "Company-Wide" rows ---
+        const filteredKeys = sortedKeys.filter(key => !key.startsWith('Company-Wide|'));
 
-        if (sortedKeys.length === 0) {
+        if (filteredKeys.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">No data periods found. Please upload a Sales Data file to begin.</td></tr>';
             return;
         }
 
-        sortedKeys.forEach(key => {
+        filteredKeys.forEach(key => {
+        // --- FIX END ---
             const data = aggregatedData[key];
             const [year, month] = data.period.split('-');
             const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -558,7 +561,7 @@ async function populateCompiledDataTable() {
                 } else {
                     return `
                         <td class="px-6 py-4 text-center">
-                            <button class="upload-compiled-btn bg-gray-200 text-gray-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-gray-300" data-period="${data.period}" data-type="${type}">
+                            <button class="upload-compiled-btn bg-gray-200 text-gray-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-gray-300" data-period="${data.period}" data-type="${type}" data-branch="${data.branch}">
                                 Upload
                             </button>
                         </td>`;
@@ -582,6 +585,7 @@ async function populateCompiledDataTable() {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-red-500">Could not load data.</td></tr>';
     }
 }
+
 
 const quickUploadModal = document.getElementById('quick-upload-modal');
 const quickUploadTitle = document.getElementById('quick-upload-modal-title');
@@ -1207,12 +1211,14 @@ async function handleSalesTargetUpload() {
         const worksheet = workbook.Sheets["Sales Target Data"];
         if (!worksheet) throw new Error("Sheet 'Sales Target Data' not found. Please use the template.");
 
+        // --- FIX START ---
+        // Read the branch name from cell B1 of the target template
+        const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch';
         const period = getPeriodFromFile(worksheet);
         if (!period) throw new Error("Could not determine the period from the file.");
 
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
         
-        // --- MODIFIED: Simplified parsing logic for the new flat structure ---
         const targets = {};
         jsonData.forEach(row => {
             const metric = row.Metric ? String(row.Metric).trim() : null;
@@ -1226,8 +1232,19 @@ async function handleSalesTargetUpload() {
             throw new Error("No valid targets found in the file. Please ensure the 'Target' column contains numbers.");
         }
 
-        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, period);
-        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
+        const safeBranchName = branchName.replace(/\s+/g, '_');
+        const docId = `${period}_${safeBranchName}`;
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, docId);
+        
+        // Save the branchName along with the other data
+        await setDoc(targetDocRef, { 
+            period, 
+            targets, 
+            branchName: branchName, 
+            fileName: file.name, 
+            lastUpdatedAt: new Date() 
+        });
+        // --- FIX END ---
         
         hideLoading();
         alert('Sales target file uploaded successfully!');
@@ -1238,6 +1255,7 @@ async function handleSalesTargetUpload() {
         alert(`Error: ${error.message}`);
     }
 }
+
 
 // --- Sales Target Modal Listeners ---
 document.getElementById('sales-target-modal-close').addEventListener('click', () => {
@@ -3816,10 +3834,11 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
 
 function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
   const container = document.getElementById(containerId);
-  if (!container) return; // Exit if the container doesn't exist
+  if (!container) return; 
 
   container.innerHTML = ''; 
 
+  // --- FIX START: Handle empty data and derive dates from the passed summaries ---
   if (summaries.length === 0) {
     container.innerHTML = '<p class="text-gray-500">No data to display for the selected period.</p>';
     return;
@@ -3830,15 +3849,16 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
-  const startDateString = document.getElementById('date-start').value;
-  const endDateString = document.getElementById('date-end').value;
-  const startDate = new Date(startDateString + 'T00:00:00Z');
-  const endDate = new Date(endDateString + 'T00:00:00Z');
+  // Determine the start and end date from the filtered data, NOT from the DOM
+  const startDate = summaries.reduce((min, s) => s.date < min ? s.date : min, summaries[0].date);
+  const endDate = summaries.reduce((max, s) => s.date > max ? s.date : max, summaries[0].date);
+  // --- FIX END ---
 
   let currentMonth = -1;
   let calendarHTML = '';
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+  // The rest of the function works correctly with the new startDate and endDate
   for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
     const month = d.getUTCMonth();
     if (month !== currentMonth) {
@@ -6003,29 +6023,58 @@ async function viewCompiledAnalysis() {
             collectionGroup(db, 'dailySummaries'),
             where('userId', '==', currentUser.uid)
         );
-
         const querySnapshot = await getDocs(summariesQuery);
         const allSummaries = [];
         querySnapshot.forEach(doc => {
             const summary = doc.data();
-            summary.date = new Date(summary.date); // Convert Firestore timestamp to JS Date
+            summary.date = new Date(summary.date);
             allSummaries.push(summary);
         });
 
-        // Filter out any summaries that might have an invalid date
-        const validSummaries = allSummaries.filter(summary => summary.date instanceof Date && !isNaN(summary.date.getTime()));
+        const validSummaries = allSummaries.filter(s => s.date instanceof Date && !isNaN(s.date.getTime()));
 
         if (validSummaries.length === 0) {
-            alert('No valid summarized data found to analyze. Please upload a file first.');
+            alert('No valid summarized data found. Please upload a file first.');
             hideLoading();
             return;
         }
-        
-        // Sort all summaries chronologically
-        validSummaries.sort((a, b) => a.date - b.date);
 
-        // Pass the complete, sorted dataset to the analysis view
-        setupAndShowAnalysisView(validSummaries, 'Compiled Analysis of All Uploads');
+        validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        // Setup the main analysis view first
+        setupAndShowAnalysisView(validSummaries, 'Compiled Financial Analysis');
+
+        // --- START: NEW LOGIC TO SWITCH TO FINANCIAL VIEW ---
+
+        // 1. Find all sections and links and remove their 'active' status
+        document.querySelectorAll('.analysis-section.active, .sidebar-link.active, .submenu-toggle.active').forEach(el => {
+            el.classList.remove('active');
+        });
+
+        // 2. Find the target elements for the financial view
+        const targetLink = document.querySelector('a.sidebar-link[data-target="general-keuangan"]') as HTMLElement;
+        const targetSection = document.getElementById('general-keuangan-section');
+        const parentToggle = targetLink?.closest('.submenu-container')?.querySelector('.submenu-toggle');
+        const submenu = parentToggle?.nextElementSibling as HTMLElement;
+
+        // 3. Activate the new section, link, and expand the parent submenu
+        if (targetLink && targetSection && parentToggle && submenu) {
+            targetSection.classList.add('active');
+            targetLink.classList.add('active');
+            parentToggle.classList.add('active');
+            submenu.classList.remove('hidden'); // Ensure the submenu is visible
+            parentToggle.querySelector('.chevron-icon')?.classList.add('rotate-180');
+        }
+
+        // 4. Hide the main date filters as they are not used in this section
+        const mainFilters = document.getElementById('main-filters');
+        if(mainFilters) {
+             mainFilters.style.display = 'none';
+        }
+
+        // 5. Initialize the specific selectors and charts for the financial section
+        await setupGeneralKeuanganPeriodSelector();
+        // --- END: NEW LOGIC ---
 
     } catch (error) {
         console.error("Failed to compile analysis from summaries:", error);
@@ -11139,6 +11188,9 @@ async function handlePnlTargetUpload() {
         const worksheet = workbook.Sheets["P&L Target Data"];
         if (!worksheet) throw new Error("Sheet 'P&L Target Data' not found. Please use the template.");
 
+        // --- FIX START ---
+        // Read the branch name from cell B1 of the target template
+        const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch';
         const period = getPeriodFromFile(worksheet);
         if (!period) throw new Error("Could not determine the period from the file.");
 
@@ -11151,8 +11203,19 @@ async function handlePnlTargetUpload() {
             }
         });
         
-        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, period);
-        await setDoc(targetDocRef, { period, targets, fileName: file.name, lastUpdatedAt: new Date() });
+        const safeBranchName = branchName.replace(/\s+/g, '_');
+        const docId = `${period}_${safeBranchName}`;
+        const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, docId);
+
+        // Save the branchName along with the other data
+        await setDoc(targetDocRef, { 
+            period, 
+            targets, 
+            branchName: branchName, 
+            fileName: file.name, 
+            lastUpdatedAt: new Date() 
+        });
+        // --- FIX END ---
 
         hideLoading();
         alert('P&L target file uploaded successfully!');
