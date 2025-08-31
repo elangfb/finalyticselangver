@@ -5852,6 +5852,27 @@
             </div>
          </div>
       </div>
+
+      <div id="view-choice-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="text-xl font-semibold text-gray-800">Select Summary Type</h3>
+            <button id="view-choice-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+        <div id="view-choice-modal-body" class="my-6 text-center space-y-4">
+            <p class="text-gray-600">Which summary would you like to view for this period?</p>
+            <button id="view-choice-daily-btn" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300">
+                View Daily Summary
+            </button>
+            <button id="view-choice-monthly-btn" class="w-full bg-purple-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-600 transition duration-300">
+                View Monthly Summary
+            </button>
+        </div>
+        <div class="flex items-center justify-end mt-6">
+            <button id="view-choice-cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">Cancel</button>
+        </div>
+    </div>
+</div>
       <script type="module" src="./src/main.ts"></script>
    </body>
 </html>

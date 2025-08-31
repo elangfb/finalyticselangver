@@ -685,41 +685,42 @@ quickUploadConfirmBtn.addEventListener('click', async () => {
 // Add event listener for the new table
 document.getElementById('app').addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
-    // Use .closest() to correctly find the button, even if the icon inside is clicked
     const viewBtn = target.closest('.view-compiled-btn');
     const deleteBtn = target.closest('.delete-compiled-btn');
     const uploadBtn = target.closest('.upload-compiled-btn');
 
-    // --- Logic for the VIEW button ---
     if (viewBtn) {
         const id = (viewBtn as HTMLElement).dataset.id;
         const type = (viewBtn as HTMLElement).dataset.type;
         
         try {
             switch (type) {
+                // --- THIS IS THE MODIFIED PART ---
                 case 'salesData': {
-                    showLoading({ message: 'Fetching report summaries...', value: 10 });
                     const salesDocRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, id);
                     const salesDocSnap = await getDoc(salesDocRef);
                     if (salesDocSnap.exists()) {
                         const upload = salesDocSnap.data();
-                        const dailySummaries = await fetchDailySummariesForUpload(id);
-                        setupAndShowAnalysisView(dailySummaries, `Analysis for ${upload.name}`);
+                        // Instead of analyzing, we now open the choice modal
+                        const fileName = upload.branchName ? `${upload.branchName} - ${upload.period}` : (upload.name || 'report');
+                        openViewChoiceModal(id, fileName);
+                    } else {
+                        alert('Could not find the selected sales data.');
                     }
                     break;
                 }
+                // --- END OF MODIFICATION ---
                 case 'pnlData': {
                     showLoading({ message: 'Loading P&L report...' });
                     const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, id);
                     const pnlDocSnap = await getDoc(pnlDocRef);
                     if (pnlDocSnap.exists()) {
                         const report = pnlDocSnap.data();
-                        // Call our new modal function instead of the broken code
                         showPnlDataModal(report);
                     } else {
                         alert('Could not find the selected P&L data.');
                     }
-                    break; // break added for consistency
+                    break;
                 }
                 case 'salesTarget': {
                     showLoading({ message: 'Fetching target data...' });
@@ -731,36 +732,34 @@ document.getElementById('app').addEventListener('click', async (e) => {
                     } else {
                         alert('Could not find the selected sales target data.');
                     }
-                    // This hideLoading() call should be inside this case
                     hideLoading(); 
                     break;
                 }
                 case 'pnlTarget': {
-    showLoading({ message: 'Fetching P&L target data...' });
-    const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, id);
-    const targetDocSnap = await getDoc(targetDocRef);
-    if (targetDocSnap.exists()) {
-        const targetData = targetDocSnap.data();
-        // Call our new function
-        await showPnlTargetModal(targetData);
-    } else {
-        alert('Could not find the selected P&L target data.');
-    }
-    hideLoading();
-    break;
-}
-}
+                    showLoading({ message: 'Fetching P&L target data...' });
+                    const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, id);
+                    const targetDocSnap = await getDoc(targetDocRef);
+                    if (targetDocSnap.exists()) {
+                        const targetData = targetDocSnap.data();
+                        const reportId = `${targetData.period}_${targetData.branchName.replace(/\s+/g, '_')}`;
+                        await showPnlTargetModal(targetData, reportId);
+                    } else {
+                        alert('Could not find the selected P&L target data.');
+                    }
+                    hideLoading();
+                    break;
+                }
+            }
         } catch (error) {
             console.error(`Error viewing compiled data for type ${type}:`, error);
             alert('Could not load the selected item.');
         } finally {
-            // Corrected: The finally block should only hide the loading overlay
-            // for types that actually show it and aren't handled elsewhere.
-            if (type !== 'salesTarget') { // salesTarget handles its own loading state
+            if (type !== 'salesTarget' && type !== 'pnlTarget' && type !== 'pnlData' && type !== 'salesData') {
                 hideLoading();
             }
         }
     }
+
 
     // --- Logic for the DELETE button ---
     if (deleteBtn) {
@@ -11133,7 +11132,7 @@ function downloadPnlTemplate() {
         { A: "Beban Operasional (OPEX)", B: "Gaji Barista", C: 1500000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
+    const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
     wsInstructions['!cols'] = [{ wch: 25 }, { wch: 100 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
@@ -12620,3 +12619,45 @@ function generateAnalisaPenjualanSection(summaries: any[]) {
     generatePenjualanChannelChartFromSummaries(summaries, 'penjualan-channel-chart');
     generateSalesTrendHourlyDailyChartFromSummaries(summaries, 'sales-trend-hourly-daily-chart');
 }
+
+// --- START: New logic for the View Choice Modal ---
+const viewChoiceModal = document.getElementById('view-choice-modal');
+
+function openViewChoiceModal(uploadId: string, fileName: string) {
+    if (!viewChoiceModal) return;
+    // Store the necessary data on the modal itself
+    viewChoiceModal.dataset.uploadId = uploadId;
+    viewChoiceModal.dataset.fileName = fileName;
+    viewChoiceModal.classList.remove('hidden');
+}
+
+// Add listeners for the new modal's buttons
+if (viewChoiceModal) {
+    document.getElementById('view-choice-modal-close').addEventListener('click', () => viewChoiceModal.classList.add('hidden'));
+    document.getElementById('view-choice-cancel-btn').addEventListener('click', () => viewChoiceModal.classList.add('hidden'));
+
+    document.getElementById('view-choice-daily-btn').addEventListener('click', async () => {
+        const uploadId = viewChoiceModal.dataset.uploadId;
+        const fileName = viewChoiceModal.dataset.fileName;
+        if (!uploadId) return;
+
+        viewChoiceModal.classList.add('hidden'); // Close the choice modal
+        showLoading({ message: 'Fetching data for daily recap...', value: 50 });
+        const dailySummaries = await fetchDailySummariesForUpload(uploadId);
+        hideLoading();
+        generateDailyRecap(dailySummaries, fileName);
+    });
+
+    document.getElementById('view-choice-monthly-btn').addEventListener('click', async () => {
+        const uploadId = viewChoiceModal.dataset.uploadId;
+        const fileName = viewChoiceModal.dataset.fileName;
+        if (!uploadId) return;
+
+        viewChoiceModal.classList.add('hidden'); // Close the choice modal
+        showLoading({ message: 'Fetching data for monthly summary...', value: 50 });
+        const dailySummaries = await fetchDailySummariesForUpload(uploadId);
+        hideLoading();
+        generateMonthlySummary(dailySummaries, fileName);
+    });
+}
+// --- END: New logic for the View Choice Modal ---
