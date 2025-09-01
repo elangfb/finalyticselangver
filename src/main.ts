@@ -24,8 +24,8 @@ import {
   query,
   where,
   getCountFromServer,
-  orderBy,           
-  limit,             
+  orderBy,
+  limit,
   startAfter,
   onSnapshot
 } from 'firebase/firestore'
@@ -124,19 +124,19 @@ function drawMonthlyOmzetComparisonChart() {
     if (!omzetComparisonSelect) return;
 
     const selectedMonths = omzetComparisonSelect.getSelected() as string[];
-    
+
     // The X-axis will be days 1 through 31
     const labels = Array.from({ length: 31 }, (_, i) => i + 1);
-    
+
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#F59E0B'];
 
     const datasets = selectedMonths.map((monthStr, index) => {
         // Filter the main data for summaries belonging to the selected month
         const monthSummaries = allSalesData.filter(s => s.date.toISOString().startsWith(monthStr));
-        
+
         // Create an array to hold the revenue for each day (1-31)
         const dailyData = Array(31).fill(null); // Use null for days with no data
-        
+
         monthSummaries.forEach(summary => {
             const dayOfMonth = summary.date.getDate(); // getDate() returns 1-31
             dailyData[dayOfMonth - 1] = summary.totalOmzet; // Array is 0-indexed
@@ -179,14 +179,14 @@ function setupMonthlyOmzetComparisonChart() {
 
     // Get all unique months (YYYY-MM) from the data and sort them
     const availableMonths = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
-    
+
     if (availableMonths.length === 0) {
         selectEl.innerHTML = '<option disabled>No data available</option>';
         return;
     }
 
     // Populate the select element with options
-    selectEl.innerHTML = availableMonths.map(month => 
+    selectEl.innerHTML = availableMonths.map(month =>
         `<option value="${month}">${new Date(month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`
     ).join('');
 
@@ -244,7 +244,7 @@ function renderPnlResults(pnlData) {
                 <span class="font-mono">${formatCurrency(value as number)}</span>
             </div>
         `).join('');
-        
+
         // Don't show a total line if there are no items
         const totalHtml = Object.keys(data).length > 0 ? `
             <div class="flex justify-between font-semibold pt-1 border-t mt-1">
@@ -432,7 +432,7 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
     if (!worksheet) {
         throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
     }
-    
+
     // --- ADD THIS: Read the Business Name from cell B1 ---
     const businessNameCell = worksheet['B1'];
     const branchName = businessNameCell ? String(businessNameCell.v).trim() : 'Unknown Branch';
@@ -468,7 +468,7 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
             pnlData[mainCategory][String(subCategory).trim()] = amount;
         }
     }
-    
+
     if (Object.keys(pnlData).length === 0) {
         throw new Error("No valid P&L rows could be parsed from the file.");
     }
@@ -523,9 +523,9 @@ async function populateCompiledDataTable() {
         processSnap(salesTargetSnap, 'salesTarget');
         processSnap(pnlSnap, 'pnlData');
         processSnap(pnlTargetSnap, 'pnlTarget');
-        
+
         tbody.innerHTML = '';
-        
+
         const sortedKeys = Object.keys(aggregatedData).sort((a, b) => {
             const [branchA, periodA] = a.split('|');
             const [branchB, periodB] = b.split('|');
@@ -533,7 +533,7 @@ async function populateCompiledDataTable() {
             if (branchA > branchB) return 1;
             return periodB.localeCompare(periodA);
         });
-        
+
         // --- FIX START: Filter out "Company-Wide" rows ---
         const filteredKeys = sortedKeys.filter(key => !key.startsWith('Company-Wide|'));
 
@@ -606,13 +606,13 @@ const typeDisplayNames = {
 function openQuickUploadModal(period: string, type: string) {
     const [year, month] = period.split('-');
     const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-    
+
     quickUploadTitle.textContent = `Upload ${typeDisplayNames[type]} for ${formattedPeriod}`;
-    
+
     // Store data on the modal for the confirm button to access
     quickUploadModal.dataset.period = period;
     quickUploadModal.dataset.type = type;
-    
+
     // Reset modal state
     quickUploadFileInput.value = '';
     quickUploadError.classList.add('hidden');
@@ -660,13 +660,13 @@ quickUploadConfirmBtn.addEventListener('click', async () => {
                 await handleModalTargetUpload(file, period, 'pnl');
                 break;
         }
-        
+
         quickUploadProcessingStatus.textContent = 'Success! The table will refresh shortly.';
         quickUploadProcessingStatus.className = 'mt-2 text-sm text-green-600';
         quickUploadProcessingStatus.classList.remove('hidden');
 
         // Always refresh the main data hub table in the background
-        await populateCompiledDataTable(); 
+        await populateCompiledDataTable();
 
         // ALSO, if the user is currently viewing the financial analysis page, refresh it.
         const generalKeuanganSection = document.getElementById('general-keuangan-section');
@@ -693,7 +693,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (viewBtn) {
         const id = (viewBtn as HTMLElement).dataset.id;
         const type = (viewBtn as HTMLElement).dataset.type;
-        
+
         try {
             switch (type) {
                 // --- THIS IS THE MODIFIED PART ---
@@ -734,7 +734,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
                     } else {
                         alert('Could not find the selected sales target data.');
                     }
-                    hideLoading(); 
+                    hideLoading();
                     break;
                 }
                 case 'pnlTarget': {
@@ -844,7 +844,7 @@ async function showSalesTargetModal(data: any) {
             where('userId', '==', currentUser.uid)
         );
         const querySnapshot = await getDocs(summariesQuery);
-        
+
         const periodSummaries = [];
         querySnapshot.forEach(doc => {
             const summary = doc.data();
@@ -864,8 +864,8 @@ async function showSalesTargetModal(data: any) {
             totalItemsSold: 0
         });
 
-        const actualAvgPerTransaction = actuals.totalTransactions > 0 
-            ? actuals.totalOmzet / actuals.totalTransactions 
+        const actualAvgPerTransaction = actuals.totalTransactions > 0
+            ? actuals.totalOmzet / actuals.totalTransactions
             : 0;
 
         const actualValues = {
@@ -886,7 +886,7 @@ async function showSalesTargetModal(data: any) {
             'Total Transaction',
             'Avg. Per Transaction'
         ];
-        
+
         // Define which metrics should have the "Rp" prefix
         const currencyMetrics = ['Total Omzet', 'Avg. Per Transaction'];
         // --- FIX END ---
@@ -912,7 +912,7 @@ async function showSalesTargetModal(data: any) {
             const targetValue = targets[metric];
             const actualValue = actualValues[metric] || 0;
             const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
-            
+
             // Use our new array to check if the metric is a currency value
             const isCurrency = currencyMetrics.includes(metric);
 
@@ -1026,7 +1026,7 @@ async function handleModalSalesDataUpload(file: File, expectedPeriod: string) {
                 progressBar.classList.add('bg-green-500');
                 progressPercent.textContent = '100%';
                 cancelBtn.removeEventListener('click', cancelUpload);
-                
+
                 // Trigger backend processing by creating the signal document
                 const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, actualPeriod);
                 await setDoc(docRef, {
@@ -1036,7 +1036,7 @@ async function handleModalSalesDataUpload(file: File, expectedPeriod: string) {
                     storagePath: storagePath,
                     uploadedAt: new Date(),
                 });
-                
+
                 // Listen for the backend processing status using the main UI
                 listenForProcessingStatus(actualPeriod);
             }
@@ -1061,7 +1061,7 @@ async function handleModalSalesDataUpload(file: File, expectedPeriod: string) {
 async function handleModalTargetUpload(file: File, expectedPeriod: string, type: 'sales' | 'pnl') {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
-    
+
     // Determine the correct sheet name based on the upload type
     const sheetName = type === 'sales' ? "Sales Target Data" : "P&L Target Data";
     const worksheet = workbook.Sheets[sheetName];
@@ -1076,7 +1076,7 @@ async function handleModalTargetUpload(file: File, expectedPeriod: string, type:
     if (actualPeriod !== expectedPeriod) {
         throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`);
     }
-    
+
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
 
     if (!jsonData || jsonData.length === 0) {
@@ -1105,7 +1105,7 @@ async function handleModalTargetUpload(file: File, expectedPeriod: string, type:
         lastUpdatedAt: new Date(),
         targets: targets,
         period: actualPeriod,
-        branchName: branchName 
+        branchName: branchName
     }, { merge: true });
     // --- FIX END ---
 }
@@ -1235,9 +1235,9 @@ async function handleSalesTargetUpload() {
         const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch';
         const period = getPeriodFromFile(worksheet);
         if (!period) throw new Error("Could not determine the period from the file.");
-        
+
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ["Metric", "Target"], range: 3 });
-        
+
         const targets = {};
         jsonData.forEach(row => {
             const metric = row.Metric ? String(row.Metric).trim() : null;
@@ -1255,16 +1255,16 @@ async function handleSalesTargetUpload() {
         const safeBranchName = branchName.replace(/\s+/g, '_');
         const docId = `${period}_${safeBranchName}`;
         const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, docId);
-        
+
         // Saves the branchName field to the database
-        await setDoc(targetDocRef, { 
-            period, 
-            targets, 
+        await setDoc(targetDocRef, {
+            period,
+            targets,
             branchName: branchName,
-            fileName: file.name, 
-            lastUpdatedAt: new Date() 
+            fileName: file.name,
+            lastUpdatedAt: new Date()
         });
-        
+
         hideLoading();
         alert('Sales target file uploaded successfully!');
         await populateCompiledDataTable();
@@ -1299,12 +1299,12 @@ function downloadSalesTargetTemplate() {
         { Step: 2, Instruction: "In cell B2, enter a date from the desired month and year. Excel will format it (e.g., to '01/12/2024' for December 2024)." },
         { Step: 3, Instruction: "Fill in the target values in the 'Target' column. These should be numbers without commas or currency symbols." },
     ];
-    
+
     const sheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
         { A: "Period:", B: "01/12/2024" }, // Updated Example Format
-        {}, 
-        { A: "Metric", B: "Target" }, 
+        {},
+        { A: "Metric", B: "Target" },
         { A: "Total Omzet", B: 300000000 },
         { A: "Total Transaction", B: 6000 },
         { A: "Avg. Per Transaction", B: 50000 },
@@ -1328,7 +1328,7 @@ function downloadSalesTargetTemplate() {
 
 async function downloadPnlTargetTemplate() {
     showLoading({ message: 'Fetching template...' });
-    
+
     // The path to your master template in Firebase Storage
     const templatePath = 'templates/Finalytics_P&L_Target_Template.xlsx';
     const templateRef = ref(storage, templatePath);
@@ -1340,15 +1340,15 @@ async function downloadPnlTargetTemplate() {
         // Create a temporary link to trigger the browser download
         const link = document.createElement('a');
         link.href = url;
-        
+
         // This attribute suggests a filename to the browser
         link.setAttribute('download', 'Finalytics_P&L_Target_Template.xlsx');
-        
+
         // Append the link to the body, click it, and then remove it
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         hideLoading();
     } catch (error) {
         hideLoading();
@@ -1632,7 +1632,7 @@ function getPeriodFromSalesData(worksheet) {
     if (!/^\d{4}$/.test(year) || !/^\d{2}$/.test(month)) {
          throw new Error(`Could not correctly parse the year and month from "${startDateString}".`);
     }
-    
+
     return `${year}-${month}`;
 }
 
@@ -1684,9 +1684,9 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
         const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
         const storageRef = ref(storage, storagePath);
         const metadata = {
-            customMetadata: { 
+            customMetadata: {
                 userId: currentUser.uid,
-                period: period 
+                period: period
             }
         };
         const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, metadata);
@@ -1719,7 +1719,7 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
                 progressPercent.textContent = '100%';
                 uploadButton.disabled = false;
                 cancelBtn.removeEventListener('click', cancelUpload);
-                
+
                 // --- CORRECTED: Trigger processing using the period, not the file name ---
                 const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
                 await setDoc(docRef, {
@@ -1729,7 +1729,7 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
                     storagePath: storagePath,
                     uploadedAt: new Date(),
                 });
-                
+
                 listenForProcessingStatus(period);
             }
         );
@@ -1975,7 +1975,7 @@ function setupAndShowAnalysisView(data: any[], title: string): void {
 
   document.getElementById('analysis-title').textContent = title;
   showLoading({ message: 'Preparing view...', value: 80 });
-  
+
   populateFilters(allSalesData);
   runAnalysis();
 
@@ -2031,7 +2031,7 @@ function populateFilters(data: any[]): void {
   lastPeriodEnd.setDate(lastPeriodEnd.getDate() - 1);
   const lastPeriodStart = new Date(lastPeriodEnd);
   // A full month before the last period end date
-  lastPeriodStart.setMonth(lastPeriodStart.getMonth() - 1); 
+  lastPeriodStart.setMonth(lastPeriodStart.getMonth() - 1);
 
   document.getElementById('last-period-start').value = lastPeriodStart.toISOString().split('T')[0];
   document.getElementById('last-period-end').value = lastPeriodEnd.toISOString().split('T')[0];
@@ -2077,7 +2077,7 @@ function setupMonthlyComparison(summaries: any[]) {
     const optionsHtml = availableMonths.map(month => `<option value="${month}">${new Date(month + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
     monthASelect.innerHTML = optionsHtml;
     monthBSelect.innerHTML = optionsHtml;
-    
+
     // Set default selections
     monthBSelect.value = availableMonths[0];
     monthASelect.value = availableMonths[1];
@@ -2085,13 +2085,13 @@ function setupMonthlyComparison(summaries: any[]) {
     // --- FIX: Add event listeners to the dropdowns to auto-update ---
     if (!monthlyComparisonInitialized) {
         const autoRunComparison = () => runMonthlyComparison(allSalesData);
-        
+
         monthASelect.addEventListener('change', autoRunComparison);
         monthBSelect.addEventListener('change', autoRunComparison);
-        
+
         monthlyComparisonInitialized = true;
     }
-    
+
     // Run initial comparison and show the results
     runMonthlyComparison(summaries);
     resultsContainer.classList.remove('hidden');
@@ -2156,7 +2156,7 @@ function runMonthlyComparison(summaries: any[]) {
         `;
         tbody.appendChild(tr);
     });
-    
+
     document.getElementById('month-a-header').textContent = new Date(monthAValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
     document.getElementById('month-b-header').textContent = new Date(monthBValue + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -2172,7 +2172,7 @@ function runMonthlyComparison(summaries: any[]) {
             const actualValue = metricData.valB;
             const resultCell = document.getElementById(`target-result-${metricId}`);
             const targetChange = getChange(targetValue, actualValue);
-            
+
             resultCell.textContent = targetChange.text;
             resultCell.className = `px-6 py-4 whitespace-nowrap text-sm font-semibold ${targetChange.class}`;
         };
@@ -2190,17 +2190,17 @@ function runMonthlyComparison(summaries: any[]) {
             let originalLength = target.value.length;
             const rawValue = target.value.replace(/[^0-9]/g, '');
             const targetValue = parseFloat(rawValue) || 0;
-            
+
             let formattedValue = "";
             if(rawValue) {
                 formattedValue = metricData.format(targetValue);
             }
             target.value = formattedValue;
-            
+
             let newLength = target.value.length;
             cursorPosition += (newLength - originalLength);
             target.setSelectionRange(cursorPosition, cursorPosition);
-            
+
             // Update and save the target
             updateTarget(targetValue);
         });
@@ -2210,7 +2210,7 @@ function runMonthlyComparison(summaries: any[]) {
         monthA: { month: monthAValue, summary: dataA },
         monthB: { month: monthBValue, summary: dataB }
     };
-} 
+}
 
 
 async function runAnalysis(): Promise<void> {
@@ -2367,21 +2367,6 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
 }
 
 /**
- * Generates all charts and tables for the "Perbandingan Cabang > Penjualan" section.
- */
-function generateCabangPenjualanSection(summaries: any[]) {
-    // Call the refactored functions with the new, unique IDs
-    generateOmzetOutletChartFromSummaries(summaries, 'perbandingan-omzet-outlet-chart');
-
-    generateCabangAnalysisFromSummaries(summaries, {
-        // Note: We are not passing the stat card IDs since this section doesn't have them.
-        omzetCheckCanvasId: 'perbandingan-omzet-check-chart',
-        apcCanvasId: 'perbandingan-apc-chart',
-        detailTableId: 'perbandingan-cabang-detail-tbody'
-    });
-}
-
-/**
  * Fetches, aggregates, and renders a comparative P&L analysis table.
  * @param {Date} startDate - The start of the filter date range.
  * @param {Date} endDate - The end of the filter date range.
@@ -2405,7 +2390,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
         ]);
 
         const pnlTemplate = structureSnap.exists() ? structureSnap.data().structure : {};
-        
+
         // 2. Filter reports by the selected date range and sort them
         const filteredReports = reportsSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -2427,7 +2412,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
             targetsByPeriod[doc.id] = doc.data().targets;
         });
         const lastPeriodTarget = targetsByPeriod[endDate.toISOString().slice(0, 7)] || {};
-        
+
         // 4. Render Table Header
         const periodHeaders = filteredReports.map(r => {
             const date = new Date(r.period + '-02');
@@ -2461,7 +2446,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
 
             let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
             rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(lastPeriodTarget[metricName])}</td>`;
-            
+
             aiData[metricName] = { Target: lastPeriodTarget[metricName] || 0 };
 
             filteredReports.forEach(report => {
@@ -2496,7 +2481,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
  */
 async function generateAnalisaPnlTable(selectedPeriod: string) {
     if (!currentUser || !selectedPeriod) return;
-    
+
     const thead = document.getElementById('analisa-pnl-thead');
     const tbody = document.getElementById('analisa-pnl-tbody');
     tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Loading P&L data for the selected period...</td></tr>';
@@ -2510,7 +2495,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
             getDoc(reportRef),
             getDoc(targetRef)
         ]);
-        
+
         if (!reportSnap.exists()) {
             thead.innerHTML = '';
             tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">No P&L report found for ${selectedPeriod}.</td></tr>`;
@@ -2543,7 +2528,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
 
         const allMetrics = [ "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)", "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)", "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)" ];
         const subtotals = { /* ... subtotal calculation formulas remain the same ... */ };
-        
+
         const totalRevenueForPeriod = Object.values(report.pnlData["Pendapatan (Revenue)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
 
         allMetrics.forEach(metricName => {
@@ -2559,7 +2544,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
             }
 
             let mainRowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}"><div class="flex items-center">${metricName} ${hasSubcategories ? '<svg class="w-4 h-4 ml-2 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>' : ''}</div></td>`;
-            
+
             const categoryTotals = {};
             if (report.pnlData) {
                 Object.keys(report.pnlData).forEach(cat => {
@@ -2567,7 +2552,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
                 });
             }
             const actualValue = isSubtotal ? subtotals[metricName](categoryTotals) : categoryTotals[metricName] || 0;
-            
+
             const periodTargets = targetsByPeriod[report.period] || {};
             const targetRevenue = periodTargets['Pendapatan (Revenue)'];
             let nominalTarget = null;
@@ -2578,7 +2563,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
                     nominalTarget = targetRevenue * periodTargets[metricName];
                 }
             }
-            
+
             const percentageOfRevenue = totalRevenueForPeriod > 0 ? actualValue / totalRevenueForPeriod : null;
 
             mainRowHtml += `<td class="px-6 py-4 text-right text-sm text-gray-800 font-mono">${formatCurrency(actualValue)}</td>
@@ -2586,7 +2571,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
                             <td class="px-6 py-4 text-right text-sm text-blue-600 font-mono">${formatPercent(percentageOfRevenue)}</td>`;
             mainRow.innerHTML = mainRowHtml;
             tbody.appendChild(mainRow);
-            
+
             if (hasSubcategories) {
                 // ... (Sub-category rendering logic remains the same) ...
             }
@@ -2613,7 +2598,7 @@ document.getElementById('analisa-pnl-tbody')?.addEventListener('click', (e) => {
         subRows.forEach(row => {
             row.classList.toggle('hidden');
         });
-        
+
         if (chevron) {
             chevron.classList.toggle('rotate-180');
         }
@@ -2652,7 +2637,7 @@ async function setupPnlPeriodSelector() {
             const dateLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
             return `<option value="${period}">${dateLabel}</option>`;
         }).join('');
-        
+
         // Add event listener to redraw the table when the period changes
         selectEl.addEventListener('change', () => {
             const selectedPeriod = selectEl.value;
@@ -2666,7 +2651,7 @@ async function setupPnlPeriodSelector() {
         console.error("Error setting up P&L period selector:", error);
         selectEl.innerHTML = '<option>Error loading periods</option>';
     }
-} 
+}
 
 function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string) {
     // This check is to prevent re-creating the dropdown over and over.
@@ -2694,7 +2679,7 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
     // --- END OF CORRECTION ---
 
     const sortedMenuItems = Array.from(allMenuItems).sort();
-    
+
     if(sortedMenuItems.length === 0) {
         menuSelectElement.innerHTML = `<option disabled>No menu items found in this period</option>`;
         return;
@@ -2714,10 +2699,10 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
 
 function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
     if (!window.generalMenuTrendSelect) return;
-    
+
     const selectedMenus = window.generalMenuTrendSelect.getSelected() as string[];
     const labels = summaries.map(s => s.date.toISOString().split('T')[0]).sort();
-    
+
     const datasets = selectedMenus.map((menuName, index) => {
         const dataPoints = labels.map(dateStr => {
             const summaryForDay = summaries.find(s => s.date.toISOString().startsWith(dateStr));
@@ -2732,7 +2717,7 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
             }
             return quantity;
         });
-        
+
         const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
         return {
             label: menuName,
@@ -2742,7 +2727,7 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
             fill: false
         };
     });
-    
+
     createChart(canvasId, 'line', { labels, datasets }, deepmerge(
         chartYTicks(shortenNumber),
         chartXTicks(shortenDateTickCallback)
@@ -2954,7 +2939,7 @@ function generateWaktuPenjualanSection() {
     if (!periodA || !periodB || !selectedBranch) return;
 
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
-    
+
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
@@ -3216,9 +3201,9 @@ async function setupWaktuPenjualanSelectors() {
     branchSelect.addEventListener('change', async () => {
         await updatePeriodSelectorsForPenjualan(branchSelect.value);
     });
-    
+
     waktuPenjualanSelectorsInitialized = true;
-    
+
     // Trigger the initial population of the period selectors for the default branch
     await updatePeriodSelectorsForPenjualan(branches[0]);
 }
@@ -3309,7 +3294,7 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
     const month = dateB.getMonth();
 
     const periodA = `${yearA}-${String(month + 1).padStart(2, '0')}`;
-    
+
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
 
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
@@ -3335,7 +3320,7 @@ async function generateGeneralKeuanganSection() {
     }
 
     showLoading({ message: 'Fetching financial data...', value: 20 });
-    
+
     const endDate = new Date(selectedPeriod + '-01T00:00:00');
     endDate.setMonth(endDate.getMonth() + 1);
     endDate.setDate(endDate.getDate() - 1);
@@ -3343,11 +3328,11 @@ async function generateGeneralKeuanganSection() {
 
     const startDate = new Date(selectedPeriod + '-01T00:00:00');
     startDate.setMonth(startDate.getMonth() - 11);
-    
+
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const q = query(reportsRef, where("branchName", "==", selectedBranch));
     const reportsSnap = await getDocs(q);
-    
+
     const historicalReports = reportsSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(report => {
@@ -3361,12 +3346,12 @@ async function generateGeneralKeuanganSection() {
     await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container');
     generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
     generatePnlOverviewChart(historicalReports);
-    
+
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-hr-chart', metric: 'Beban Operasional (OPEX)', title: 'HR & Bonus' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
-    
+
     hideLoading();
 }
 
@@ -3376,7 +3361,7 @@ async function generateGeneralKeuanganSection() {
 async function setupGeneralKeuanganPeriodSelector() {
     if (generalKeuanganSelectorInitialized) return;
     if (!currentUser) return;
-    
+
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
     const branchSelect = document.getElementById('general-keuangan-branch-select') as HTMLSelectElement;
 
@@ -3391,19 +3376,19 @@ async function setupGeneralKeuanganPeriodSelector() {
 
     branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
     branchSelect.value = branches[0];
-        
+
     branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralKeuangan(branchSelect.value));
     periodSelect.addEventListener('change', () => generateGeneralKeuanganSection());
 
     generalKeuanganSelectorInitialized = true;
-    
+
     await updatePeriodSelectorsForGeneralKeuangan(branches[0]);
 }
 
 async function updatePeriodSelectorsForGeneralPenjualan(selectedBranch: string) {
     const periodSelect = document.getElementById('general-penjualan-period-select') as HTMLSelectElement;
     periodSelect.innerHTML = '<option>Loading periods...</option>';
-    
+
     // Filter the main data to find periods available for the selected branch
     const branchData = allSalesData.filter(s => selectedBranch === 'ALL' || s.branches.includes(selectedBranch));
     const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
@@ -3411,7 +3396,7 @@ async function updatePeriodSelectorsForGeneralPenjualan(selectedBranch: string) 
     if (periods.length === 0) {
         periodSelect.innerHTML = '<option>No data for this branch</option>';
         // Clear charts if no data
-        generateGeneralPenjualanSection(); 
+        generateGeneralPenjualanSection();
         return;
     }
 
@@ -3457,7 +3442,7 @@ async function setupSectionSpecificFilters(config: {
         const lastDate = allSalesData[allSalesData.length - 1].date;
         const firstDate = new Date(lastDate);
         firstDate.setDate(lastDate.getDate() - 29);
-        
+
         endDateInput.value = lastDate.toISOString().split('T')[0];
         startDateInput.value = firstDate.toISOString().split('T')[0];
     }
@@ -3507,7 +3492,7 @@ async function setupGeneralProdukChannelSelectors() {
     }
 
     branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
-    
+
     // When the branch changes, re-run the analysis for this section
     branchSelect.addEventListener('change', () => {
         // We need to get the current date-filtered data before passing it
@@ -3526,7 +3511,7 @@ async function setupGeneralProdukChannelSelectors() {
 async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string) {
     const container = document.getElementById(containerId);
     container.innerHTML = '<p class="text-gray-500">Loading P&L comparison...</p>';
-    
+
     const targetId = `${period}_${branch.replace(/\s+/g, '_')}`;
     const reportId = `${period}_${branch.replace(/\s+/g, '_')}`;
 
@@ -3567,7 +3552,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
     thead.innerHTML = `<tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>${periodHeaders}</tr>`;
 
     tbody.innerHTML = '';
-    
+
     const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
     const subtotals = {
         "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
@@ -3584,11 +3569,11 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
         tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
 
         let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
-        
+
         reports.forEach(report => {
             let value = 0;
             const pnlData = report.pnlData || {};
-            
+
             if (isSubtotal) {
                 const categoryTotals = {};
                 categoryOrder.forEach(cat => {
@@ -3600,7 +3585,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             }
             rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
-        
+
         tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
     });
@@ -3705,7 +3690,7 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
             });
         }
     });
-    
+
     const labels = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
     const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const colors = ['#EF4444', '#F97316', '#F59E0B', '#84CC16', '#22C55E', '#14B8A6', '#3B82F6'];
@@ -3759,14 +3744,14 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
     const weeklyOmzet = summaries.reduce((acc, summary) => {
         const d = summary.date;
         const firstDayOfWeek = new Date(d);
-        firstDayOfWeek.setDate(d.getDate() - d.getDay()); 
+        firstDayOfWeek.setDate(d.getDate() - d.getDay());
         const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
         acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
         return acc;
     }, {});
 
     const sortedWeeks = Object.keys(weeklyOmzet).sort();
-    
+
     // --- FIX START: The chartLabels constant has been removed ---
     const datasets = [{
         label: 'Total Omzet Mingguan',
@@ -3788,10 +3773,10 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
             fill: false
         });
     }
-    
+
     createChart(canvasId, type, {
         // Use the raw sortedWeeks array for the labels. The chart's tick callback will format them.
-        labels: sortedWeeks, 
+        labels: sortedWeeks,
         datasets: datasets,
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
     // --- FIX END ---
@@ -3878,9 +3863,9 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
 
 function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
   const container = document.getElementById(containerId);
-  if (!container) return; 
+  if (!container) return;
 
-  container.innerHTML = ''; 
+  container.innerHTML = '';
 
   // --- FIX START: Handle empty data and derive dates from the passed summaries ---
   if (summaries.length === 0) {
@@ -3889,7 +3874,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   }
 
   const dailyTotals = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
-  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals; 
+  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals;
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
@@ -5913,7 +5898,7 @@ function generateMonthlySummary(dailySummaries: any[], fileName: string) {
                 target[key] = (target[key] || 0) + source[key];
             }
         };
-        
+
         aggregateNested(acc.revenueByBranch, s.revenueByBranch);
         aggregateNested(acc.billsByChannel, s.visitPurposes); // visitPurposes holds the bill count per channel
 
@@ -5995,14 +5980,14 @@ async function loadUploadHistory(): Promise<void> {
       const upload = docSnap.data();
       const div = document.createElement('div');
       div.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg';
-      
+
       // --- NEW: Check for and display duplicate count message ---
       let duplicateMessage = '';
       if (upload.duplicateCount && upload.duplicateCount > 0) {
           duplicateMessage = `<p class="text-xs text-orange-600 mt-1">Note: ${upload.duplicateCount} duplicate transactions were skipped.</p>`;
       }
 
-      const displayName = upload.branchName && upload.period 
+      const displayName = upload.branchName && upload.period
         ? `<p class="font-semibold">${upload.branchName}</p><p class="text-sm text-gray-500">Periode: ${upload.period}</p>`
         : `<p class="font-semibold">${upload.name}</p><p class="text-sm text-gray-500">Uploaded on: ${new Date(upload.createdAt.seconds * 1000).toLocaleString()}</p>`;
 
@@ -6011,7 +5996,7 @@ async function loadUploadHistory(): Promise<void> {
       div.innerHTML = `
         <div>
             ${displayName}
-            ${duplicateMessage} 
+            ${duplicateMessage}
         </div>
         <div>
             <button class="monthly-summary-btn bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded-full hover:bg-purple-600 mr-2" data-id="${docSnap.id}" data-name="${fileNameForRecap}">Monthly Summary</button>
@@ -6114,18 +6099,18 @@ uploadHistoryList.addEventListener('click', async (e) => {
         `;
         target.classList.replace('bg-red-500', 'bg-red-700');
         // --- UI FEEDBACK LOGIC ENDS HERE ---
-        
+
       try {
         const deleteUploadFunction = httpsCallable(functions, 'deleteUpload');
         const result = await deleteUploadFunction({ uploadId });
         console.log(`Deleted ${result.data.deletedBills} bills and upload document`);
-        
+
         // Refreshing the list will automatically remove the row
         await loadUploadHistory();
       } catch (error: any) {
         console.error('Error deleting upload:', error);
         alert('Failed to delete upload. Please try again.');
-        
+
         // --- NEW: Revert UI on failure ---
         buttons.forEach(btn => (btn as HTMLButtonElement).disabled = false);
         target.innerHTML = originalDeleteHTML;
@@ -6498,7 +6483,7 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
     if (downloadBtn) {
         const elementId = (downloadBtn as HTMLElement).dataset.chartId;
         const elementToDownload = document.getElementById(elementId);
-        
+
         if (!elementToDownload) {
             console.error(`Element with ID "${elementId}" not found for download.`);
             alert('Could not download element. Instance not found.');
@@ -6540,7 +6525,7 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
         const contentId = (toggleBtn as HTMLElement).dataset.target;
         const contentElement = document.querySelector(contentId);
         const chevron = toggleBtn.querySelector('.chevron-icon');
-        
+
         // This logic ensures the chart is visible before toggling
         if (contentElement.style.maxHeight) {
             contentElement.style.maxHeight = null;
@@ -6571,19 +6556,19 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         link.classList.add('active');
         const parentToggle = link.closest('.submenu-container')?.querySelector('.submenu-toggle');
         if (parentToggle) parentToggle.classList.add('active');
-        
+
        const targetId = link.dataset.target;
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
         if (targetSection) targetSection.classList.add('active');
-        
+
         const showMainFilters = ![
-            'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl', 
+            'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl',
             'analisa-pnl', 'general-keuangan', 'waktu-keuangan',
             'waktu-produk-channel', 'general-penjualan'
         ].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
-        
+
         if (targetId === 'general-keuangan') {
             await setupGeneralKeuanganPeriodSelector();
         }
@@ -6595,9 +6580,9 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         if (targetId === 'waktu-keuangan') {
             await setupWaktuKeuanganPeriodSelectors();
         }
-        
+
         if (targetId === 'waktu-penjualan') {
-            await setupWaktuPenjualanSelectors(); 
+            await setupWaktuPenjualanSelectors();
         }
 
         if (targetId === 'waktu-produk-channel') {
@@ -6619,7 +6604,7 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         if (targetId === 'general-produk-channel') {
             await setupGeneralProdukChannelSelectors();
         }
-        
+
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
         if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
     }
@@ -6650,7 +6635,7 @@ async function generateAllTimePnlTable() {
             tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">No P&L reports found in the last 24 months.</td></tr>';
             return;
         }
-        
+
         // --- MODIFICATION: Table Header now built from filtered reports ---
         const periodHeaders = recentReports.map(r => {
             const date = new Date(r.period + '-02');
@@ -6681,7 +6666,7 @@ async function generateAllTimePnlTable() {
             tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
 
             let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
-            
+
             recentReports.forEach(report => {
                 let value = 0;
                 if (isSubtotal) {
@@ -11348,7 +11333,7 @@ function getPeriodFromFile(worksheet) {
     if (!/^\d{4}$/.test(year) || !/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) {
         throw new Error(`Could not correctly parse the date from "${dateString}".`);
     }
-    
+
     // Return in the required "YYYY-MM" format
     return `${year}-${month.padStart(2, '0')}`;
 }
@@ -11376,25 +11361,25 @@ async function handlePnlTargetUpload() {
         if (!period) throw new Error("Could not determine the period from the file.");
 
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 3 });
-        
+
         const targets = {};
         jsonData.forEach(row => {
             if (row.Metric && typeof row.Value === 'number') {
                 targets[row.Metric] = row.Value;
             }
         });
-        
+
         const safeBranchName = branchName.replace(/\s+/g, '_');
         const docId = `${period}_${safeBranchName}`;
         const targetDocRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, docId);
 
         // Save the branchName along with the other data
-        await setDoc(targetDocRef, { 
-            period, 
-            targets, 
-            branchName: branchName, 
-            fileName: file.name, 
-            lastUpdatedAt: new Date() 
+        await setDoc(targetDocRef, {
+            period,
+            targets,
+            branchName: branchName,
+            fileName: file.name,
+            lastUpdatedAt: new Date()
         });
         // --- FIX END ---
 
@@ -11412,9 +11397,9 @@ document.getElementById('upload-pnl-data-btn').addEventListener('click', async (
     if (!currentUser) return;
     const fileInput = document.getElementById('pnl-data-file-input') as HTMLInputElement;
     const file = fileInput.files?.[0];
-    if (!file) { 
-        alert('Please select a P&L data file.'); 
-        return; 
+    if (!file) {
+        alert('Please select a P&L data file.');
+        return;
     }
 
     showLoading({ message: 'Processing P&L file...' });
@@ -11505,7 +11490,7 @@ function showPnlDataModal(data: any) {
             <div class="flex justify-between text-sm text-gray-600 pl-4">
                 <span>${name}</span><span class="font-mono">${formatCurrency(value as number)}</span>
             </div>`).join('');
-        
+
         return `
             <div class="mb-4">
                 <h4 class="font-bold text-md text-gray-800">${categoryName}</h4>
@@ -11515,7 +11500,7 @@ function showPnlDataModal(data: any) {
                 </div>
             </div>`;
     };
-    
+
     const renderSubtotal = (label, value, colorClass) => `
         <div class="flex justify-between font-bold text-lg py-2 my-2 ${colorClass} rounded-md px-4">
             <span>${label}</span><span class="font-mono">${formatCurrency(value)}</span>
@@ -11542,7 +11527,7 @@ function showPnlDataModal(data: any) {
 
     const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
     finalHtml += renderSubtotal("Pendapatan Bersih (Net Income)", netIncome, "bg-green-200 text-green-800");
-    
+
     bodyEl.innerHTML = finalHtml;
     modal.classList.remove('hidden');
 }
@@ -11597,7 +11582,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
 
         if (pnlDocSnap.exists()) {
             const pnlData = pnlDocSnap.data().pnlData || {};
-            
+
             const totalRevenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
             const totalHPP = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
             const totalOpex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
@@ -11625,7 +11610,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
 
         const targets = targetData.targets || {};
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-        
+
         let tableHtml = `
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -11668,7 +11653,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
 
             const actualValue = actualValues[metric] || 0;
             const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
-            
+
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
@@ -11687,7 +11672,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             }
             tableHtml += `</td></tr>`;
         });
-        
+
         tableHtml += `</tbody></table></div>`;
         bodyEl.innerHTML = tableHtml;
 
@@ -11812,7 +11797,7 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
     // --- Chart 3: Order by Menu Category ---
     createChart('order-by-menu-category-chart-new', 'doughnut', {
         labels: Object.keys(aggregatedData.categoryQuantities),
-        datasets: [{ 
+        datasets: [{
             data: Object.values(aggregatedData.categoryQuantities),
             backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B']
         }],
@@ -11837,13 +11822,13 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
             }, { indexAxis: 'y', plugins: { legend: { display: false } } });
         }
     };
-    
+
     createTop5Chart('top-makanan-chart-new', 'MAKANAN', '#EF4444');
     createTop5Chart('top-minuman-chart-new', 'MINUMAN', '#3B82F6');
 }
 
 /**
- * Generates a dual-axis line chart showing the trend of Total Check (TC) 
+ * Generates a dual-axis line chart showing the trend of Total Check (TC)
  * and Average Per Check (APC) over the last 24 months.
  */
 function generate24MonthTcApcTrend(summaries: any[]) {
@@ -11933,14 +11918,14 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
     if (!menuTrend24MonthSelect) return;
 
     const selectedMenus = menuTrend24MonthSelect.getSelected() as string[];
-    
+
     // --- MODIFICATION START ---
     // 1. Get all unique months that have data, sort them chronologically,
     //    and take only the last 24 months. This creates a rolling window.
     const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
     const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
     // --- MODIFICATION END ---
-    
+
     const chartLabels = allMonthLabels.map(monthStr => {
         const date = new Date(monthStr + '-02'); // Use day 2 to avoid timezone issues
         return date.toLocaleString('default', { month: 'short', year: '2-digit' });
@@ -11972,7 +11957,7 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
             fill: false,
         };
     });
-    
+
     chartDataForAI['menuTrend24Month'] = {
         period: "Last 24 available months",
         selected_menus: selectedMenus,
@@ -12038,7 +12023,7 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
 }
 
 /**
- * Generates a stacked area chart showing the sales contribution of each channel 
+ * Generates a stacked area chart showing the sales contribution of each channel
  * over the last 24 available months.
  */
 function generate24MonthChannelTrendChart(summaries: any[]) {
@@ -12106,7 +12091,7 @@ function generate24MonthChannelTrendChart(summaries: any[]) {
 }
 
 /**
- * Generates a stacked area chart showing the quantity contribution of each menu category 
+ * Generates a stacked area chart showing the quantity contribution of each menu category
  * over the last 24 available months.
  */
 function generate24MonthCategoryTrendChart(summaries: any[]) {
@@ -12178,7 +12163,7 @@ async function generateGeneralPenjualanSection() {
     const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
     const startDateInput = document.getElementById('general-penjualan-start-date') as HTMLInputElement;
     const endDateInput = document.getElementById('general-penjualan-end-date') as HTMLInputElement;
-    
+
     const selectedBranch = branchSelect.value;
     const startDate = new Date(startDateInput.value);
     const endDate = new Date(endDateInput.value);
@@ -12194,7 +12179,7 @@ async function generateGeneralPenjualanSection() {
         const period = endDate.toISOString().slice(0, 7); // Get period from the selected end date
         const safeBranchName = selectedBranch.replace(/\s+/g, '_');
         const targetDocId = `${period}_${safeBranchName}`;
-        
+
         try {
             const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetDocId);
             const targetDocSnap = await getDoc(targetDocRef);
@@ -12208,7 +12193,7 @@ async function generateGeneralPenjualanSection() {
 
     // Filter data based on the new date range selector
     let currentData = allSalesData.filter(s => s.date >= startDate && s.date <= endDate);
-    
+
     if (selectedBranch !== 'ALL') {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
@@ -12223,7 +12208,7 @@ async function generateGeneralPenjualanSection() {
         checkGrowth: 'general-check-growth',
         avgCheckGrowth: 'general-avg-check-growth'
     });
-    
+
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
     generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line');
@@ -12323,7 +12308,7 @@ async function generateWaktuKeuanganSection() {
     if (!periodA || !periodB) return;
 
     showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
-    
+
     // This function will now query all P&L reports and then filter by branch on the client-side.
     // This is necessary because the document ID is now a composite key.
     const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
@@ -12334,7 +12319,7 @@ async function generateWaktuKeuanganSection() {
         if (branch === 'ALL') {
             // Logic to aggregate all reports for a period if "All Branches" is selected.
             // For now, this is a placeholder. A full implementation would sum up all branches.
-            return allReports.find(r => r.period === period); 
+            return allReports.find(r => r.period === period);
         }
         return allReports.find(r => r.period === period && r.branchName === branch);
     };
@@ -12362,7 +12347,7 @@ async function setupWaktuKeuanganPeriodSelectors() {
 
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const reportsSnap = await getDocs(reportsRef);
-    
+
     const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].sort().reverse();
     const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
 
@@ -12376,9 +12361,9 @@ async function setupWaktuKeuanganPeriodSelectors() {
     const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
     selectA.innerHTML = periodOptionsHtml;
     selectB.innerHTML = periodOptionsHtml;
-    
+
     branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
-    
+
     selectA.value = periods[1];
     selectB.value = periods[0];
     branchSelect.value = branches[0];
@@ -12387,9 +12372,9 @@ async function setupWaktuKeuanganPeriodSelectors() {
     selectA.addEventListener('change', handler);
     selectB.addEventListener('change', handler);
     branchSelect.addEventListener('change', handler);
-    
+
     waktuKeuanganSelectorsInitialized = true;
-    
+
     generateWaktuKeuanganSection();
 }
 
@@ -12407,7 +12392,7 @@ async function updatePeriodSelectorsForBranch(selectedBranch: string) {
 
     selectA.innerHTML = '<option>Loading periods...</option>';
     selectB.innerHTML = '<option>Loading periods...</option>';
-    
+
     const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     // Create a query to find all P&L reports for the selected branch
     const q = query(pnlReportsRef, where("branchName", "==", selectedBranch));
@@ -12471,7 +12456,7 @@ async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
 
     periodSelect.innerHTML = '<option>Loading periods...</option>';
-    
+
     const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const q = query(pnlReportsRef, where("branchName", "==", selectedBranch));
     const reportsSnap = await getDocs(q);
@@ -12489,7 +12474,7 @@ async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
 
     const periodOptionsHtml = periods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
     periodSelect.innerHTML = periodOptionsHtml;
-    periodSelect.value = periods[0]; 
+    periodSelect.value = periods[0];
 
     await generateGeneralKeuanganSection();
 }
@@ -12540,9 +12525,9 @@ async function setupWaktuProdukChannelSelectors() {
     branchSelect.addEventListener('change', async () => {
         await updatePeriodSelectorsForProdukChannel(branchSelect.value);
     });
-    
+
     waktuProdukChannelSelectorsInitialized = true;
-    
+
     await updatePeriodSelectorsForProdukChannel(branches[0]);
 }
 
@@ -12679,7 +12664,7 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
  */
 function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string) {
     const container = document.getElementById(containerId);
-    container.innerHTML = ''; 
+    container.innerHTML = '';
 
     try {
         const pnlDataA = reportA?.pnlData || {};
@@ -12714,7 +12699,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
         const labelA = reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A';
         const labelB = reportB ? new Date(reportB.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period B';
-        
+
         let tableHtml = `
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -12731,7 +12716,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
             const valueA = valuesA[metric] || 0;
             const valueB = valuesB[metric] || 0;
             const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok produksi');
-            
+
             let achievement = 0;
             if (valueA !== 0) {
                 achievement = isCost ? (valueA / valueB) * 100 : (valueB / valueA) * 100;
@@ -12759,7 +12744,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
                     </td>
                 </tr>`;
         });
-        
+
         tableHtml += `</tbody></table>`;
         container.innerHTML = tableHtml;
 
@@ -12776,7 +12761,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
 function generateRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string }) {
     const pnlDataA = reportA?.pnlData;
     const pnlDataB = reportB?.pnlData;
-    
+
     const getMetricValue = (pnlData) => {
         const revenue = Object.values(pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number, v:number) => s + v, 0);
         if (!revenue) return 0;
