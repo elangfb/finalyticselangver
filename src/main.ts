@@ -3467,19 +3467,6 @@ async function setupGeneralPenjualanSelectors() {
 }
 
 async function setupGeneralProdukChannelSelectors() {
-    await setupSectionSpecificFilters({
-        branchSelectId: 'general-produk-channel-branch-select',
-        startDateId: 'general-produk-channel-start-date',
-        endDateId: 'general-produk-channel-end-date',
-        applyBtnId: 'general-produk-channel-apply-btn',
-        initializationFlag: generalProdukChannelSelectorInitialized,
-        callback: generateGeneralProdukChannelSection
-    });
-    generalProdukChannelSelectorInitialized = true;
-}
-
-
-async function setupGeneralProdukChannelSelectors() {
     if (!currentUser) return;
 
     const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;
