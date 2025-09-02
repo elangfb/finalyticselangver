@@ -97,6 +97,9 @@ const setChartDataForAIProperty = (key: string, value: any) => {
 const getAiAnalysisResults = () => $store.getAnalysisState().aiAnalysisResults;
 const setAiAnalysisResults = (results: $store.AnalysisState['aiAnalysisResults']) => $store.setAnalysisState('aiAnalysisResults', results);
 
+const getCurrentPnlData = () => $store.getAnalysisState().currentPnlData;
+const setCurrentPnlData = (data: $store.AnalysisState['currentPnlData']) => $store.setAnalysisState('currentPnlData', data);
+
 // Helper functions for initialization flags
 const getInitFlag = <T extends keyof $store.AnalysisState['initFlags']>(flag: T) => {
   return $store.getAnalysisState().initFlags[flag] || false;
@@ -126,6 +129,7 @@ let adminCredentials = null
 // - monthlyComparisonTargets -> store.analysisState.config.monthlyComparisonTargets
 // - omzetComparisonSelect -> store.analysisState.uiComponents.omzetComparisonSelect
 // - currentPnlPeriod -> store.analysisState.config.currentPnlPeriod
+// - currentPnlData -> store.analysisState.currentPnlData
 // - menuTrend24MonthSelect -> store.analysisState.uiComponents.menuTrend24MonthSelect
 // - generalMenuTrendSelect -> store.analysisState.uiComponents.generalMenuTrendSelect
 // - waktuMenuTrendSelect -> store.analysisState.uiComponents.waktuMenuTrendSelect
@@ -257,7 +261,7 @@ function setupMonthlyOmzetComparisonChart() {
 
 
 function renderPnlResults(pnlData) {
-    currentPnlData = pnlData;
+    setCurrentPnlData(pnlData);
     const container = document.getElementById('pnl-results-container');
     container.innerHTML = '';
     const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;

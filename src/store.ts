@@ -13,6 +13,7 @@ export interface AnalysisState {
   chartDataForAI: Record<string, any>;
   aiAnalysisResults: Record<string, any>;
   charts: Record<string, any>;
+  currentPnlData: any;
 
   // UI Initialization Flags
   initFlags: {
@@ -78,6 +79,7 @@ function createDefaultAnalysisState(): AnalysisState {
     chartDataForAI: {},
     aiAnalysisResults: {},
     charts: {},
+    currentPnlData: null,
 
     // UI Initialization Flags
     initFlags: {

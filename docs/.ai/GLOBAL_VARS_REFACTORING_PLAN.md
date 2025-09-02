@@ -27,6 +27,7 @@ interface AnalysisState {
   chartDataForAI: Record<string, any>;
   aiAnalysisResults: Record<string, any>;
   charts: Record<string, any>;
+  currentPnlData: any;
 
   // UI Initialization Flags
   initFlags: {
@@ -101,11 +102,12 @@ interface AnalysisState {
 
 ### Phase 3: Global Variable Migration ✅ (100% Complete)
 
-#### Data Storage Variables ✅
+#### Data Storage Variables ✅ (100% Complete)
 - [x] **Task 3.1:** Replace `allSalesData` with store access (Helper functions created ✅)
 - [x] **Task 3.2:** Replace `chartDataForAI` with store access (Helper functions created ✅)
 - [x] **Task 3.3:** Replace `aiAnalysisResults` with store access (Helper functions created ✅)
 - [x] **Task 3.4:** Replace `charts` with store access (Helper functions created ✅)
+- [x] **Task 3.26:** Replace `currentPnlData` with store access (Helper functions created ✅)
 
 #### UI Initialization Flags ✅ (100% Complete)
 **✅ Helper Functions Added:** `getInitFlag()`, `setInitFlag()` for clean syntax
@@ -142,7 +144,7 @@ interface AnalysisState {
 ## 🎉 **PHASE 3 COMPLETION SUMMARY**
 
 ### ✅ **COMPLETED SECTIONS:**
-- **Data Storage Variables:** 100% Complete (4/4) ✅
+- **Data Storage Variables:** 100% Complete (5/5) ✅
 - **UI Component References:** 100% Complete (5/5) ✅
 - **Configuration/State Variables:** 100% Complete (3/3) ✅
 - **Window Properties Cleanup:** 100% Complete (2/2) ✅
