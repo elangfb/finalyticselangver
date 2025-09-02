@@ -97,6 +97,8 @@ export const PageSummaryError = (props: { pageId: string, message?: string }) =>
     `})
 )
 
+type PlaceholderElement = HTMLDivElement
+
 export const setupPageSummary = (params: {
     pageId: string,
     promptKey?: keyof typeof viewPromptCreators,
@@ -104,11 +106,13 @@ export const setupPageSummary = (params: {
 }) => {
     const page = document.getElementById(params.pageId)
     const placeholder = () => {
-        return page?.querySelector<HTMLDivElement>('div[data-el="analyze-page-summary"]')
+        return page?.querySelector<PlaceholderElement>('div[data-el="analyze-page-summary"]')
     }
-    const ifPlaceholder = (callback: (placeholder: HTMLDivElement) => void) => {
-        const div = placeholder()
-        if (div) callback(div)
+    const ifPlaceholder = (...callbacks: ((placeholder: PlaceholderElement) => void)[]) => {
+        for (const callback of callbacks) {
+            const div = placeholder()
+            if (div) callback(div)
+        }
     }
     const isInitialized = () => placeholder()?.getAttribute('data-initialized') === 'true'
 
@@ -185,10 +189,10 @@ export const setupPageSummary = (params: {
 
     const showInit = () => {
         // Always show init state initially
-        ifPlaceholder(($p) => {
-            $p.outerHTML = PageSummaryInit({ pageId: params.pageId })
-            $p.querySelector('button')?.addEventListener('click', onAnalyze)
-        })
+        ifPlaceholder(
+            ($p) => $p.outerHTML = PageSummaryInit({ pageId: params.pageId }),
+            ($p) => $p.querySelector('button')?.addEventListener('click', onAnalyze),
+        )
     }
 
     const registerSubscriber = () => {
