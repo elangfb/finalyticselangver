@@ -178,22 +178,22 @@ function setupMonthlyOmzetComparisonChart() {
     ).join('');
 
     // Initialize Slim Select
-    const newOmzetSelect = new SlimSelect({
-        select: '#waktu-omzet-harian-select',
-        settings: { placeholderText: 'Select months...' },
-        events: {
-            afterChange: () => {
-                // Redraw the chart whenever the selection changes
-                drawMonthlyOmzetComparisonChart();
-            }
-        }
-    });
-
     // Store omzetComparisonSelect instance for cleanup on view reset
-    $store.setUIComponent('omzetComparisonSelect', newOmzetSelect);
-
     // Set a default selection (e.g., the two most recent months)
-    newOmzetSelect.setSelected(availableMonths.slice(0, 2));
+    $store.setUIComponent(
+      'omzetComparisonSelect',
+      new SlimSelect({
+          select: '#waktu-omzet-harian-select',
+          settings: { placeholderText: 'Select months...' },
+          events: {
+              afterChange: () => {
+                  // Redraw the chart whenever the selection changes
+                  drawMonthlyOmzetComparisonChart();
+              }
+          }
+      }),
+      ($s) => $s.setSelected(availableMonths.slice(0, 2)),
+    );
 
     // Initial drawing of the chart is handled by the afterChange event from setSelected
 }
@@ -2665,21 +2665,22 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
 
     menuSelectElement.innerHTML = sortedMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
-    const newGeneralMenuSelect = new SlimSelect({
+    // Store generalMenuTrendSelect instance for cleanup on view reset
+    // Also keep window property for compatibility (will be cleaned up in reset)
+    $store.setUIComponent(
+      'generalMenuTrendSelect',
+      new SlimSelect({
         select: `#${selectId}`,
         settings: { placeholderText: 'Select menus...' },
         events: {
             afterChange: () => drawGeneralMenuTrendChart($store.getAllSalesData(), canvasId)
         }
-    });
-
-    // Store generalMenuTrendSelect instance for cleanup on view reset
-    $store.setUIComponent('generalMenuTrendSelect', newGeneralMenuSelect);
-
-    // Also keep window property for compatibility (will be cleaned up in reset)
-    window.generalMenuTrendSelect = newGeneralMenuSelect;
-
-    newGeneralMenuSelect.setSelected(sortedMenuItems.slice(0, 3));
+      }),
+      ($s) => {
+        window.generalMenuTrendSelect = $s;
+        $s.setSelected(sortedMenuItems.slice(0, 3));
+      }
+    );
 }
 
 function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
@@ -5491,15 +5492,16 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    const newCabangMenuSelect = new SlimSelect({
-        select: '#cabang-menu-trend-select',
-        events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
-    });
 
     // Store cabangMenuTrendSelect instance for cleanup on view reset
-    $store.setUIComponent('cabangMenuTrendSelect', newCabangMenuSelect);
-
-    newCabangMenuSelect.setSelected(allMenuItems.slice(0, 3));
+    $store.setUIComponent(
+      'cabangMenuTrendSelect',
+      new SlimSelect({
+        select: '#cabang-menu-trend-select',
+        events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
+      }),
+      ($s) => $s.setSelected(allMenuItems.slice(0, 3)),
+    );
 }
 
 function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
@@ -12146,8 +12148,14 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
     // 3. Populate the select element
     selectEl.innerHTML = sortedItems.map(item => `<option value="${item[0]}">${item[0]}</option>`).join('');
 
-    // 4. Initialize Slim Select
-    const newMenuSelect = new SlimSelect({
+    // 4. Set a default selection of the top 5 most popular items
+    const top5Items = sortedItems.slice(0, 5).map(item => item[0]);
+
+    // 5. Initialize Slim Select
+    // Store menuTrend24MonthSelect instance for cleanup on view reset
+    $store.setUIComponent(
+      'menuTrend24MonthSelect',
+      new SlimSelect({
         select: '#menu-trend-24-bulan-select',
         settings: { placeholderText: 'Select menus...' },
         events: {
@@ -12155,14 +12163,9 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
                 draw24MonthMenuTrendChart($store.getAllSalesData()); // Use global data to ensure it's always up-to-date
             }
         }
-    });
-
-    // Store menuTrend24MonthSelect instance for cleanup on view reset
-    $store.setUIComponent('menuTrend24MonthSelect', newMenuSelect);
-
-    // 5. Set a default selection of the top 5 most popular items
-    const top5Items = sortedItems.slice(0, 5).map(item => item[0]);
-    newMenuSelect.setSelected(top5Items);
+      }),
+      ($s) => $s.setSelected(top5Items),
+    );
 }
 
 /**
@@ -12696,15 +12699,16 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    const newWaktuMenuSelect = new SlimSelect({
-        select: '#waktu-menu-trend-select',
-        events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
-    });
 
     // Store waktuMenuTrendSelect instance for cleanup on view reset
-    $store.setUIComponent('waktuMenuTrendSelect', newWaktuMenuSelect);
-
-    newWaktuMenuSelect.setSelected(allMenuItems.slice(0, 3));
+    $store.setUIComponent(
+      'waktuMenuTrendSelect',
+      new SlimSelect({
+        select: '#waktu-menu-trend-select',
+        events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
+      }),
+      ($s) => $s.setSelected(allMenuItems.slice(0, 3)),
+    );
 }
 
 /**
