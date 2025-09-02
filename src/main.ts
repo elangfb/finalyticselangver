@@ -12374,7 +12374,7 @@ async function generateGeneralPenjualanSection() {
         return;
     }
 
-      activeSalesTarget = {}; // Reset before fetching
+      setConfigValue('activeSalesTarget', {}); // Reset before fetching
     if (selectedBranch && selectedBranch !== 'ALL') {
         const period = endDate.toISOString().slice(0, 7); // Get period from the selected end date
         const safeBranchName = selectedBranch.replace(/\s+/g, '_');
@@ -12384,7 +12384,7 @@ async function generateGeneralPenjualanSection() {
             const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetDocId);
             const targetDocSnap = await getDoc(targetDocRef);
             if (targetDocSnap.exists()) {
-                activeSalesTarget = targetDocSnap.data().targets || {};
+                setConfigValue('activeSalesTarget', targetDocSnap.data().targets || {});
             }
         } catch (error) {
             console.error("Could not fetch sales target for the period:", error);
