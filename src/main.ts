@@ -13001,7 +13001,7 @@ async function saveInvestmentData() {
 
 function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSharePercentage: number) {
     const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    
+
     let cumulativeShare = 0;
     const cumulativeData = monthlyProfits.map(p => {
         const monthlyShare = p.profit * (investorSharePercentage / 100);
@@ -13023,10 +13023,10 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
         ]
     }, {
         scales: {
-            y: { 
+            y: {
                 beginAtZero: true,
-                title: { display: true, text: 'Total Akumulasi (Rp)' }, 
-                ticks: { callback: shortenCurrency } 
+                title: { display: true, text: 'Total Akumulasi (Rp)' },
+                ticks: { callback: shortenCurrency }
             }
         }
     });
@@ -13125,6 +13125,8 @@ async function generateGeneralInvestasiSection() {
         generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
         generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
         generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage);
+
+        $store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch });
 
     } catch (error) {
         console.error("Error generating investment analysis:", error);
@@ -13279,7 +13281,7 @@ async function generateCabangInvestasiSection() {
     const endPeriod = (document.getElementById('cabang-investasi-end-period') as HTMLSelectElement).value;
     const branchA = (document.getElementById('cabang-investasi-branch-a-select') as HTMLSelectElement).value;
     const branchB = (document.getElementById('cabang-investasi-branch-b-select') as HTMLSelectElement).value;
-    
+
     const containerA = document.getElementById('cabang-business-yield-chart-container');
     const containerB = document.getElementById('cabang-investor-yield-chart-container');
     const containerC = document.getElementById('branch-cumulative-chart-container');
@@ -13310,12 +13312,12 @@ async function generateCabangInvestasiSection() {
         const fetchDataForBranch = async (branchName: string) => {
             const investmentRef = doc(db, `users/${currentUser.uid}/investments`, branchName);
             const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-            const q = query(pnlReportsRef, 
-                where("branchName", "==", branchName), 
+            const q = query(pnlReportsRef,
+                where("branchName", "==", branchName),
                 where("period", ">=", startPeriod),
                 where("period", "<=", endPeriod)
             );
-            
+
             const [investmentSnap, pnlSnap] = await Promise.all([getDoc(investmentRef), getDocs(q)]);
             if (!investmentSnap.exists()) throw new Error(`Investment data not found for ${branchName}.`);
 
@@ -13328,14 +13330,14 @@ async function generateCabangInvestasiSection() {
                 const profit = revenue - hpp - opex;
                 return { period: report.period, profit };
             }).sort((a, b) => a.period.localeCompare(b.period));
-            
+
             const singlePeriodProfit = monthlyProfits.length > 0 ? monthlyProfits[monthlyProfits.length - 1].profit : 0;
 
             return { investment: investmentSnap.data(), monthlyProfits, singlePeriodProfit };
         };
 
         const [dataA, dataB] = await Promise.all([fetchDataForBranch(branchA), fetchDataForBranch(branchB)]);
-        
+
         if (dataA.monthlyProfits.length === 0 && dataB.monthlyProfits.length === 0) {
             throw new Error(`No P&L reports found for the selected branches in this period.`);
         }
@@ -13345,6 +13347,8 @@ async function generateCabangInvestasiSection() {
         generateCabangInvestorYieldComparisonChart(dataA, dataB);
         // Generate the cumulative comparison chart
         generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod);
+
+        $store.setActiveViewData('cabang-investasi', { dataA, dataB }, { startPeriod, endPeriod, branchA, branchB });
 
     } catch (error) {
         console.error("Error generating branch cumulative comparison:", error);
@@ -13364,7 +13368,7 @@ function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endP
         allMonths.push(currentDate.toISOString().slice(0, 7));
         currentDate.setMonth(currentDate.getMonth() + 1);
     }
-    
+
     // 2. Create helper maps for quick profit lookup
     const profitMapA = new Map(dataA.monthlyProfits.map(p => [p.period, p.profit]));
     const profitMapB = new Map(dataB.monthlyProfits.map(p => [p.period, p.profit]));
@@ -13423,7 +13427,7 @@ function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endP
 function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
     // 1. Create a master list of all months in the selected range to ensure a consistent X-axis.
     const allMonths = [...new Set([...dataA.monthlyProfits.map(p => p.period), ...dataB.monthlyProfits.map(p => p.period)])].sort();
-    
+
     // 2. Create Maps for easy profit lookup for each branch.
     const profitMapA = new Map(dataA.monthlyProfits.map(p => [p.period, p.profit]));
     const profitMapB = new Map(dataB.monthlyProfits.map(p => [p.period, p.profit]));
@@ -13433,7 +13437,7 @@ function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
         const profit = profitMapA.get(month) || 0;
         return dataA.investment.investmentAmount > 0 ? (profit / dataA.investment.investmentAmount) * 100 : 0;
     });
-    
+
     const yieldDataB = allMonths.map(month => {
         const profit = profitMapB.get(month) || 0;
         return dataB.investment.investmentAmount > 0 ? (profit / dataB.investment.investmentAmount) * 100 : 0;
@@ -13488,12 +13492,12 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
         const profit = profitMapA.get(month) || 0;
         return investmentPerSlotA > 0 ? (profit / investmentPerSlotA) * 100 : 0;
     });
-    
+
     const yieldDataB = allMonths.map(month => {
         const profit = profitMapB.get(month) || 0;
         return investmentPerSlotB > 0 ? (profit / investmentPerSlotB) * 100 : 0;
     });
-    
+
     // 5. Format month labels for the chart's X-axis.
     const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
 
