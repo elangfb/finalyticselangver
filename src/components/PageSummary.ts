@@ -1,5 +1,5 @@
 import { viewPromptCreators } from "@/prompt"
-import { getStore } from "@/store"
+import { AppState, getStore, store } from "@/store"
 import { html } from "@/utils/string"
 import { marked } from "marked"
 import { generateSHA256 } from "@/utils/hash"
@@ -124,6 +124,29 @@ export const setupPageSummary = (params: {
         return
     }
 
+    const checkCacheAndUpdateUI = async (viewData: AppState['activeViewData']) => {
+        if (!viewData) return
+
+        const { data, filters } = viewData
+
+        if (!data) return
+
+        try {
+            const filtersHash = await generateSHA256(filters || {})
+            const dataHash = await generateSHA256(data || [])
+
+            const cached = await findLiveCache(filtersHash, dataHash)
+            if (cached) {
+                // Cache found - replace with finished state
+                placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary })
+            }
+            // If no cache found, do nothing (keep current state)
+        } catch (err) {
+            console.warn('Error checking cache:', err)
+            // On error, do nothing
+        }
+    }
+
     const onAnalyze = async () => {
         const viewData = getStore('activeViewData')
 
@@ -164,8 +187,23 @@ export const setupPageSummary = (params: {
         }
     }
 
+    // Always show init state initially
     placeholder().outerHTML = PageSummaryInit({ pageId: params.pageId })
     placeholder().querySelector('button')?.addEventListener('click', onAnalyze)
+
+    // Check if activeViewData exists during setup
+    const currentViewData = getStore('activeViewData')
+    if (currentViewData) {
+        // Data exists during setup - check for cache
+        checkCacheAndUpdateUI(currentViewData)
+    }
+
+    // Register subscriber to check for cache when activeViewData changes
+    store.subscribe((state, prevState) => {
+        if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
+            checkCacheAndUpdateUI(state.activeViewData)
+        }
+    })
 
     console.debug('Success setup page summary for page:', params.pageId)
 }
