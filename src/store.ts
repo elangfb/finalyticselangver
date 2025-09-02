@@ -7,6 +7,15 @@ export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   filters: TFilters;
 }
 
+/**
+ * Analysis state interface containing all mutable state for the analysis view.
+ *
+ * @description
+ * Centralizes all analysis-related state that was previously scattered as global variables.
+ * Includes data storage, UI component references, initialization flags, and configuration.
+ * This state is automatically reset when navigating away from the analysis view to prevent
+ * memory leaks and ensure clean state on re-entry.
+ */
 export interface AnalysisState {
   // Data Storage
   allSalesData: any[];
@@ -49,29 +58,50 @@ export interface AnalysisState {
   };
 }
 
+export interface AnalysisActions {
+  resetAnalysisState: () => void;
+  getAnalysisState: () => AnalysisState;
+  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
+  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]) => void;
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]) => void;
+}
+
+/**
+ * Main application state interface extending basic state with Zustand store methods.
+ *
+ * @description
+ * Contains view data management, active view tracking, and complete analysis state.
+ * The analysisState property contains all state that was previously global variables,
+ * enabling proper cleanup and reset functionality.
+ */
 export interface AppState {
   viewData: {[key: string]: ViewData};
   activeViewData?: ViewData;
   analysisState: AnalysisState;
 }
 
-export interface AppStore extends AppState {
+export interface AppActions {
   resetActiveViewData: () => void;
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
   trySetFromExistingViewData: (viewId: string) => void;
-  setStore: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
-  setStoreObj: (obj: Partial<AppState>) => void;
-
-  // Analysis state management
-  resetAnalysisState: () => void;
-  getAnalysisState: () => AnalysisState;
-  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
-  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
-  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) => void;
-  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
 }
 
-// Default analysis state factory
+export interface AppStore extends AppState, AppActions, AnalysisActions {
+  setStoreKV: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
+  setStorePartial: (obj: Partial<AppState>) => void;
+}
+
+/**
+ * Factory function to create default analysis state with all properties reset.
+ *
+ * @description
+ * Creates a fresh instance of AnalysisState with all arrays empty, objects empty,
+ * flags set to false, and component references set to null. Used during store
+ * initialization and when resetting analysis state on view navigation.
+ *
+ * @returns Fresh AnalysisState instance with default values
+ */
 function createDefaultAnalysisState(): AnalysisState {
   return {
     // Data Storage
@@ -116,7 +146,18 @@ function createDefaultAnalysisState(): AnalysisState {
   };
 }
 
-// Helper function for safe cleanup with debug logging
+/**
+ * Safely execute cleanup function with error handling and debug logging.
+ *
+ * @description
+ * Provides safe cleanup execution for UI components that may fail during destruction.
+ * Logs cleanup failures as debug messages and continues execution to prevent crashes
+ * during view reset operations. Used for cleaning up Chart.js and SlimSelect instances.
+ *
+ * @param componentRef - Reference to component being cleaned up
+ * @param cleanupFn - Function to execute for cleanup
+ * @param componentName - Name of component for debug logging
+ */
 function safeCleanup(componentRef: any, cleanupFn: () => void, componentName: string) {
   try {
     if (componentRef) {
@@ -167,7 +208,7 @@ const store = createStore<AppStore>((set, get) => ({
    * setStore('isLoading', false);
    * // TypeScript ensures value types match property expectations
    */
-  setStore: <K extends keyof AppState>(key: K, value: AppState[K]) =>
+  setStoreKV: <K extends keyof AppState>(key: K, value: AppState[K]) =>
     set({ [key]: value } as Partial<AppStore>),
 
   /**
@@ -192,7 +233,7 @@ const store = createStore<AppStore>((set, get) => ({
    * });
    * // Updates all specified properties in single operation
    */
-  setStoreObj: (obj: Partial<AppState>) => set(obj),
+  setStorePartial: (obj: Partial<AppState>) => set(obj),
 
   /**
    * Reset analysis state with proper cleanup of UI components.
@@ -272,7 +313,7 @@ const store = createStore<AppStore>((set, get) => ({
   /**
    * Update specific UI component reference.
    */
-  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) =>
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]) =>
     set(produce((state: AppState) => {
       state.analysisState.uiComponents[component] = value;
     })),
@@ -280,7 +321,7 @@ const store = createStore<AppStore>((set, get) => ({
   /**
    * Update specific configuration property.
    */
-  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) =>
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]) =>
     set(produce((state: AppState) => {
       state.analysisState.config[config] = value;
     })),
@@ -315,8 +356,8 @@ export function setActiveViewData(viewId: string, data: any, filters: {[key: str
  * setStore('isLoading', false);
  * // TypeScript ensures value types match property expectations
  */
-export function setStore<K extends keyof AppState>(key: K, value: AppState[K]): void {
-  store.getState().setStore(key, value);
+export function setStoreKV<K extends keyof AppState>(key: K, value: AppState[K]): void {
+  store.getState().setStoreKV(key, value);
 }
 
 /**
@@ -341,8 +382,8 @@ export function setStore<K extends keyof AppState>(key: K, value: AppState[K]): 
  * });
  * // Updates all specified properties in single operation
  */
-export function setStoreObj(obj: Partial<AppState>): void {
-  store.getState().setStoreObj(obj);
+export function setStorePartial(obj: Partial<AppState>): void {
+  store.getState().setStorePartial(obj);
 }
 
 /**
@@ -427,16 +468,169 @@ export function updateAnalysisFlag<K extends keyof AnalysisState['initFlags']>(f
 /**
  * Update UI component reference in analysis state.
  */
-export function updateAnalysisComponent<K extends keyof AnalysisState['uiComponents']>(component: K, value: any): void {
+export function updateAnalysisComponent<K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]): void {
   store.getState().updateAnalysisComponent(component, value);
 }
 
 /**
  * Update configuration property in analysis state.
  */
-export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: any): void {
+export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]): void {
   store.getState().updateAnalysisConfig(config, value);
 }
+
+// --- Analysis State Helper Functions ---
+
+/**
+ * Get all sales data from analysis state.
+ * @returns Array of sales data objects
+ */
+export const getAllSalesData = () => getAnalysisState().allSalesData;
+
+/**
+ * Set all sales data in analysis state.
+ * @param data - Array of sales data objects to store
+ */
+export const setAllSalesData = (data: AnalysisState['allSalesData']) => setAnalysisState('allSalesData', data);
+
+/**
+ * Get all Chart.js instances from analysis state.
+ * @returns Object containing chart instances keyed by chart ID
+ */
+export const getCharts = () => getAnalysisState().charts;
+
+/**
+ * Set all Chart.js instances in analysis state.
+ * @param charts - Object containing chart instances keyed by chart ID
+ */
+export const setCharts = (charts: AnalysisState['charts']) => setAnalysisState('charts', charts);
+
+/**
+ * Set a single chart property in the charts object.
+ * @param key - Chart identifier key
+ * @param value - Chart instance to store
+ */
+export const setChartProperty = (key: string, value: any) => {
+  const currentCharts = getCharts();
+  const updatedCharts = { ...currentCharts, [key]: value };
+  setCharts(updatedCharts);
+};
+
+/**
+ * Get a single chart instance by key.
+ * @param key - Chart identifier key
+ * @returns Chart instance or undefined if not found
+ */
+export const getChartProperty = (key: string) => {
+  return getCharts()[key];
+};
+
+/**
+ * Get chart data prepared for AI analysis.
+ * @returns Object containing chart data formatted for AI consumption
+ */
+export const getChartDataForAI = () => getAnalysisState().chartDataForAI;
+
+/**
+ * Set chart data prepared for AI analysis.
+ * @param data - Object containing chart data formatted for AI consumption
+ */
+export const setChartDataForAI = (data: AnalysisState['chartDataForAI']) => setAnalysisState('chartDataForAI', data);
+
+/**
+ * Set a single property in the chart data for AI object.
+ * @param key - Data property key
+ * @param value - Data value to store
+ */
+export const setChartDataForAIProperty = (key: string, value: any) => {
+  const currentData = getChartDataForAI();
+  const updatedData = { ...currentData, [key]: value };
+  setChartDataForAI(updatedData);
+};
+
+/**
+ * Get AI analysis results.
+ * @returns Object containing AI-generated analysis results
+ */
+export const getAiAnalysisResults = () => getAnalysisState().aiAnalysisResults;
+
+/**
+ * Set AI analysis results.
+ * @param results - Object containing AI-generated analysis results
+ */
+export const setAiAnalysisResults = (results: AnalysisState['aiAnalysisResults']) => setAnalysisState('aiAnalysisResults', results);
+
+/**
+ * Get current P&L data.
+ * @returns Current profit and loss data object
+ */
+export const getCurrentPnlData = () => getAnalysisState().currentPnlData;
+
+/**
+ * Set current P&L data.
+ * @param data - Profit and loss data object to store
+ */
+export const setCurrentPnlData = (data: AnalysisState['currentPnlData']) => setAnalysisState('currentPnlData', data);
+
+/**
+ * Get initialization flag status for UI components.
+ * @param flag - Flag name to check
+ * @returns Boolean indicating if the component has been initialized
+ */
+export const getInitFlag = <T extends keyof AnalysisState['initFlags']>(flag: T) => {
+  return getAnalysisState().initFlags[flag] || false;
+};
+
+/**
+ * Set initialization flag status for UI components.
+ * @param flag - Flag name to set
+ * @param value - Boolean value to set for the flag
+ */
+export const setInitFlag: typeof updateAnalysisFlag = (...params) => {
+  updateAnalysisFlag(...params);
+};
+
+/**
+ * Get UI component reference from analysis state.
+ * @param component - Component name to retrieve
+ * @returns Component instance or null if not found
+ */
+export const getUIComponent = <T extends keyof AnalysisState['uiComponents']>(component: T) => {
+  return getAnalysisState().uiComponents[component] || null;
+};
+
+/**
+ * Set UI component reference in analysis state.
+ * @param component - Component name to set
+ * @param value - Component instance to store
+ */
+export const setUIComponent = <
+  K extends keyof AnalysisState['uiComponents'],
+  V extends AnalysisState['uiComponents'][K],
+>(component: K, value: V, touchFn?: ($value: V) => void): V => {
+  updateAnalysisComponent(component, value);
+  touchFn?.(value);
+
+  return value;
+};
+
+/**
+ * Get configuration value from analysis state.
+ * @param config - Configuration key to retrieve
+ * @returns Configuration value
+ */
+export const getConfigValue = <T extends keyof AnalysisState['config']>(config: T) => {
+  return getAnalysisState().config[config];
+};
+
+/**
+ * Set configuration value in analysis state.
+ * @param config - Configuration key to set
+ * @param value - Configuration value to store
+ */
+export const setConfigValue: typeof updateAnalysisConfig = (...params) => {
+  updateAnalysisConfig(...params);
+};
 
 // Export the store for direct access to subscribe/getState if needed
 export { store };
