@@ -4010,7 +4010,6 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
             element.classList.add('text-4xl'); // Revert to default large font size
         }
     };
-    // --- FIX END ---
 
     const calculateTotals = (summaries: any[]) => summaries.reduce((acc, summary) => {
         acc.omzet += summary.totalOmzet || 0;
