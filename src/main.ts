@@ -31,7 +31,7 @@ import {
 } from 'firebase/firestore'
 
 import { setupAnalysis } from './analysis'
-import { getStoreState, setStoreObj, setStore } from './store'
+import { getStoreState, setStoreObj, setStore, resetActiveViewData, setActiveViewData, AppState } from './store'
 import { prompts } from './prompt'
 import { applyAnalysisTextBindings } from './utils/dom'
 import {
@@ -46,6 +46,7 @@ import {
 import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { setupPageSummary } from './components/PageSummary';
 
 // Firebase Config
 const firebaseConfig = {
@@ -2957,6 +2958,8 @@ function generateWaktuPenjualanSection() {
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC' });
     generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
     generateYoYComparisonChart(periodB, selectedBranch);
+
+    setActiveViewData('waktu-penjualan', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
 }
 
 async function setupCabangKeuanganSelectors() {
@@ -3016,6 +3019,8 @@ async function generateCabangKeuanganSection() {
     generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
     generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
 
+    setActiveViewData('cabang-keuangan', { reportA, reportB }, { period, branchA, branchB });
+
     hideLoading();
 }
 
@@ -3036,6 +3041,8 @@ function generateCabangPenjualanSection() {
     generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
     generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-apc-comparison-chart', metric: 'apc', title: 'ATC' });
     generateBranchWeeklyTrendComparisonChart(periodData, branchA, branchB, 'cabang-weekly-trend-comparison-chart');
+
+    setActiveViewData('cabang-penjualan', periodData, { period, branchA, branchB });
 }
 
 /**
@@ -3349,6 +3356,8 @@ async function generateGeneralKeuanganSection() {
             return reportDate >= startDate && reportDate <= endDate;
         })
         .sort((a, b) => a.period.localeCompare(b.period));
+
+    setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
 
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
@@ -5374,6 +5383,8 @@ function generateCabangProdukChannelSection() {
     setupBranchMenuTrendChart(periodData, branchA, branchB);
     generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart');
     generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart');
+
+    setActiveViewData('cabang-produk-channel', periodData, { period, branchA, branchB });
 }
 
 /**
@@ -6227,6 +6238,9 @@ async function viewCompiledAnalysis() {
             parentToggle.classList.add('active');
             submenu.classList.remove('hidden'); // Ensure the submenu is visible
             parentToggle.querySelector('.chevron-icon')?.classList.add('rotate-180');
+
+            resetActiveViewData();
+            setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
         }
 
         // 4. Hide the main date filters as they are not used in this section
@@ -6602,7 +6616,11 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
        const targetId = link.dataset.target;
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
-        if (targetSection) targetSection.classList.add('active');
+        if (targetSection) {
+          targetSection.classList.add('active');
+          resetActiveViewData();
+          setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
+        }
 
         const showMainFilters = ![
             'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl',
@@ -12257,6 +12275,8 @@ async function generateGeneralPenjualanSection() {
         avgCheckGrowth: 'general-avg-check-growth'
     });
 
+    setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
+
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
     generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line');
@@ -12341,6 +12361,8 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
     generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
+
+    setActiveViewData('general-produk-channel', filteredSummaries, { selectedBranch });
 }
 
 
@@ -12380,6 +12402,8 @@ async function generateWaktuKeuanganSection() {
     generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
     generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
     generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+
+    setActiveViewData('waktu-keuangan', { reportA, reportB }, { periodA, periodB, selectedBranch });
 
     hideLoading();
 }
@@ -12496,6 +12520,8 @@ function generateWaktuProdukChannelSection() {
     setupWaktuMenuTrendChart(periodAData, periodBData);
     generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
+
+    setActiveViewData('waktu-produk-channel', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
 }
 
 

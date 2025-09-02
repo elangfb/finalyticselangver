@@ -1,4 +1,4 @@
-import { SalesDataRow, setStore } from './store'
+import { setStore } from './store'
 import { formatCurrency, formatNumber } from './utils/string'
 
 /**
@@ -26,7 +26,7 @@ import { formatCurrency, formatNumber } from './utils/string'
  * setupAnalysis(currentSales, lastPeriodSales);
  * // After execution, the global store will be updated with comparison metrics like 'currentOmzet', 'lastPeriodOmzetComparison', etc.
  */
-export function setupAnalysis(currentData: SalesDataRow[], lastPeriodData: SalesDataRow[]) {
+export function setupAnalysis(currentData: any[], lastPeriodData: any[]) {
   const currentOmzet = currentData.reduce((sum, d) => sum + d.Revenue, 0)
   const currentCheck = new Set(currentData.map((d) => d['Bill Number'])).size
   const currentAvgCheck = currentCheck > 0 ? currentOmzet / currentCheck : 0
