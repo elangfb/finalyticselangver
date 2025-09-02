@@ -58,6 +58,15 @@ export interface AnalysisState {
   };
 }
 
+export interface AnalysisActions {
+  resetAnalysisState: () => void;
+  getAnalysisState: () => AnalysisState;
+  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
+  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) => void;
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
+}
+
 /**
  * Main application state interface extending basic state with Zustand store methods.
  *
@@ -72,20 +81,15 @@ export interface AppState {
   analysisState: AnalysisState;
 }
 
-export interface AppStore extends AppState {
+export interface AppActions {
   resetActiveViewData: () => void;
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
   trySetFromExistingViewData: (viewId: string) => void;
+}
+
+export interface AppStore extends AppState, AppActions, AnalysisActions {
   setStore: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
   setStoreObj: (obj: Partial<AppState>) => void;
-
-  // Analysis state management
-  resetAnalysisState: () => void;
-  getAnalysisState: () => AnalysisState;
-  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
-  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
-  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) => void;
-  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
 }
 
 /**
@@ -474,6 +478,153 @@ export function updateAnalysisComponent<K extends keyof AnalysisState['uiCompone
 export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: any): void {
   store.getState().updateAnalysisConfig(config, value);
 }
+
+// --- Analysis State Helper Functions ---
+
+/**
+ * Get all sales data from analysis state.
+ * @returns Array of sales data objects
+ */
+export const getAllSalesData = () => getAnalysisState().allSalesData;
+
+/**
+ * Set all sales data in analysis state.
+ * @param data - Array of sales data objects to store
+ */
+export const setAllSalesData = (data: AnalysisState['allSalesData']) => setAnalysisState('allSalesData', data);
+
+/**
+ * Get all Chart.js instances from analysis state.
+ * @returns Object containing chart instances keyed by chart ID
+ */
+export const getCharts = () => getAnalysisState().charts;
+
+/**
+ * Set all Chart.js instances in analysis state.
+ * @param charts - Object containing chart instances keyed by chart ID
+ */
+export const setCharts = (charts: AnalysisState['charts']) => setAnalysisState('charts', charts);
+
+/**
+ * Set a single chart property in the charts object.
+ * @param key - Chart identifier key
+ * @param value - Chart instance to store
+ */
+export const setChartProperty = (key: string, value: any) => {
+  const currentCharts = getCharts();
+  const updatedCharts = { ...currentCharts, [key]: value };
+  setCharts(updatedCharts);
+};
+
+/**
+ * Get a single chart instance by key.
+ * @param key - Chart identifier key
+ * @returns Chart instance or undefined if not found
+ */
+export const getChartProperty = (key: string) => {
+  return getCharts()[key];
+};
+
+/**
+ * Get chart data prepared for AI analysis.
+ * @returns Object containing chart data formatted for AI consumption
+ */
+export const getChartDataForAI = () => getAnalysisState().chartDataForAI;
+
+/**
+ * Set chart data prepared for AI analysis.
+ * @param data - Object containing chart data formatted for AI consumption
+ */
+export const setChartDataForAI = (data: AnalysisState['chartDataForAI']) => setAnalysisState('chartDataForAI', data);
+
+/**
+ * Set a single property in the chart data for AI object.
+ * @param key - Data property key
+ * @param value - Data value to store
+ */
+export const setChartDataForAIProperty = (key: string, value: any) => {
+  const currentData = getChartDataForAI();
+  const updatedData = { ...currentData, [key]: value };
+  setChartDataForAI(updatedData);
+};
+
+/**
+ * Get AI analysis results.
+ * @returns Object containing AI-generated analysis results
+ */
+export const getAiAnalysisResults = () => getAnalysisState().aiAnalysisResults;
+
+/**
+ * Set AI analysis results.
+ * @param results - Object containing AI-generated analysis results
+ */
+export const setAiAnalysisResults = (results: AnalysisState['aiAnalysisResults']) => setAnalysisState('aiAnalysisResults', results);
+
+/**
+ * Get current P&L data.
+ * @returns Current profit and loss data object
+ */
+export const getCurrentPnlData = () => getAnalysisState().currentPnlData;
+
+/**
+ * Set current P&L data.
+ * @param data - Profit and loss data object to store
+ */
+export const setCurrentPnlData = (data: AnalysisState['currentPnlData']) => setAnalysisState('currentPnlData', data);
+
+/**
+ * Get initialization flag status for UI components.
+ * @param flag - Flag name to check
+ * @returns Boolean indicating if the component has been initialized
+ */
+export const getInitFlag = <T extends keyof AnalysisState['initFlags']>(flag: T) => {
+  return getAnalysisState().initFlags[flag] || false;
+};
+
+/**
+ * Set initialization flag status for UI components.
+ * @param flag - Flag name to set
+ * @param value - Boolean value to set for the flag
+ */
+export const setInitFlag: typeof updateAnalysisFlag = (...params) => {
+  updateAnalysisFlag(...params);
+};
+
+/**
+ * Get UI component reference from analysis state.
+ * @param component - Component name to retrieve
+ * @returns Component instance or null if not found
+ */
+export const getUIComponent = <T extends keyof AnalysisState['uiComponents']>(component: T) => {
+  return getAnalysisState().uiComponents[component] || null;
+};
+
+/**
+ * Set UI component reference in analysis state.
+ * @param component - Component name to set
+ * @param value - Component instance to store
+ */
+export const setUIComponent: typeof updateAnalysisComponent = (...params) => {
+  updateAnalysisComponent(...params);
+};
+
+/**
+ * Get configuration value from analysis state.
+ * @param config - Configuration key to retrieve
+ * @returns Configuration value
+ */
+export const getConfigValue = <T extends keyof AnalysisState['config']>(config: T) => {
+  return getAnalysisState().config[config];
+};
+
+/**
+ * Set configuration value in analysis state.
+ * @param config - Configuration key to set
+ * @param value - Configuration value to store
+ */
+export const setConfigValue: typeof updateAnalysisConfig = (...params) => {
+  updateAnalysisConfig(...params);
+};
 
 // Export the store for direct access to subscribe/getState if needed
 export { store };
