@@ -88,8 +88,8 @@ export interface AppActions {
 }
 
 export interface AppStore extends AppState, AppActions, AnalysisActions {
-  setStore: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
-  setStoreObj: (obj: Partial<AppState>) => void;
+  setStoreKV: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
+  setStorePartial: (obj: Partial<AppState>) => void;
 }
 
 /**
@@ -208,7 +208,7 @@ const store = createStore<AppStore>((set, get) => ({
    * setStore('isLoading', false);
    * // TypeScript ensures value types match property expectations
    */
-  setStore: <K extends keyof AppState>(key: K, value: AppState[K]) =>
+  setStoreKV: <K extends keyof AppState>(key: K, value: AppState[K]) =>
     set({ [key]: value } as Partial<AppStore>),
 
   /**
@@ -233,7 +233,7 @@ const store = createStore<AppStore>((set, get) => ({
    * });
    * // Updates all specified properties in single operation
    */
-  setStoreObj: (obj: Partial<AppState>) => set(obj),
+  setStorePartial: (obj: Partial<AppState>) => set(obj),
 
   /**
    * Reset analysis state with proper cleanup of UI components.
@@ -356,8 +356,8 @@ export function setActiveViewData(viewId: string, data: any, filters: {[key: str
  * setStore('isLoading', false);
  * // TypeScript ensures value types match property expectations
  */
-export function setStore<K extends keyof AppState>(key: K, value: AppState[K]): void {
-  store.getState().setStore(key, value);
+export function setStoreKV<K extends keyof AppState>(key: K, value: AppState[K]): void {
+  store.getState().setStoreKV(key, value);
 }
 
 /**
@@ -382,8 +382,8 @@ export function setStore<K extends keyof AppState>(key: K, value: AppState[K]): 
  * });
  * // Updates all specified properties in single operation
  */
-export function setStoreObj(obj: Partial<AppState>): void {
-  store.getState().setStoreObj(obj);
+export function setStorePartial(obj: Partial<AppState>): void {
+  store.getState().setStorePartial(obj);
 }
 
 /**
