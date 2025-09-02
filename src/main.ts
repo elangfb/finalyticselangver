@@ -98,27 +98,14 @@ const getAiAnalysisResults = () => $store.getAnalysisState().aiAnalysisResults;
 const setAiAnalysisResults = (results: Record<string, any>) => $store.setAnalysisState('aiAnalysisResults', results);
 
 let adminCredentials = null
-let yoyYearSelectInitialized = false
-let monthlyComparisonInitialized = false;
 let monthlyComparisonTargets = {};
 let omzetComparisonSelect: SlimSelect | null = null;
 let currentPnlPeriod: string | null = null;
 let menuTrend24MonthSelect: SlimSelect | null = null;
-let generalKeuanganSelectorInitialized = false;
 let generalMenuTrendSelect: SlimSelect | null = null;
-let waktuKeuanganSelectorsInitialized = false;
-let waktuPenjualanSelectorsInitialized = false;
-let waktuProdukChannelSelectorsInitialized = false;
 let waktuMenuTrendSelect: SlimSelect | null = null;
-let cabangKeuanganSelectorsInitialized = false;
-let cabangPenjualanSelectorsInitialized = false;
-let cabangProdukChannelSelectorsInitialized = false;
 let cabangMenuTrendSelect: SlimSelect | null = null;
-let generalPenjualanSelectorInitialized = false;
-let generalProdukChannelSelectorInitialized = false;
 let activeSalesTarget = {};
-let generalInvestasiSelectorInitialized = false;
-let cabangInvestasiSelectorInitialized = false;
 
 
 
@@ -1249,6 +1236,7 @@ function showView(viewName: string): void {
 
   // Update current view tracker
   currentView = viewName;
+
   // Add all the new view variables here
   const mainMenuview = document.getElementById('main-menu-view');
   const salesDashboardView = document.getElementById('sales-dashboard-view');
@@ -2096,13 +2084,13 @@ function setupMonthlyComparison(summaries: any[]) {
     monthASelect.value = availableMonths[1];
 
     // --- FIX: Add event listeners to the dropdowns to auto-update ---
-    if (!monthlyComparisonInitialized) {
+    if (!$store.store.getState().analysisState.initFlags.monthlyComparisonInitialized) {
         const autoRunComparison = () => runMonthlyComparison(getAllSalesData());
 
         monthASelect.addEventListener('change', autoRunComparison);
         monthBSelect.addEventListener('change', autoRunComparison);
 
-        monthlyComparisonInitialized = true;
+        $store.store.getState().updateAnalysisFlag('monthlyComparisonInitialized', true);
     }
 
     // Run initial comparison and show the results
@@ -2751,12 +2739,12 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
     const yearSelect = document.getElementById('yoy-year-select') as HTMLSelectElement;
 
     // --- Populate Year Selector (only once) ---
-    if (!yoyYearSelectInitialized) {
+    if (!$store.store.getState().analysisState.initFlags.yoyYearSelectInitialized) {
         const years = [...new Set(summaries.map(s => s.date.getFullYear()))].toSorted((a, b) => b - a);
         yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
         // When the year changes, re-run the analysis on the *entire* dataset
         yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(getAllSalesData()));
-        yoyYearSelectInitialized = true;
+        $store.store.getState().updateAnalysisFlag('yoyYearSelectInitialized', true);
     }
 
     const selectedYear = parseInt(yearSelect.value);
@@ -2967,7 +2955,7 @@ function generateWaktuPenjualanSection() {
 }
 
 async function setupCabangKeuanganSelectors() {
-    if (cabangKeuanganSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.cabangKeuanganSelectorsInitialized) return;
 
     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
@@ -2993,7 +2981,7 @@ async function setupCabangKeuanganSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangKeuanganSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('cabangKeuanganSelectorsInitialized', true);
     generateCabangKeuanganSection();
 }
 
@@ -3053,7 +3041,7 @@ function generateCabangPenjualanSection() {
  * Sets up the selectors for the "Cabang > Penjualan" section.
  */
 async function setupCabangPenjualanSelectors() {
-    if (cabangPenjualanSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.cabangPenjualanSelectorsInitialized) return;
     const periodSelect = document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
@@ -3075,7 +3063,7 @@ async function setupCabangPenjualanSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangPenjualanSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('cabangPenjualanSelectorsInitialized', true);
     generateCabangPenjualanSection();
 }
 
@@ -3196,7 +3184,7 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
 }
 
 async function setupWaktuPenjualanSelectors() {
-    if (waktuPenjualanSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.waktuPenjualanSelectorsInitialized) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
@@ -3222,7 +3210,7 @@ async function setupWaktuPenjualanSelectors() {
         await updatePeriodSelectorsForPenjualan(branchSelect.value);
     });
 
-    waktuPenjualanSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('waktuPenjualanSelectorsInitialized', true);
 
     // Trigger the initial population of the period selectors for the default branch
     await updatePeriodSelectorsForPenjualan(branches[0]);
@@ -3439,7 +3427,7 @@ function generateSpecificSubCategoryRatioChart(
  * Sets up the period selector dropdown for the "Aspek Keuangan" section.
  */
 async function setupGeneralKeuanganPeriodSelector() {
-    if (generalKeuanganSelectorInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.generalKeuanganSelectorInitialized) return;
     if (!currentUser) return;
 
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
@@ -3460,7 +3448,7 @@ async function setupGeneralKeuanganPeriodSelector() {
     branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralKeuangan(branchSelect.value));
     periodSelect.addEventListener('change', () => generateGeneralKeuanganSection());
 
-    generalKeuanganSelectorInitialized = true;
+    $store.store.getState().updateAnalysisFlag('generalKeuanganSelectorInitialized', true);
 
     await updatePeriodSelectorsForGeneralKeuangan(branches[0]);
 }
@@ -3540,10 +3528,10 @@ async function setupGeneralPenjualanSelectors() {
         startDateId: 'general-penjualan-start-date',
         endDateId: 'general-penjualan-end-date',
         applyBtnId: 'general-penjualan-apply-btn',
-        initializationFlag: generalPenjualanSelectorInitialized,
+        initializationFlag: $store.store.getState().analysisState.initFlags.generalPenjualanSelectorInitialized,
         callback: generateGeneralPenjualanSection
     });
-    generalPenjualanSelectorInitialized = true;
+    $store.store.getState().updateAnalysisFlag('generalPenjualanSelectorInitialized', true);
 }
 
 async function setupGeneralProdukChannelSelectors() {
@@ -5473,7 +5461,7 @@ function generateCabangProdukChannelSection() {
  * Sets up the selectors for the "Cabang > Produk dan Channel" section.
  */
 async function setupCabangProdukChannelSelectors() {
-    if (cabangProdukChannelSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.cabangProdukChannelSelectorsInitialized) return;
     const periodSelect = document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
@@ -5495,7 +5483,7 @@ async function setupCabangProdukChannelSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangProdukChannelSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('cabangProdukChannelSelectorsInitialized', true);
     generateCabangProdukChannelSection();
 }
 
@@ -5771,11 +5759,11 @@ function generateYoYAnalysis(data: any[]): void {
   const yearSelect = document.getElementById('yoy-year-select')
 
   // --- Populate Year Selector (only once) ---
-  if (!yoyYearSelectInitialized) {
+  if (!$store.store.getState().analysisState.initFlags.yoyYearSelectInitialized) {
     const years = [...new Set(data.map((d) => d['Sales Date In'].getFullYear()))].toSorted((a, b) => b - a)
     yearSelect.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('')
     yearSelect.addEventListener('change', () => generateYoYAnalysis(getAllSalesData()))
-    yoyYearSelectInitialized = true
+    $store.store.getState().updateAnalysisFlag('yoyYearSelectInitialized', true)
   }
 
   const selectedYear = parseInt(yearSelect.value)
@@ -12502,7 +12490,7 @@ async function generateWaktuKeuanganSection() {
  * Sets up the period selectors for the "Waktu > Keuangan" section.
  */
 async function setupWaktuKeuanganPeriodSelectors() {
-    if (waktuKeuanganSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.waktuKeuanganSelectorsInitialized) return;
     const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
@@ -12535,7 +12523,7 @@ async function setupWaktuKeuanganPeriodSelectors() {
     selectB.addEventListener('change', handler);
     branchSelect.addEventListener('change', handler);
 
-    waktuKeuanganSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('waktuKeuanganSelectorsInitialized', true);
 
     generateWaktuKeuanganSection();
 }
@@ -12667,7 +12655,7 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
 }
 
 async function setupWaktuProdukChannelSelectors() {
-    if (waktuProdukChannelSelectorsInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.waktuProdukChannelSelectorsInitialized) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
@@ -12690,7 +12678,7 @@ async function setupWaktuProdukChannelSelectors() {
         await updatePeriodSelectorsForProdukChannel(branchSelect.value);
     });
 
-    waktuProdukChannelSelectorsInitialized = true;
+    $store.store.getState().updateAnalysisFlag('waktuProdukChannelSelectorsInitialized', true);
 
     await updatePeriodSelectorsForProdukChannel(branches[0]);
 }
@@ -13125,9 +13113,9 @@ async function setupGeneralInvestasiSelectors() {
         branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
         // Attach event listener only once
-        if (!generalInvestasiSelectorInitialized) {
+        if (!$store.store.getState().analysisState.initFlags.generalInvestasiSelectorInitialized) {
             branchSelect.addEventListener('change', generateGeneralInvestasiSection);
-            generalInvestasiSelectorInitialized = true;
+            $store.store.getState().updateAnalysisFlag('generalInvestasiSelectorInitialized', true);
         }
 
         // Trigger the initial chart generation
@@ -13280,7 +13268,7 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
 }
 
 async function setupCabangInvestasiSelectors() {
-    if (cabangInvestasiSelectorInitialized) return;
+    if ($store.store.getState().analysisState.initFlags.cabangInvestasiSelectorInitialized) return;
     if (!currentUser) return;
 
     const startPeriodSelect = document.getElementById('cabang-investasi-start-period') as HTMLSelectElement;
@@ -13329,7 +13317,7 @@ async function setupCabangInvestasiSelectors() {
         branchASelect.addEventListener('change', handler);
         branchBSelect.addEventListener('change', handler);
 
-        cabangInvestasiSelectorInitialized = true;
+        $store.store.getState().updateAnalysisFlag('cabangInvestasiSelectorInitialized', true);
         await generateCabangInvestasiSection();
 
     } catch (error) {
