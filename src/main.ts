@@ -6684,66 +6684,58 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         const parentToggle = link.closest('.submenu-container')?.querySelector('.submenu-toggle');
         if (parentToggle) parentToggle.classList.add('active');
 
-       const targetId = link.dataset.target;
+        const targetId = link.dataset.target;
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
-        if (targetSection) {
-          targetSection.classList.add('active');
-          $store.resetActiveViewData();
-          setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
-        }
+        if (targetSection) targetSection.classList.add('active');
 
         const showMainFilters = ![
             'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl',
             'analisa-pnl', 'general-keuangan', 'waktu-keuangan',
-            'waktu-produk-channel', 'general-penjualan'
+            'waktu-produk-channel', 'general-penjualan', 'general-investasi',
+            'cabang-investasi' // Also hide for this new section
         ].includes(targetId);
         document.getElementById('main-filters').style.display = showMainFilters ? 'block' : 'none';
 
-        if (targetId === 'general-keuangan') {
-            await setupGeneralKeuanganPeriodSelector();
-        }
-
-        if (targetId === 'general-penjualan') {
-            await setupGeneralPenjualanSelectors();
-        }
-
-        if (targetId === 'waktu-keuangan') {
-            await setupWaktuKeuanganPeriodSelectors();
-        }
-
-        if (targetId === 'waktu-penjualan') {
-            await setupWaktuPenjualanSelectors();
-        }
-
-        if (targetId === 'waktu-produk-channel') {
-            await setupWaktuProdukChannelSelectors();
-        }
-
-         if (targetId === 'cabang-keuangan') {
-            await setupCabangKeuanganSelectors();
-        }
-
-         if (targetId === 'cabang-penjualan') {
-            await setupCabangPenjualanSelectors();
-        }
-
-        if (targetId === 'cabang-produk-channel') {
-            await setupCabangProdukChannelSelectors();
-        }
-
-        if (targetId === 'general-produk-channel') {
-            await setupGeneralProdukChannelSelectors();
-        }
-        if (targetId === 'general-investasi') {
-            await setupGeneralInvestasiSelectors();
-        }
-        if (targetId === 'cabang-investasi') {
-            await setupCabangInvestasiSelectors();
-        }
-
-        if (targetId === 'waktu-pnl') generateAllTimePnlTable();
-        if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
+        // --- THE FIX IS APPLIED HERE ---
+        // We wrap the setup calls in a setTimeout to prevent a race condition.
+        setTimeout(async () => {
+            if (targetId === 'general-keuangan') {
+                await setupGeneralKeuanganPeriodSelector();
+            }
+            if (targetId === 'general-penjualan') {
+                await setupGeneralPenjualanSelectors();
+            }
+            if (targetId === 'waktu-keuangan') {
+                await setupWaktuKeuanganPeriodSelectors();
+            }
+            if (targetId === 'waktu-penjualan') {
+                await setupWaktuPenjualanSelectors();
+            }
+            if (targetId === 'waktu-produk-channel') {
+                await setupWaktuProdukChannelSelectors();
+            }
+            if (targetId === 'cabang-keuangan') {
+                await setupCabangKeuanganSelectors();
+            }
+            if (targetId === 'cabang-penjualan') {
+                await setupCabangPenjualanSelectors();
+            }
+            if (targetId === 'cabang-produk-channel') {
+                await setupCabangProdukChannelSelectors();
+            }
+            if (targetId === 'general-produk-channel') {
+                await setupGeneralProdukChannelSelectors();
+            }
+            if (targetId === 'general-investasi') {
+                await setupGeneralInvestasiSelectors();
+            }
+            if (targetId === 'cabang-investasi') {
+                await setupCabangInvestasiSelectors();
+            }
+            if (targetId === 'waktu-pnl') generateAllTimePnlTable();
+            if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
+        }, 0); // A 0ms delay is enough to push it to the next browser tick.
     }
 });
 
@@ -13012,14 +13004,18 @@ async function saveInvestmentData() {
     const branchNameInput = document.getElementById('investment-branch-name') as HTMLInputElement;
     const amountInput = document.getElementById('investment-amount') as HTMLInputElement;
     const slotsInput = document.getElementById('investment-slots') as HTMLInputElement;
+    // Get the new percentage input
+    const shareInput = document.getElementById('investment-share-percentage') as HTMLInputElement;
     const feedbackEl = document.getElementById('investment-feedback');
 
     const branchName = branchNameInput.value.trim();
     const investmentAmount = parseFloat(amountInput.value);
     const investmentSlots = parseInt(slotsInput.value, 10);
+    // Parse the new percentage value
+    const investorSharePercentage = parseFloat(shareInput.value);
 
-    if (!branchName || isNaN(investmentAmount) || isNaN(investmentSlots) || investmentAmount <= 0 || investmentSlots <= 0) {
-        feedbackEl.textContent = 'Please fill in all fields with valid, positive numbers.';
+    if (!branchName || isNaN(investmentAmount) || isNaN(investmentSlots) || isNaN(investorSharePercentage) || investmentAmount <= 0 || investmentSlots <= 0 || investorSharePercentage < 0 || investorSharePercentage > 100) {
+        feedbackEl.textContent = 'Please fill all fields with valid numbers (percentage must be between 0-100).';
         feedbackEl.className = 'text-sm mb-4 text-center text-red-600';
         feedbackEl.classList.remove('hidden');
         return;
@@ -13030,22 +13026,22 @@ async function saveInvestmentData() {
     feedbackEl.classList.remove('hidden');
 
     try {
-        // Use the branch name as the document ID for easy lookup
         const investmentDocRef = doc(db, `users/${currentUser.uid}/investments`, branchName);
         await setDoc(investmentDocRef, {
             branchName,
             investmentAmount,
             investmentSlots,
+            investorSharePercentage, // Save the new field to Firestore
             lastUpdatedAt: new Date()
-        }, { merge: true }); // Use merge to allow updates
+        }, { merge: true });
 
         feedbackEl.textContent = 'Investment data saved successfully!';
         feedbackEl.className = 'text-sm mb-4 text-center text-green-600';
         branchNameInput.value = '';
         amountInput.value = '';
         slotsInput.value = '';
+        shareInput.value = '';
 
-        // Refresh the branch selector in the analysis section to include the new branch
         await setupGeneralInvestasiSelectors();
 
     } catch (error) {
@@ -13054,6 +13050,40 @@ async function saveInvestmentData() {
         feedbackEl.className = 'text-sm mb-4 text-center text-red-600';
     }
 }
+
+function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSharePercentage: number) {
+    const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    
+    let cumulativeShare = 0;
+    const cumulativeData = monthlyProfits.map(p => {
+        const monthlyShare = p.profit * (investorSharePercentage / 100);
+        cumulativeShare += monthlyShare;
+        return cumulativeShare;
+    });
+
+    createChart('cumulative-investor-share-chart', 'line', {
+        labels,
+        datasets: [
+            {
+                label: 'Akumulasi Bagi Hasil (Rp)',
+                data: cumulativeData,
+                borderColor: '#8B5CF6', // A nice purple color
+                backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                fill: true,
+                tension: 0.1,
+            }
+        ]
+    }, {
+        scales: {
+            y: { 
+                beginAtZero: true,
+                title: { display: true, text: 'Total Akumulasi (Rp)' }, 
+                ticks: { callback: shortenCurrency } 
+            }
+        }
+    });
+}
+
 
 /**
  * Populates the branch selector for the investment analysis section.
@@ -13146,6 +13176,7 @@ async function generateGeneralInvestasiSection() {
 
         generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
         generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
+        generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage);
 
     } catch (error) {
         console.error("Error generating investment analysis:", error);
@@ -13235,7 +13266,8 @@ async function setupCabangInvestasiSelectors() {
     if (cabangInvestasiSelectorInitialized) return;
     if (!currentUser) return;
 
-    const periodSelect = document.getElementById('cabang-investasi-period-select') as HTMLSelectElement;
+    const startPeriodSelect = document.getElementById('cabang-investasi-start-period') as HTMLSelectElement;
+    const endPeriodSelect = document.getElementById('cabang-investasi-end-period') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-investasi-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-investasi-branch-b-select') as HTMLSelectElement;
 
@@ -13251,12 +13283,13 @@ async function setupCabangInvestasiSelectors() {
         ]);
 
         const branchesWithInvestment = investmentSnap.docs.map(doc => doc.data().branchName).sort();
-        const availablePeriods = [...new Set(pnlSnap.docs.map(doc => doc.data().period))].sort().reverse();
+        const availablePeriods = [...new Set(pnlSnap.docs.map(doc => doc.data().period))].sort();
 
         if (branchesWithInvestment.length < 2 || availablePeriods.length === 0) {
-            branchASelect.innerHTML = '<option>Not enough data for comparison</option>';
+            branchASelect.innerHTML = '<option>Not enough data</option>';
             branchBSelect.innerHTML = '';
-            periodSelect.innerHTML = '';
+            startPeriodSelect.innerHTML = '';
+            endPeriodSelect.innerHTML = '';
             return;
         }
 
@@ -13265,15 +13298,17 @@ async function setupCabangInvestasiSelectors() {
         branchBSelect.innerHTML = branchOptionsHtml;
 
         const periodOptionsHtml = availablePeriods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
-        periodSelect.innerHTML = periodOptionsHtml;
+        startPeriodSelect.innerHTML = periodOptionsHtml;
+        endPeriodSelect.innerHTML = periodOptionsHtml;
 
-        // Set default selections
         branchASelect.value = branchesWithInvestment[0];
         branchBSelect.value = branchesWithInvestment[1];
-        periodSelect.value = availablePeriods[0];
+        startPeriodSelect.value = availablePeriods[0];
+        endPeriodSelect.value = availablePeriods[availablePeriods.length - 1];
 
         const handler = () => generateCabangInvestasiSection();
-        periodSelect.addEventListener('change', handler);
+        startPeriodSelect.addEventListener('change', handler);
+        endPeriodSelect.addEventListener('change', handler);
         branchASelect.addEventListener('change', handler);
         branchBSelect.addEventListener('change', handler);
 
@@ -13286,122 +13321,255 @@ async function setupCabangInvestasiSelectors() {
     }
 }
 
+
 /**
  * Fetches data and generates the comparison charts for investment analysis between two branches.
  */
 async function generateCabangInvestasiSection() {
     if (!currentUser) return;
-    const period = (document.getElementById('cabang-investasi-period-select') as HTMLSelectElement).value;
+    const startPeriod = (document.getElementById('cabang-investasi-start-period') as HTMLSelectElement).value;
+    const endPeriod = (document.getElementById('cabang-investasi-end-period') as HTMLSelectElement).value;
     const branchA = (document.getElementById('cabang-investasi-branch-a-select') as HTMLSelectElement).value;
     const branchB = (document.getElementById('cabang-investasi-branch-b-select') as HTMLSelectElement).value;
+    
+    const containerA = document.getElementById('cabang-business-yield-chart-container');
+    const containerB = document.getElementById('cabang-investor-yield-chart-container');
+    const containerC = document.getElementById('branch-cumulative-chart-container');
 
     const clearChartsAndShowError = (message: string) => {
-        const containerA = document.getElementById('cabang-business-yield-chart-container');
-        const containerB = document.getElementById('cabang-investor-yield-chart-container');
-        
-        // --- THIS IS THE FIX ---
-        // When showing an error, we now add the <canvas> elements back into the HTML.
-        // This ensures they exist for the next time the function runs successfully.
-        if(containerA) containerA.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p><canvas id="cabang-business-yield-chart"></canvas>`;
-        if(containerB) containerB.innerHTML = `<canvas id="cabang-investor-yield-chart"></canvas>`;
+        if (containerA) containerA.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p>`;
+        if (containerB) containerB.innerHTML = '';
+        if (containerC) containerC.innerHTML = '';
     };
 
-    if (!period || !branchA || !branchB) return;
+    if (containerA) containerA.innerHTML = '<canvas id="cabang-business-yield-chart"></canvas>';
+    if (containerB) containerB.innerHTML = '<canvas id="cabang-investor-yield-chart"></canvas>';
+    if (containerC) containerC.innerHTML = '<canvas id="branch-cumulative-chart"></canvas>';
+
+    if (!startPeriod || !endPeriod || !branchA || !branchB) return;
     if (branchA === branchB) {
         clearChartsAndShowError('Please select two different branches to compare.');
         return;
     }
+    if (startPeriod > endPeriod) {
+        clearChartsAndShowError('Start Period cannot be after End Period.');
+        return;
+    }
 
-    showLoading({ message: 'Comparing investment data...' });
+    showLoading({ message: 'Comparing cumulative returns...' });
 
     try {
-        // This part is now wrapped in a helper to avoid repeating code.
-        const fetchData = async (branchName: string) => {
+        const fetchDataForBranch = async (branchName: string) => {
             const investmentRef = doc(db, `users/${currentUser.uid}/investments`, branchName);
-            // The P&L report ID is a composite of period and a "safe" branch name
-            const pnlId = `${period}_${branchName.replace(/\s+/g, '_')}`;
-            const pnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, pnlId);
+            const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+            const q = query(pnlReportsRef, 
+                where("branchName", "==", branchName), 
+                where("period", ">=", startPeriod),
+                where("period", "<=", endPeriod)
+            );
             
-            const [investmentSnap, pnlSnap] = await Promise.all([getDoc(investmentRef), getDoc(pnlRef)]);
-
+            const [investmentSnap, pnlSnap] = await Promise.all([getDoc(investmentRef), getDocs(q)]);
             if (!investmentSnap.exists()) throw new Error(`Investment data not found for ${branchName}.`);
-            if (!pnlSnap.exists()) throw new Error(`P&L report for ${period} not found for ${branchName}.`);
 
-            const pnlData = pnlSnap.data().pnlData || {};
-            const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
-            const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
-            const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
-            const profit = revenue - hpp - opex; // Simplified Profit
+            const monthlyProfits = pnlSnap.docs.map(doc => {
+                const report = doc.data();
+                const pnlData = report.pnlData || {};
+                const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+                const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
+                const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
+                const profit = revenue - hpp - opex;
+                return { period: report.period, profit };
+            }).sort((a, b) => a.period.localeCompare(b.period));
+            
+            const singlePeriodProfit = monthlyProfits.length > 0 ? monthlyProfits[monthlyProfits.length - 1].profit : 0;
 
-            return { investment: investmentSnap.data(), profit };
+            return { investment: investmentSnap.data(), monthlyProfits, singlePeriodProfit };
         };
 
-        const [dataA, dataB] = await Promise.all([fetchData(branchA), fetchData(branchB)]);
+        const [dataA, dataB] = await Promise.all([fetchDataForBranch(branchA), fetchDataForBranch(branchB)]);
+        
+        if (dataA.monthlyProfits.length === 0 && dataB.monthlyProfits.length === 0) {
+            throw new Error(`No P&L reports found for the selected branches in this period.`);
+        }
 
-        // Before drawing new charts, ensure the containers are clean (removes old error messages)
-        document.getElementById('cabang-business-yield-chart-container').innerHTML = '<canvas id="cabang-business-yield-chart"></canvas>';
-        document.getElementById('cabang-investor-yield-chart-container').innerHTML = '<canvas id="cabang-investor-yield-chart"></canvas>';
-
+        // Generate the two single-period comparison charts
         generateCabangBusinessYieldComparisonChart(dataA, dataB);
         generateCabangInvestorYieldComparisonChart(dataA, dataB);
+        // Generate the cumulative comparison chart
+        generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod);
 
     } catch (error) {
-        console.error("Error generating branch investment comparison:", error);
+        console.error("Error generating branch cumulative comparison:", error);
         clearChartsAndShowError(error.message);
     } finally {
         hideLoading();
     }
 }
 
+
+function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod) {
+    // 1. Create a master list of all months in the selected range
+    const allMonths = [];
+    let currentDate = new Date(startPeriod + '-02');
+    const lastDate = new Date(endPeriod + '-02');
+    while (currentDate <= lastDate) {
+        allMonths.push(currentDate.toISOString().slice(0, 7));
+        currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    // 2. Create helper maps for quick profit lookup
+    const profitMapA = new Map(dataA.monthlyProfits.map(p => [p.period, p.profit]));
+    const profitMapB = new Map(dataB.monthlyProfits.map(p => [p.period, p.profit]));
+
+    // 3. Calculate cumulative data for each branch
+    const calculateCumulative = (profitMap, investmentData) => {
+        let cumulativeShare = 0;
+        return allMonths.map(month => {
+            const profit = profitMap.get(month) || 0;
+            const monthlyShare = profit * (investmentData.investorSharePercentage / 100);
+            cumulativeShare += monthlyShare;
+            return cumulativeShare;
+        });
+    };
+
+    const cumulativeDataA = calculateCumulative(profitMapA, dataA.investment);
+    const cumulativeDataB = calculateCumulative(profitMapB, dataB.investment);
+
+    // 4. Render the chart
+    const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+
+    createChart('branch-cumulative-chart', 'line', {
+        labels: chartLabels,
+        datasets: [
+            {
+                label: `Akumulasi ${dataA.investment.branchName}`,
+                data: cumulativeDataA,
+                borderColor: '#4F46E5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                fill: true,
+                tension: 0.1,
+            },
+            {
+                label: `Akumulasi ${dataB.investment.branchName}`,
+                data: cumulativeDataB,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                fill: true,
+                tension: 0.1,
+            }
+        ]
+    }, {
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Total Akumulasi (Rp)' },
+                ticks: { callback: shortenCurrency }
+            }
+        }
+    });
+}
+
 /**
  * Renders the Business Yield comparison chart.
  */
 function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
-    const labels = [dataA.investment.branchName, dataB.investment.branchName];
-    const profitData = [dataA.profit, dataB.profit];
-    const yieldData = [
-        (dataA.profit / dataA.investment.investmentAmount) * 100,
-        (dataB.profit / dataB.investment.investmentAmount) * 100
-    ];
+    // 1. Create a master list of all months in the selected range to ensure a consistent X-axis.
+    const allMonths = [...new Set([...dataA.monthlyProfits.map(p => p.period), ...dataB.monthlyProfits.map(p => p.period)])].sort();
+    
+    // 2. Create Maps for easy profit lookup for each branch.
+    const profitMapA = new Map(dataA.monthlyProfits.map(p => [p.period, p.profit]));
+    const profitMapB = new Map(dataB.monthlyProfits.map(p => [p.period, p.profit]));
+
+    // 3. Calculate the monthly yield for each branch for every month in our master list.
+    const yieldDataA = allMonths.map(month => {
+        const profit = profitMapA.get(month) || 0;
+        return dataA.investment.investmentAmount > 0 ? (profit / dataA.investment.investmentAmount) * 100 : 0;
+    });
+    
+    const yieldDataB = allMonths.map(month => {
+        const profit = profitMapB.get(month) || 0;
+        return dataB.investment.investmentAmount > 0 ? (profit / dataB.investment.investmentAmount) * 100 : 0;
+    });
+
+    // 4. Format month labels for the chart's X-axis.
+    const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
 
     createChart('cabang-business-yield-chart', 'bar', {
-        labels,
+        labels: chartLabels,
         datasets: [
-            { type: 'bar', label: 'Profit (Rp)', data: profitData, backgroundColor: '#10B981', yAxisID: 'y-rp' },
-            { type: 'line', label: 'Yield (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
+            {
+                label: `Yield ${dataA.investment.branchName} (%)`,
+                data: yieldDataA,
+                backgroundColor: '#4F46E5', // Blue for Branch A
+            },
+            {
+                label: `Yield ${dataB.investment.branchName} (%)`,
+                data: yieldDataB,
+                backgroundColor: '#10B981', // Green for Branch B
+            }
         ]
     }, {
         scales: {
-            'y-rp': { position: 'left', title: { display: true, text: 'Profit (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+            y: {
+                title: { display: true, text: 'Business Yield (%)' },
+                ticks: { callback: (v) => `${Number(v).toFixed(2)}%` }
+            }
         }
     });
 }
+
+
 
 /**
  * Renders the Investor Yield comparison chart.
  */
 function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
+    // 1. Calculate the investment cost per slot for each branch.
     const investmentPerSlotA = dataA.investment.investmentSlots > 0 ? dataA.investment.investmentAmount / dataA.investment.investmentSlots : 0;
     const investmentPerSlotB = dataB.investment.investmentSlots > 0 ? dataB.investment.investmentAmount / dataB.investment.investmentSlots : 0;
 
-    const labels = [dataA.investment.branchName, dataB.investment.branchName];
-    const profitData = [dataA.profit, dataB.profit];
-    const yieldData = [
-        investmentPerSlotA > 0 ? (dataA.profit / investmentPerSlotA) * 100 : 0,
-        investmentPerSlotB > 0 ? (dataB.profit / investmentPerSlotB) * 100 : 0
-    ];
+    // 2. Create a master list of all months in the selected range.
+    const allMonths = [...new Set([...dataA.monthlyProfits.map(p => p.period), ...dataB.monthlyProfits.map(p => p.period)])].sort();
+
+    // 3. Create Maps for easy profit lookup.
+    const profitMapA = new Map(dataA.monthlyProfits.map(p => [p.period, p.profit]));
+    const profitMapB = new Map(dataB.monthlyProfits.map(p => [p.period, p.profit]));
+
+    // 4. Calculate the monthly investor yield per slot for each branch.
+    const yieldDataA = allMonths.map(month => {
+        const profit = profitMapA.get(month) || 0;
+        return investmentPerSlotA > 0 ? (profit / investmentPerSlotA) * 100 : 0;
+    });
+    
+    const yieldDataB = allMonths.map(month => {
+        const profit = profitMapB.get(month) || 0;
+        return investmentPerSlotB > 0 ? (profit / investmentPerSlotB) * 100 : 0;
+    });
+    
+    // 5. Format month labels for the chart's X-axis.
+    const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
 
     createChart('cabang-investor-yield-chart', 'bar', {
-        labels,
+        labels: chartLabels,
         datasets: [
-            { type: 'bar', label: 'Profit (Rp)', data: profitData, backgroundColor: '#10B981', yAxisID: 'y-rp' },
-            { type: 'line', label: 'Yield per Slot (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
+            {
+                label: `Yield ${dataA.investment.branchName} (%)`,
+                data: yieldDataA,
+                backgroundColor: '#4F46E5', // Blue for Branch A
+            },
+            {
+                label: `Yield ${dataB.investment.branchName} (%)`,
+                data: yieldDataB,
+                backgroundColor: '#10B981', // Green for Branch B
+            }
         ]
     }, {
         scales: {
-            'y-rp': { position: 'left', title: { display: true, text: 'Profit (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+            y: {
+                title: { display: true, text: 'Investor Yield per Slot (%)' },
+                ticks: { callback: (v) => `${Number(v).toFixed(2)}%` }
+            }
         }
     });
 }
+

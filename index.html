@@ -1621,11 +1621,10 @@
                             </div>
                         </section>
                         <section id="general-investasi-section" class="analysis-section space-y-6">
-    <!-- Investment Data Input Form -->
     <div class="bg-white rounded-lg shadow-md p-6">
         <h3 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-3">Input Data Investasi per Cabang</h3>
         <div id="investment-feedback" class="text-sm mb-4 text-center hidden"></div>
-        <form id="investment-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <form id="investment-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div>
                 <label for="investment-branch-name" class="block text-sm font-medium text-gray-700">Nama Cabang</label>
                 <input type="text" id="investment-branch-name" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., Jakarta Pusat" required>
@@ -1638,11 +1637,14 @@
                 <label for="investment-slots" class="block text-sm font-medium text-gray-700">Jumlah Slot Investasi</label>
                 <input type="number" id="investment-slots" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 10" required>
             </div>
+            <div>
+                <label for="investment-share-percentage" class="block text-sm font-medium text-gray-700">Pembagian % Investor</label>
+                <input type="number" id="investment-share-percentage" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 80" required min="0" max="100">
+            </div>
             <button type="submit" class="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 h-10">Save Investment</button>
         </form>
     </div>
 
-    <!-- Investment Analysis Display -->
     <div class="bg-white p-4 rounded-lg shadow-md">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div>
@@ -1652,21 +1654,28 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Yield Bisnis per Bulan</h3>
-            <div class="chart-container mt-4">
-                <canvas id="business-yield-chart"></canvas>
-            </div>
-        </div>
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Yield Investor per Bulan (per Slot)</h3>
-            <div class="chart-container mt-4">
-                <canvas id="investor-yield-chart"></canvas>
-            </div>
+    <div class="grid grid-cols-1 gap-6">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Yield Bisnis per Bulan</h3>
+        <div class="chart-container mt-4">
+            <canvas id="business-yield-chart"></canvas>
         </div>
     </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Yield Investor per Bulan (per Slot)</h3>
+        <div class="chart-container mt-4">
+            <canvas id="investor-yield-chart"></canvas>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Akumulasi Bagi Hasil Investor</h3>
+        <div class="chart-container mt-4">
+            <canvas id="cumulative-investor-share-chart"></canvas>
+        </div>
+    </div>
+</div>
 </section>
+
                         <section id="waktu-keuangan-section" class="analysis-section space-y-6">
                             <div class="bg-white p-4 rounded-lg shadow-md">
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -1940,13 +1949,16 @@
                                 </div>
                             </div>
                         </section>
-                        <section id="cabang-investasi-section" class="analysis-section space-y-6">
-    <!-- Filters for Branch Comparison -->
+<section id="cabang-investasi-section" class="analysis-section space-y-6">
     <div class="bg-white p-4 rounded-lg shadow-md">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
-                <label for="cabang-investasi-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
-                <select id="cabang-investasi-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+                <label for="cabang-investasi-start-period" class="block text-sm font-medium text-gray-700">Start Period:</label>
+                <select id="cabang-investasi-start-period" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-investasi-end-period" class="block text-sm font-medium text-gray-700">End Period:</label>
+                <select id="cabang-investasi-end-period" class="mt-1 block w-full p-2 border rounded-md"></select>
             </div>
             <div>
                 <label for="cabang-investasi-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
@@ -1959,22 +1971,28 @@
         </div>
     </div>
 
-    <!-- Chart Containers -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Bisnis</h3>
-            <div id="cabang-business-yield-chart-container" class="chart-container mt-4">
-                <canvas id="cabang-business-yield-chart"></canvas>
-            </div>
-        </div>
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Investor (per Slot)</h3>
-            <div id="cabang-investor-yield-chart-container" class="chart-container mt-4">
-                <canvas id="cabang-investor-yield-chart"></canvas>
-            </div>
+    <div class="grid grid-cols-1 gap-6">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Bisnis</h3>
+        <div id="cabang-business-yield-chart-container" class="chart-container mt-4">
+            <canvas id="cabang-business-yield-chart"></canvas>
         </div>
     </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Investor (per Slot)</h3>
+        <div id="cabang-investor-yield-chart-container" class="chart-container mt-4">
+            <canvas id="cabang-investor-yield-chart"></canvas>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Perbandingan Akumulasi Bagi Hasil Investor</h3>
+        <div id="branch-cumulative-chart-container" class="chart-container mt-4">
+            <canvas id="branch-cumulative-chart"></canvas>
+        </div>
+    </div>
+</div>
 </section>
+
                         <section id="produk-section" class="analysis-section space-y-6">
                             <div class="bg-white rounded-lg shadow-md">
                                 <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#order-by-category-content">
