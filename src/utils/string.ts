@@ -187,3 +187,5 @@ export function shortenDate(date: string | Date, allDates: string[] | Date[] = [
     return `${day} ${month} ${dateYear}`; // 24 Jun 2024
   }
 }
+
+export const html = String.raw
