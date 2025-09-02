@@ -1358,52 +1358,76 @@
                                 <div id="analysis-result-generalPnlOverview" class="analysis-result-container hidden"></div>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="bg-white rounded-lg shadow-md p-6">
-                                    <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
-                                    <div class="chart-container mt-4">
-                                        <canvas id="general-cogs-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end items-center gap-4">
-                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-cogs-chart">Download Chart</button>
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalCogs">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-generalCogs" class="analysis-result-container hidden"></div>
-                                </div>
-                                <div class="bg-white rounded-lg shadow-md p-6">
-                                    <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
-                                    <div class="chart-container mt-4">
-                                        <canvas id="general-gpm-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end items-center gap-4">
-                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-gpm-chart">Download Chart</button>
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalGpm">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-generalGpm" class="analysis-result-container hidden"></div>
-                                </div>
-                                <div class="bg-white rounded-lg shadow-md p-6">
-                                    <h3 class="text-xl font-semibold text-gray-700">Biaya SDM & Bonus % dari Pendapatan</h3>
-                                    <div class="chart-container mt-4">
-                                        <canvas id="general-hr-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end items-center gap-4">
-                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-hr-chart">Download Chart</button>
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalHr">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-generalHr" class="analysis-result-container hidden"></div>
-                                </div>
-                                <div class="bg-white rounded-lg shadow-md p-6">
-                                    <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
-                                    <div class="chart-container mt-4">
-                                        <canvas id="general-npm-chart"></canvas>
-                                    </div>
-                                    <div class="mt-4 flex justify-end items-center gap-4">
-                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-npm-chart">Download Chart</button>
-                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalNpm">Analyze with AI</button>
-                                    </div>
-                                    <div id="analysis-result-generalNpm" class="analysis-result-container hidden"></div>
-                                </div>
-                            </div>
+                            <div class="grid grid-cols-1 gap-6">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">COGS % terhadap Pendapatan</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-cogs-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-cogs-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalCogs">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalCogs" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Gross Profit Margin</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-gpm-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-gpm-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalGpm">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalGpm" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Biaya Gaji (Wages) % dari Pendapatan</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-hr-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-hr-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalHr">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalHr" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Biaya Sewa (Rent) % dari Pendapatan</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-rent-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-rent-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalRent">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalRent" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Biaya Iklan (Advertising) % dari Pendapatan</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-advertising-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-advertising-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalAdvertising">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalAdvertising" class="analysis-result-container hidden"></div>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700">Net Profit Margin</h3>
+        <div class="chart-container mt-4">
+            <canvas id="general-npm-chart"></canvas>
+        </div>
+        <div class="mt-4 flex justify-end items-center gap-4">
+            <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="general-npm-chart">Download Chart</button>
+            <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="generalNpm">Analyze with AI</button>
+        </div>
+        <div id="analysis-result-generalNpm" class="analysis-result-container hidden"></div>
+    </div>
+</div>
+
+
                         </section>
                         <section id="general-penjualan-section" class="analysis-section space-y-6">
                             <div class="bg-white p-4 rounded-lg shadow-md">

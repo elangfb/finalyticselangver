@@ -443,10 +443,8 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
         throw new Error("Could not find the 'P&L Data' sheet. Please use the provided template.");
     }
 
-    // --- ADD THIS: Read the Business Name from cell B1 ---
     const businessNameCell = worksheet['B1'];
     const branchName = businessNameCell ? String(businessNameCell.v).trim() : 'Unknown Branch';
-    // --- END OF ADDITION ---
 
     const actualPeriod = getPeriodFromFile(worksheet);
     if (!actualPeriod) {
@@ -479,18 +477,36 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
         }
     }
 
+    // --- NEW VALIDATION BLOCK ---
+    // After parsing all data, we check if the required sub-categories exist under OPEX.
+    const requiredOpexSubCategories = ["Wages", "Rent", "Advertising"];
+    const opexData = pnlData["Beban Operasional (OPEX)"] || {};
+    const providedOpexSubCategories = Object.keys(opexData);
+
+    const missingSubCategories = requiredOpexSubCategories.filter(
+        subCat => !providedOpexSubCategories.includes(subCat)
+    );
+
+    if (missingSubCategories.length > 0) {
+        // If any are missing, we stop the process and inform the user.
+        throw new Error(
+            `The 'Beban Operasional (OPEX)' category is missing required sub-categories: ${missingSubCategories.join(', ')}. Please update your file.`
+        );
+    }
+    // --- END OF VALIDATION BLOCK ---
+
     if (Object.keys(pnlData).length === 0) {
         throw new Error("No valid P&L rows could be parsed from the file.");
     }
 
-    const safeBranchName = branchName.replace(/\s+/g, '_'); // Replace spaces with underscores
+    const safeBranchName = branchName.replace(/\s+/g, '_');
     const docId = `${actualPeriod}_${safeBranchName}`;
     const pnlDocRef = doc(db, `users/${currentUser.uid}/pnlReports`, docId);
     await setDoc(pnlDocRef, {
         title: `${file.name} (from template)`,
         fileName: file.name,
         period: actualPeriod,
-        branchName: branchName, // --- ADD THIS FIELD ---
+        branchName: branchName,
         lastUpdatedAt: new Date(),
         pnlData: pnlData
     });
@@ -3367,10 +3383,65 @@ async function generateGeneralKeuanganSection() {
 
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-hr-chart', metric: 'Beban Operasional (OPEX)', title: 'HR & Bonus' });
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
+    generateSpecificSubCategoryRatioChart(historicalReports, {
+    canvasId: 'general-hr-chart',
+    mainCategory: 'Beban Operasional (OPEX)',
+    subCategory: 'Wages',
+    title: 'Wages'
+});
+ generateSpecificSubCategoryRatioChart(historicalReports, {
+        canvasId: 'general-rent-chart',
+        mainCategory: 'Beban Operasional (OPEX)',
+        subCategory: 'Rent',
+        title: 'Rent'
+    });
+  generateSpecificSubCategoryRatioChart(historicalReports, {
+        canvasId: 'general-advertising-chart',
+        mainCategory: 'Beban Operasional (OPEX)',
+        subCategory: 'Advertising',
+        title: 'Advertising'
+    });
+generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
 
     hideLoading();
+}
+
+function generateSpecificSubCategoryRatioChart(
+    reports: any[],
+    config: {
+        canvasId: string,
+        mainCategory: string,
+        subCategory: string,
+        title: string
+    }
+) {
+    const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    const barData = []; // This will hold the absolute value (e.g., Rp for Wages)
+    const lineData = []; // This will hold the percentage of Revenue
+
+    reports.forEach(r => {
+        const pnlData = r.pnlData || {};
+        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+        
+        // Directly access the specific sub-category value
+        const subCategoryValue = pnlData[config.mainCategory]?.[config.subCategory] || 0;
+        
+        barData.push(subCategoryValue);
+        lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
+    });
+
+    createChart(config.canvasId, 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
+            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent' }
+        ]
+    }, {
+        scales: {
+            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+        }
+    });
 }
 
 /**
@@ -11342,22 +11413,34 @@ function hideLoading() {
 
 function downloadPnlTemplate() {
     const instructions = [
-        { Step: 1, Instruction: "In the 'P&L Data' sheet, enter a date from the desired month and year in cell B2 (e.g., '01/12/2024' for December 2024)." },
-        { Step: 2, Instruction: "For the 'Main Category' column, you MUST use the exact values from the list provided in these instructions." }
+        { Step: 1, Instruction: "In the 'P&L Data' sheet, enter your Business Name in cell B1 and a date from the desired month in cell B2 (e.g., '01/12/2024' for December 2024)." },
+        { Step: 2, Instruction: "For the 'Main Category' column, you MUST use the exact values from the list provided." },
+        { Step: 3, Instruction: "Under the 'Beban Operasional (OPEX)' category, you MUST include the sub-categories: 'Wages', 'Rent', and 'Advertising'. You can add other operational expenses as well." }
     ];
     const pnlSheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
-        { A: "Period:", B: "01/12/2024" }, // Updated Example Format
-        {},
+        { A: "Period:", B: "01/12/2024" },
+        {}, // Empty row for spacing
         { A: "Main Category", B: "Sub-Category", C: "Amount" },
-        { A: "Pendapatan (Revenue)", B: "Penjualan Kopi Susu", C: 5000000 },
-        { A: "Beban Operasional (OPEX)", B: "Gaji Barista", C: 1500000 },
+        { A: "Pendapatan (Revenue)", B: "Penjualan Makanan", C: 50000000 },
+        { A: "Pendapatan (Revenue)", B: "Penjualan Minuman", C: 25000000 },
+        { A: "Harga Pokok Produksi", B: "Bahan Baku Makanan", C: 15000000 },
+        { A: "Harga Pokok Produksi", B: "Bahan Baku Minuman", C: 5000000 },
+        // --- MODIFIED SECTION: Required OPEX fields are now included as examples ---
+        { A: "Beban Operasional (OPEX)", B: "Wages", C: 12000000 },
+        { A: "Beban Operasional (OPEX)", B: "Rent", C: 8000000 },
+        { A: "Beban Operasional (OPEX)", B: "Advertising", C: 2000000 },
+        { A: "Beban Operasional (OPEX)", B: "Utilitas (Listrik, Air)", C: 3000000 },
+        { A: "Beban Operasional (OPEX)", B: "Biaya Lainnya", C: 1000000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+    
     const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
-    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 100 }];
+    
+    wsInstructions['!cols'] = [{ wch: 25 }, { wch: 120 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
     XLSX.utils.book_append_sheet(wb, wsData, "P&L Data");
