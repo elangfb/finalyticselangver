@@ -63,8 +63,8 @@ export interface AnalysisActions {
   getAnalysisState: () => AnalysisState;
   setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
   updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
-  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) => void;
-  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]) => void;
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]) => void;
 }
 
 /**
@@ -313,7 +313,7 @@ const store = createStore<AppStore>((set, get) => ({
   /**
    * Update specific UI component reference.
    */
-  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) =>
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]) =>
     set(produce((state: AppState) => {
       state.analysisState.uiComponents[component] = value;
     })),
@@ -321,7 +321,7 @@ const store = createStore<AppStore>((set, get) => ({
   /**
    * Update specific configuration property.
    */
-  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) =>
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]) =>
     set(produce((state: AppState) => {
       state.analysisState.config[config] = value;
     })),
@@ -468,14 +468,14 @@ export function updateAnalysisFlag<K extends keyof AnalysisState['initFlags']>(f
 /**
  * Update UI component reference in analysis state.
  */
-export function updateAnalysisComponent<K extends keyof AnalysisState['uiComponents']>(component: K, value: any): void {
+export function updateAnalysisComponent<K extends keyof AnalysisState['uiComponents']>(component: K, value: AnalysisState['uiComponents'][K]): void {
   store.getState().updateAnalysisComponent(component, value);
 }
 
 /**
  * Update configuration property in analysis state.
  */
-export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: any): void {
+export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: AnalysisState['config'][K]): void {
   store.getState().updateAnalysisConfig(config, value);
 }
 
@@ -604,8 +604,14 @@ export const getUIComponent = <T extends keyof AnalysisState['uiComponents']>(co
  * @param component - Component name to set
  * @param value - Component instance to store
  */
-export const setUIComponent: typeof updateAnalysisComponent = (...params) => {
-  updateAnalysisComponent(...params);
+export const setUIComponent = <
+  K extends keyof AnalysisState['uiComponents'],
+  V extends AnalysisState['uiComponents'][K],
+>(component: K, value: V, touchFn?: ($value: V) => void): V => {
+  updateAnalysisComponent(component, value);
+  touchFn?.(value);
+
+  return value;
 };
 
 /**
