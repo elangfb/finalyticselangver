@@ -91,6 +91,8 @@ let cabangMenuTrendSelect: SlimSelect | null = null;
 let generalPenjualanSelectorInitialized = false;
 let generalProdukChannelSelectorInitialized = false;
 let activeSalesTarget = {};
+let generalInvestasiSelectorInitialized = false;
+
 
 
 const plAnalysisView = document.getElementById('pl-analysis-view');
@@ -360,8 +362,13 @@ async function getCachedData(): Promise<{ data: any[], uploadCount: number, time
 onAuthStateChanged(auth, async (user) => {
    if (user) {
         currentUser = user;
+        document.getElementById('investment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await saveInvestmentData();
+        });
         if (!adminCredentials) {
             await fetchUserRoleAndSetupUI(user)}
+            
     } else {
     if (adminCredentials) {
       signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password)
@@ -3579,33 +3586,79 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 }
 
 /**
- * Generates a bar chart showing Omset, Expense, and Profit over 12 months.
+ * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
  */
 function generatePnlOverviewChart(reports: any[]) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    const revenueData = [], expenseData = [], profitData = [];
+    const revenueData = [];
+    const expenseData = [];
+    const profitData = [];
 
     reports.forEach(r => {
-        const totals = {};
-        // Simplified calculation logic
-        const revenue = Object.values(r.pnlData["Pendapatan (Revenue)"] || {}).reduce((s, v) => s + v, 0);
-        const hpp = Object.values(r.pnlData["Harga Pokok Produksi"] || {}).reduce((s, v) => s + v, 0);
-        const opex = Object.values(r.pnlData["Beban Operasional (OPEX)"] || {}).reduce((s, v) => s + v, 0);
-        const netIncome = revenue - hpp - opex; // Simplified for example
+        const pnlData = r.pnlData;
+        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+        const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
+        const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
+        
+        const expense = hpp + opex;
+        const netIncome = revenue - expense;
 
         revenueData.push(revenue);
-        expenseData.push(hpp + opex);
+        expenseData.push(expense);
         profitData.push(netIncome);
     });
 
     createChart('general-pnl-overview-chart', 'bar', {
         labels,
         datasets: [
-            { label: 'Omset', data: revenueData, backgroundColor: '#3B82F6' },
-            { label: 'Expense', data: expenseData, backgroundColor: '#EF4444' },
-            { label: 'Profit', data: profitData, backgroundColor: '#10B981' },
+            // The order in this array defines the stacking order from bottom to top.
+            {
+                type: 'bar',
+                label: 'Profit',
+                data: profitData,
+                backgroundColor: '#10B981' // Green
+            },
+            {
+                type: 'bar',
+                label: 'Expense',
+                data: expenseData,
+                backgroundColor: '#EF4444' // Red
+            },
+            {
+                type: 'bar',
+                label: 'Omset',
+                data: revenueData,
+                backgroundColor: '#3B82F6' // Blue
+            },
         ]
-    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+    }, {
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    // Custom tooltip to clarify the total height of the bar
+                    footer: function(tooltipItems) {
+                        let sum = 0;
+                        tooltipItems.forEach(function(tooltipItem) {
+                            sum += tooltipItem.parsed.y;
+                        });
+                        const formattedSum = `Rp${Math.round(sum).toLocaleString('id-ID')}`;
+                        return 'Total Stack Value: ' + formattedSum;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                stacked: true, // Enable stacking on the x-axis
+            },
+            y: {
+                stacked: true, // Enable stacking on the y-axis
+                ticks: {
+                    callback: shortenCurrency
+                }
+            }
+        }
+    });
 }
 
 /**
@@ -6590,6 +6643,9 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
 
         if (targetId === 'general-produk-channel') {
             await setupGeneralProdukChannelSelectors();
+        }
+        if (targetId === 'general-investasi') {
+            await setupGeneralInvestasiSelectors();
         }
 
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
@@ -12833,3 +12889,230 @@ if (viewChoiceModal) {
     });
 }
 // --- END: New logic for the View Choice Modal ---
+
+async function saveInvestmentData() {
+    if (!currentUser) {
+        alert('You must be logged in to save data.');
+        return;
+    }
+    const branchNameInput = document.getElementById('investment-branch-name') as HTMLInputElement;
+    const amountInput = document.getElementById('investment-amount') as HTMLInputElement;
+    const slotsInput = document.getElementById('investment-slots') as HTMLInputElement;
+    const feedbackEl = document.getElementById('investment-feedback');
+
+    const branchName = branchNameInput.value.trim();
+    const investmentAmount = parseFloat(amountInput.value);
+    const investmentSlots = parseInt(slotsInput.value, 10);
+
+    if (!branchName || isNaN(investmentAmount) || isNaN(investmentSlots) || investmentAmount <= 0 || investmentSlots <= 0) {
+        feedbackEl.textContent = 'Please fill in all fields with valid, positive numbers.';
+        feedbackEl.className = 'text-sm mb-4 text-center text-red-600';
+        feedbackEl.classList.remove('hidden');
+        return;
+    }
+
+    feedbackEl.textContent = 'Saving...';
+    feedbackEl.className = 'text-sm mb-4 text-center text-blue-600';
+    feedbackEl.classList.remove('hidden');
+
+    try {
+        // Use the branch name as the document ID for easy lookup
+        const investmentDocRef = doc(db, `users/${currentUser.uid}/investments`, branchName);
+        await setDoc(investmentDocRef, {
+            branchName,
+            investmentAmount,
+            investmentSlots,
+            lastUpdatedAt: new Date()
+        }, { merge: true }); // Use merge to allow updates
+
+        feedbackEl.textContent = 'Investment data saved successfully!';
+        feedbackEl.className = 'text-sm mb-4 text-center text-green-600';
+        branchNameInput.value = '';
+        amountInput.value = '';
+        slotsInput.value = '';
+
+        // Refresh the branch selector in the analysis section to include the new branch
+        await setupGeneralInvestasiSelectors();
+
+    } catch (error) {
+        console.error("Error saving investment data:", error);
+        feedbackEl.textContent = `Error: ${error.message}`;
+        feedbackEl.className = 'text-sm mb-4 text-center text-red-600';
+    }
+}
+
+/**
+ * Populates the branch selector for the investment analysis section.
+ */
+async function setupGeneralInvestasiSelectors() {
+    const branchSelect = document.getElementById('investasi-branch-select') as HTMLSelectElement;
+    if (!currentUser) return;
+
+    branchSelect.innerHTML = '<option>Loading branches...</option>';
+
+    try {
+        const investmentsRef = collection(db, `users/${currentUser.uid}/investments`);
+        const investmentSnap = await getDocs(investmentsRef);
+        const branches = investmentSnap.docs.map(doc => doc.data().branchName).sort();
+
+        if (branches.length === 0) {
+            branchSelect.innerHTML = '<option>No investment data saved</option>';
+            // Clear charts if no data
+            document.getElementById('business-yield-chart').parentElement.innerHTML = '<canvas id="business-yield-chart"></canvas>';
+            document.getElementById('investor-yield-chart').parentElement.innerHTML = '<canvas id="investor-yield-chart"></canvas>';
+            return;
+        }
+
+        branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+        // Attach event listener only once
+        if (!generalInvestasiSelectorInitialized) {
+            branchSelect.addEventListener('change', generateGeneralInvestasiSection);
+            generalInvestasiSelectorInitialized = true;
+        }
+
+        // Trigger the initial chart generation
+        await generateGeneralInvestasiSection();
+
+    } catch (error) {
+        console.error("Error fetching investment branches:", error);
+        branchSelect.innerHTML = '<option>Error loading branches</option>';
+    }
+}
+
+/**
+ * Orchestrates the fetching and rendering of the investment yield charts.
+ */
+async function generateGeneralInvestasiSection() {
+    if (!currentUser) return;
+    const branchSelect = document.getElementById('investasi-branch-select') as HTMLSelectElement;
+    const selectedBranch = branchSelect.value;
+
+    if (!selectedBranch || selectedBranch === 'No investment data saved') {
+        return;
+    }
+
+    showLoading({ message: 'Calculating investment yield...', value: 30 });
+
+    try {
+        const investmentDocRef = doc(db, `users/${currentUser.uid}/investments`, selectedBranch);
+        const investmentSnap = await getDoc(investmentDocRef);
+
+        if (!investmentSnap.exists()) {
+            throw new Error(`Investment data for ${selectedBranch} not found.`);
+        }
+        const investmentData = investmentSnap.data();
+
+        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+        const q = query(pnlReportsRef, where("branchName", "==", selectedBranch), orderBy("period", "desc"), limit(24));
+        const reportsSnap = await getDocs(q);
+        
+        const recentReports = reportsSnap.docs.map(doc => doc.data()).sort((a, b) => a.period.localeCompare(b.period));
+
+        if (recentReports.length === 0) {
+            throw new Error(`No P&L reports found for ${selectedBranch} in the last 24 months.`);
+        }
+
+        const monthlyProfits = recentReports.map(report => {
+            const pnlData = report.pnlData || {};
+            const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const nonOpex = Object.values(pnlData["Beban Non Operasional"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const depreciation = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const interest = Object.values(pnlData["Bunga"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const tax = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((s: number, v: number) => s + v, 0);
+            
+            const netIncome = revenue - hpp - opex - nonOpex - depreciation - interest - tax;
+            return {
+                period: report.period,
+                profit: netIncome
+            };
+        });
+
+        generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
+        generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
+
+    } catch (error) {
+        console.error("Error generating investment analysis:", error);
+        const chartContainer = document.getElementById('business-yield-chart').parentElement;
+        if (chartContainer) chartContainer.innerHTML = `<p class="text-red-500 p-4 text-center">${error.message}</p>`;
+        const investorChartContainer = document.getElementById('investor-yield-chart').parentElement;
+        if (investorChartContainer) investorChartContainer.innerHTML = '';
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Generates the "Yield Bisnis per Bulan" chart.
+ */
+function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: number) {
+    const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    const profitData = monthlyProfits.map(p => p.profit);
+    const yieldData = monthlyProfits.map(p => totalInvestment > 0 ? (p.profit / totalInvestment) * 100 : 0);
+
+    createChart('business-yield-chart', 'bar', {
+        labels,
+        datasets: [
+            {
+                type: 'bar',
+                label: 'Profit (Rp)',
+                data: profitData,
+                backgroundColor: '#10B981',
+                yAxisID: 'y-rp',
+            },
+            {
+                type: 'line',
+                label: 'Yield (%)',
+                data: yieldData,
+                borderColor: '#F97316',
+                yAxisID: 'y-percent',
+                tension: 0.1,
+            }
+        ]
+    }, {
+        scales: {
+            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+        }
+    });
+}
+
+/**
+ * Generates the "Yield Investor per Bulan" chart.
+ */
+function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: number, slots: number) {
+    if (slots === 0) return; // Avoid division by zero
+    const investmentPerSlot = totalInvestment / slots;
+
+    const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+    const profitData = monthlyProfits.map(p => p.profit);
+    const yieldData = monthlyProfits.map(p => investmentPerSlot > 0 ? (p.profit / investmentPerSlot) * 100 : 0);
+
+    createChart('investor-yield-chart', 'bar', {
+        labels,
+        datasets: [
+            {
+                type: 'bar',
+                label: 'Profit (Rp)',
+                data: profitData,
+                backgroundColor: '#10B981',
+                yAxisID: 'y-rp',
+            },
+            {
+                type: 'line',
+                label: 'Yield per Slot (%)',
+                data: yieldData,
+                borderColor: '#F97316',
+                yAxisID: 'y-percent',
+                tension: 0.1,
+            }
+        ]
+    }, {
+        scales: {
+            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+        }
+    });
+}

@@ -159,691 +159,1006 @@
          #upload-progress-container.show {
          transform: translateY(0);
          }
-      </style>
-   </head>
-   <body class="bg-gray-100 text-gray-800">
-      <!-- App Container -->
-      <div id="app" class="container mx-auto p-4 md:p-8">
-         <div id="upload-progress-container" class="hidden fixed bottom-4 right-4 bg-white rounded-lg shadow-2xl w-80 p-4 border border-gray-200 z-50 transition-transform transform translate-y-full">
-            <!-- Upload View -->
-            <div id="upload-view">
-               <div class="flex justify-between items-center mb-2">
-                  <p class="text-sm font-medium text-gray-700 truncate" id="upload-filename">Uploading file...</p>
-                  <button id="cancel-upload-btn" class="text-gray-400 hover:text-gray-600">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                     </svg>
-                  </button>
-               </div>
-               <div class="relative w-full bg-gray-200 rounded-full h-2.5">
-                  <div id="upload-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-150" style="width: 0%"></div>
-               </div>
-               <div class="flex justify-between items-center mt-1">
-                  <p class="text-xs text-gray-500" id="upload-status-text">Starting...</p>
-                  <p class="text-xs font-semibold text-gray-600" id="upload-progress-percent">0%</p>
-               </div>
+        </style>
+    </head>
+    <body class="bg-gray-100 text-gray-800">
+        <!-- App Container -->
+        <div id="app" class="container mx-auto p-4 md:p-8">
+            <div id="upload-progress-container" class="hidden fixed bottom-4 right-4 bg-white rounded-lg shadow-2xl w-80 p-4 border border-gray-200 z-50 transition-transform transform translate-y-full">
+                <!-- Upload View -->
+                <div id="upload-view">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-medium text-gray-700 truncate" id="upload-filename">Uploading file...</p>
+                        <button id="cancel-upload-btn" class="text-gray-400 hover:text-gray-600">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="relative w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                            id="upload-progress-bar"
+                            class="bg-blue-600 h-2.5 rounded-full transition-all duration-150"
+                            style="width: 0%"
+                        ></div>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <p class="text-xs text-gray-500" id="upload-status-text">Starting...</p>
+                        <p class="text-xs font-semibold text-gray-600" id="upload-progress-percent">0%</p>
+                    </div>
+                </div>
+                <!-- Processing View -->
+                <div id="processing-view" class="hidden">
+                    <p class="text-sm font-medium text-gray-700 truncate mb-3" id="processing-filename">Processing file...</p>
+                    <div class="flex items-center">
+                        <div class="loader w-6 h-6 border-2 border-t-2 border-gray-200 border-t-blue-600"></div>
+                        <p class="text-sm text-gray-600 ml-3" id="processing-status-text">Please wait, do not refresh or close the page.</p>
+                    </div>
+                </div>
             </div>
-            <!-- Processing View -->
-            <div id="processing-view" class="hidden">
-               <p class="text-sm font-medium text-gray-700 truncate mb-3" id="processing-filename">Processing file...</p>
-               <div class="flex items-center">
-                  <div class="loader w-6 h-6 border-2 border-t-2 border-gray-200 border-t-blue-600"></div>
-                  <p class="text-sm text-gray-600 ml-3" id="processing-status-text">Please wait, do not refresh or close the page.</p>
-               </div>
+            <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex flex-col items-center justify-center transition-opacity duration-300">
+                <!-- Spinner -->
+                <div class="w-16 h-16 border-4 border-t-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+                <!-- Custom Message -->
+                <p id="loading-message" class="text-white text-xl mt-4">Loading...</p>
+                <!-- Progress Bar -->
+                <div class="w-64 bg-gray-600 rounded-full h-2.5 mt-4">
+                    <div
+                        id="progress-bar"
+                        class="bg-blue-500 h-2.5 rounded-full transition-all duration-150"
+                        style="width: 0%"
+                    ></div>
+                </div>
             </div>
-         </div>
-         <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex flex-col items-center justify-center transition-opacity duration-300">
-            <!-- Spinner -->
-            <div class="w-16 h-16 border-4 border-t-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
-            <!-- Custom Message -->
-            <p id="loading-message" class="text-white text-xl mt-4">Loading...</p>
-            <!-- Progress Bar -->
-            <div class="w-64 bg-gray-600 rounded-full h-2.5 mt-4">
-               <div id="progress-bar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-150" style="width: 0%"></div>
-            </div>
-         </div>
-         <!-- Login/Signup View -->
-         <div id="auth-view" class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
+            <!-- Login/Signup View -->
+            <div id="auth-view" class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+                <div class="max-w-4xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
         
-        <div class="p-8 md:p-12">
-            <form id="login-form">
-                <h2 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
-                <p class="text-gray-600 mb-8">Sign in to access your dashboard.</p>
+                    <div class="p-8 md:p-12">
+                        <form id="login-form">
+                            <h2 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+                            <p class="text-gray-600 mb-8">Sign in to access your dashboard.</p>
                 
-                <div id="auth-error" class="text-red-600 bg-red-50 p-3 rounded-lg text-sm mb-4 text-center hidden"></div>
+                            <div id="auth-error" class="text-red-600 bg-red-50 p-3 rounded-lg text-sm mb-4 text-center hidden"></div>
                 
-                <div class="mb-5">
-                    <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input type="email" id="login-email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
+                            <div class="mb-5">
+                                <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <input
+                                    type="email"
+                                    id="login-email"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                                    required
+                                >
+                            </div>
+                            <div class="mb-6">
+                                <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input
+                                    type="password"
+                                    id="login-password"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                                    required
+                                >
+                            </div>
+                
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300">Sign In</button>
+                
+                            <p class="text-center mt-6 text-sm">
+                                Don't have an account?
+                                <a
+                                    href="#"
+                                    id="show-signup-link"
+                                    class="font-semibold text-indigo-600 hover:text-indigo-500"
+                                >Sign Up</a>
+                            </p>
+                        </form>
+
+                        <form id="signup-form" class="hidden">
+                            <h2 class="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
+                            <p class="text-gray-600 mb-8">Get started with your own dashboard.</p>
+
+                            <div id="signup-error" class="text-red-600 bg-red-50 p-3 rounded-lg text-sm mb-4 text-center hidden"></div>
+
+                            <div class="mb-5">
+                                <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <input
+                                    type="email"
+                                    id="signup-email"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                                    required
+                                >
+                            </div>
+                            <div class="mb-6">
+                                <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input
+                                    type="password"
+                                    id="signup-password"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                                    required
+                                >
+                            </div>
+
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300">Sign Up</button>
+                
+                            <p class="text-center mt-6 text-sm">
+                                Already have an account?
+                                <a
+                                    href="#"
+                                    id="show-login-link"
+                                    class="font-semibold text-indigo-600 hover:text-indigo-500"
+                                >Sign In</a>
+                            </p>
+                        </form>
+                    </div>
+
+                    <div class="hidden md:block relative">
+                        <div class="absolute inset-0 bg-indigo-700 opacity-80"></div>
+                        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop');"></div>
+                        <div class="relative h-full flex flex-col justify-end p-12 text-white">
+                            <h2 class="text-4xl font-bold leading-tight">Unlock Insights from Your Data</h2>
+                            <p class="mt-4 text-indigo-200">The all-in-one platform to analyze your sales and drive growth.</p>
+                        </div>
+                    </div>
+
                 </div>
-                <div class="mb-6">
-                    <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                    <input type="password" id="login-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
-                </div>
-                
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300">Sign In</button>
-                
-                <p class="text-center mt-6 text-sm">
-                    Don't have an account?
-                    <a href="#" id="show-signup-link" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign Up</a>
-                </p>
-            </form>
-
-            <form id="signup-form" class="hidden">
-                <h2 class="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
-                <p class="text-gray-600 mb-8">Get started with your own dashboard.</p>
-
-                <div id="signup-error" class="text-red-600 bg-red-50 p-3 rounded-lg text-sm mb-4 text-center hidden"></div>
-
-                <div class="mb-5">
-                    <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input type="email" id="signup-email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
-                </div>
-                <div class="mb-6">
-                    <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                    <input type="password" id="signup-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
-                </div>
-
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300">Sign Up</button>
-                
-                <p class="text-center mt-6 text-sm">
-                    Already have an account?
-                    <a href="#" id="show-login-link" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign In</a>
-                </p>
-            </form>
-        </div>
-
-        <div class="hidden md:block relative">
-            <div class="absolute inset-0 bg-indigo-700 opacity-80"></div>
-            <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop');"></div>
-            <div class="relative h-full flex flex-col justify-end p-12 text-white">
-                <h2 class="text-4xl font-bold leading-tight">Unlock Insights from Your Data</h2>
-                <p class="mt-4 text-indigo-200">The all-in-one platform to analyze your sales and drive growth.</p>
             </div>
-        </div>
+            <!-- Main Dashboard View -->
+            <div id="main-menu-view" class="hidden">
+                <div class="flex justify-between items-center mb-10">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">Sales Dashboard</h2>
+                        <p class="text-gray-500 mt-1">Welcome back! Choose an option below to get started.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="konfigurasi-btn" class="text-gray-600 hover:bg-gray-200 py-2 px-4 rounded-lg transition duration-150">Configuration</button>
+                        <button id="user-management-btn" class="hidden bg-gray-800 text-white font-medium py-2 px-4 rounded-lg hover:bg-black transition duration-150">User Management</button>
+                        <button id="logout-btn" class="text-red-600 hover:bg-red-100 py-2 px-4 rounded-lg transition duration-150">Logout</button>
+                    </div>
+                </div>
 
-    </div>
-</div>
-         <!-- Main Dashboard View -->
-         <div id="main-menu-view" class="hidden">
-    <div class="flex justify-between items-center mb-10">
-        <div>
-            <h2 class="text-3xl font-bold text-gray-800">Sales Dashboard</h2>
-            <p class="text-gray-500 mt-1">Welcome back! Choose an option below to get started.</p>
-        </div>
-        <div class="flex items-center gap-2">
-            <button id="konfigurasi-btn" class="text-gray-600 hover:bg-gray-200 py-2 px-4 rounded-lg transition duration-150">Configuration</button>
-            <button id="user-management-btn" class="hidden bg-gray-800 text-white font-medium py-2 px-4 rounded-lg hover:bg-black transition duration-150">User Management</button>
-            <button id="logout-btn" class="text-red-600 hover:bg-red-100 py-2 px-4 rounded-lg transition duration-150">Logout</button>
-        </div>
-    </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                    <div class="bg-white rounded-xl shadow-lg p-8 border border-gray-200 hover:border-indigo-500 hover:shadow-indigo-100 transition-all duration-300 group">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">Manage & Upload Data</h3>
+                        <p class="text-gray-600 mb-6">Upload new sales files, manage existing data, or create financial targets.</p>
+                        <button id="goto-upload-data-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg group-hover:bg-indigo-700 transition duration-300">
+                            Go to Data Hub &rarr;
+                        </button>
+                    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-        <div class="bg-white rounded-xl shadow-lg p-8 border border-gray-200 hover:border-indigo-500 hover:shadow-indigo-100 transition-all duration-300 group">
-            <h3 class="text-2xl font-semibold text-gray-800 mb-2">Manage & Upload Data</h3>
-            <p class="text-gray-600 mb-6">Upload new sales files, manage existing data, or create financial targets.</p>
-            <button id="goto-upload-data-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg group-hover:bg-indigo-700 transition duration-300">
-                Go to Data Hub &rarr;
-            </button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg p-8 border border-gray-200 hover:border-purple-500 hover:shadow-purple-100 transition-all duration-300 group">
-            <h3 class="text-2xl font-semibold text-gray-800 mb-2">View Compiled Analysis</h3>
-            <p class="text-gray-600 mb-6">Analyze all of your uploaded data together to see the big picture and get AI-powered insights.</p>
-            <button id="goto-view-data-btn" class="bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg group-hover:bg-purple-700 transition duration-300">
-                View Analysis &rarr;
-            </button>
-        </div>
-    </div>
-</div>
-         <div id="sales-dashboard-view" class="hidden">
-            <div class="flex justify-between items-center mb-8">
-               <h2 class="text-4xl font-bold text-gray-800">Data Management Hub</h2>
-               <button id="back-to-main-menu-from-data-hub-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Main Menu</button>
+                    <div class="bg-white rounded-xl shadow-lg p-8 border border-gray-200 hover:border-purple-500 hover:shadow-purple-100 transition-all duration-300 group">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-2">View Compiled Analysis</h3>
+                        <p class="text-gray-600 mb-6">Analyze all of your uploaded data together to see the big picture and get AI-powered insights.</p>
+                        <button id="goto-view-data-btn" class="bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg group-hover:bg-purple-700 transition duration-300">
+                            View Analysis &rarr;
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div class="space-y-6">
-    <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload Sales Data</h3>
-        <p class="text-gray-500 text-sm mb-4">Upload your primary sales transaction file here.</p>
+            <div id="sales-dashboard-view" class="hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-4xl font-bold text-gray-800">Data Management Hub</h2>
+                    <button id="back-to-main-menu-from-data-hub-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600">&larr; Back to Main Menu</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload Sales Data</h3>
+                            <p class="text-gray-500 text-sm mb-4">Upload your primary sales transaction file here.</p>
         
-        <button id="download-sales-data-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Data From Your ESB</button>
+                            <button id="download-sales-data-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Data From Your ESB</button>
 
-        <input type="file" id="file-input" accept=".xlsx, .xls" class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-        <div id="upload-error" class="text-red-500 text-sm mt-2 hidden"></div>
-        <button id="upload-btn" class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-indigo-700 transition duration-300">Process & Save File</button>
-    </div>
-            <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-                <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload Sales Target</h3>
-                <p class="text-gray-500 text-sm mb-4">Upload your corresponding monthly sales goals.</p>
-                <button id="download-sales-target-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
-                <input type="file" id="sales-target-file-input" accept=".xlsx, .xls" class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                <button id="upload-sales-target-btn" class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-indigo-700 transition">Upload Target File</button>
+                            <input
+                                type="file"
+                                id="file-input"
+                                accept=".xlsx, .xls"
+                                class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            >
+                            <div id="upload-error" class="text-red-500 text-sm mt-2 hidden"></div>
+                            <button id="upload-btn" class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-indigo-700 transition duration-300">Process & Save File</button>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload Sales Target</h3>
+                            <p class="text-gray-500 text-sm mb-4">Upload your corresponding monthly sales goals.</p>
+                            <button id="download-sales-target-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
+                            <input
+                                type="file"
+                                id="sales-target-file-input"
+                                accept=".xlsx, .xls"
+                                class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            >
+                            <button id="upload-sales-target-btn" class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-indigo-700 transition">Upload Target File</button>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload P&L Data</h3>
+                            <p class="text-gray-500 text-sm mb-4">Upload your Profit & Loss statement file.</p>
+                            <button id="download-pnl-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
+                            <input
+                                type="file"
+                                id="pnl-data-file-input"
+                                accept=".xlsx, .xls"
+                                class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                            >
+                            <button id="upload-pnl-data-btn" class="mt-4 bg-emerald-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-emerald-700 transition">Upload P&L Report</button>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload P&L Target</h3>
+                            <p class="text-gray-500 text-sm mb-4">Upload your corresponding monthly P&L goals.</p>
+                            <button id="download-pnl-target-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
+                            <input
+                                type="file"
+                                id="pnl-target-file-input"
+                                accept=".xlsx, .xls"
+                                class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                            >
+                            <button id="upload-pnl-target-btn" class="mt-4 bg-emerald-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-emerald-700 transition">Upload Target File</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-12">
+                    <h3 class="text-3xl font-semibold text-gray-700 mb-6 border-b pb-2">Compiled Data Overview</h3>
+                    <div class="bg-white rounded-lg shadow-lg p-8">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Data</th>
+                                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Target</th>
+                                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Data</th>
+                                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Target</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compiled-data-tbody" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="text-center p-4 text-gray-500">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="hidden">
+                    <h3 class="text-3xl font-semibold text-gray-700 mb-6 border-b pb-2">Historical & Compiled Data</h3>
+                    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+                        <h2 class="text-2xl font-semibold mb-4">Compiled Data Analysis</h2>
+                        <p class="text-gray-600 mb-4">Analyze all of your uploaded data together to see the big picture.</p>
+                        <button id="view-compiled-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">View Compiled Analysis</button>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+                        <h2 class="text-2xl font-semibold mb-4">Individual Upload History</h2>
+                        <div id="upload-history-list" class="space-y-4">
+                            <p id="no-uploads-msg" class="text-gray-500">No uploads yet. Process a file to see it here.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div class="space-y-6">
-            <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-                <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload P&L Data</h3>
-                <p class="text-gray-500 text-sm mb-4">Upload your Profit & Loss statement file.</p>
-                <button id="download-pnl-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
-                <input type="file" id="pnl-data-file-input" accept=".xlsx, .xls" class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
-                <button id="upload-pnl-data-btn" class="mt-4 bg-emerald-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-emerald-700 transition">Upload P&L Report</button>
-            </div>
-            <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-                <h3 class="text-xl font-semibold text-gray-700 mb-1">Upload P&L Target</h3>
-                <p class="text-gray-500 text-sm mb-4">Upload your corresponding monthly P&L goals.</p>
-                <button id="download-pnl-target-template-btn" class="text-sm bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Download Template</button>
-                <input type="file" id="pnl-target-file-input" accept=".xlsx, .xls" class="mt-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
-                <button id="upload-pnl-target-btn" class="mt-4 bg-emerald-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-emerald-700 transition">Upload Target File</button>
-            </div>
-        </div>
-    </div>
-            <div class="mb-12">
-               <h3 class="text-3xl font-semibold text-gray-700 mb-6 border-b pb-2">Compiled Data Overview</h3>
-               <div class="bg-white rounded-lg shadow-lg p-8">
-                  <div class="overflow-x-auto">
-                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                           <tr>
-                              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                              <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Data</th>
-                              <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Target</th>
-                              <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Data</th>
-                              <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">P&L Target</th>
-                           </tr>
-                        </thead>
-                        <tbody id="compiled-data-tbody" class="bg-white divide-y divide-gray-200">
-                           <tr>
-                              <td colspan="6" class="text-center p-4 text-gray-500">Loading data...</td>
-                           </tr>
-                        </tbody>
-                     </table>
-                  </div>
-               </div>
-            </div>
-            <div class="hidden">
-               <h3 class="text-3xl font-semibold text-gray-700 mb-6 border-b pb-2">Historical & Compiled Data</h3>
-               <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-                  <h2 class="text-2xl font-semibold mb-4">Compiled Data Analysis</h2>
-                  <p class="text-gray-600 mb-4">Analyze all of your uploaded data together to see the big picture.</p>
-                  <button id="view-compiled-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">View Compiled Analysis</button>
-               </div>
-               <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-                  <h2 class="text-2xl font-semibold mb-4">Individual Upload History</h2>
-                  <div id="upload-history-list" class="space-y-4">
-                     <p id="no-uploads-msg" class="text-gray-500">No uploads yet. Process a file to see it here.</p>
-                  </div>
-               </div>
-            </div>
-         </div>
-         <!-- Analysis View -->
-         <div id="analysis-view" class="hidden">
-            <div class="flex justify-between items-center mb-6">
-               <button id="back-to-dashboard-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300">&larr; Back to Dashboard</button>
-               <h2 id="analysis-title" class="text-3xl font-bold text-gray-800 text-center">Sales Analysis</h2>
-               <div></div>
-               <!-- Placeholder for right-side buttons -->
-            </div>
-            <div class="flex flex-col md:flex-row gap-8">
-               <!-- Sidebar Navigation -->
-               <aside class="md:w-1/4 lg:w-1/5 space-y-4">
-                  <nav id="analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md hidden">
-                     <a href="#" class="sidebar-link active p-3 rounded-md" data-target="umum">Tinjauan Umum</a>
-                     <a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-penjualan">Analisa Penjualan</a>
-                     <a href="#" class="sidebar-link p-3 rounded-md" data-target="analisa-pnl">Analisa P&L</a>
-                     <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="penjualan">Analisa Penjualan</a>
-                     <div class="submenu-container">
-                        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                           <span>Perbandingan Waktu</span>
-                           <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
+            <!-- Analysis View -->
+            <div id="analysis-view" class="hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="back-to-dashboard-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300">&larr; Back to Dashboard</button>
+                    <h2 id="analysis-title" class="text-3xl font-bold text-gray-800 text-center">Sales Analysis</h2>
+                    <div></div>
+                    <!-- Placeholder for right-side buttons -->
+                </div>
+                <div class="flex flex-col md:flex-row gap-8">
+                    <!-- Sidebar Navigation -->
+                    <aside class="md:w-1/4 lg:w-1/5 space-y-4">
+                        <nav id="analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md hidden">
+                            <a
+                                href="#"
+                                class="sidebar-link active p-3 rounded-md"
+                                data-target="umum"
+                            >Tinjauan Umum</a>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md"
+                                data-target="analisa-penjualan"
+                            >Analisa Penjualan</a>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md"
+                                data-target="analisa-pnl"
+                            >Analisa P&L</a>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md hidden"
+                                data-target="penjualan"
+                            >Analisa Penjualan</a>
+                            <div class="submenu-container">
+                                <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <span>Perbandingan Waktu</span>
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </button>
+                                <div class="submenu hidden pl-4 mt-1 space-y-1">
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="waktu-penjualan"
+                                    >Penjualan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="waktu-pnl"
+                                    >Profit & Loss</a>
+                                </div>
+                            </div>
+                            <div class="submenu-container">
+                                <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <span>Perbandingan Cabang</span>
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </button>
+                                <div class="submenu hidden pl-4 mt-1 space-y-1">
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-penjualan"
+                                    >Penjualan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-pnl"
+                                    >Profit & Loss</a>
+                                </div>
+                            </div>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md hidden"
+                                data-target="produk"
+                            >Analisa Produk</a>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md hidden"
+                                data-target="cabang"
+                            >Analisa Cabang</a>
+                            <a
+                                href="#"
+                                class="sidebar-link p-3 rounded-md hidden"
+                                data-target="yoy"
+                            >Analisa YoY</a>
+                        </nav>
+                        <nav id="new-analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md mt-4">
+                            <div class="submenu-container">
+                                <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+                                    <span>Analisis General</span>
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </button>
+                                <div class="submenu hidden pl-4 mt-1 space-y-1">
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="general-keuangan"
+                                    >Aspek Keuangan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="general-penjualan"
+                                    >Aspek Penjualan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="general-produk-channel"
+                                    >Aspek Produk dan Channel</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="general-investasi"
+                                    >Aspek Investasi</a>
+                                </div>
+                            </div>
+                            <div class="submenu-container">
+                                <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+                                    <span>Analisis Perbandingan Waktu</span>
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </button>
+                                <div class="submenu hidden pl-4 mt-1 space-y-1">
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="waktu-keuangan"
+                                    >Aspek Keuangan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="waktu-penjualan"
+                                    >Aspek Penjualan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="waktu-produk-channel"
+                                    >Aspek Produk dan Channel</a>
+                                </div>
+                            </div>
+                            <div class="submenu-container">
+                                <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
+                                    <span>Analisis Perbandingan Cabang</span>
+                                    <svg
+                                        class="w-4 h-4 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </button>
+                                <div class="submenu hidden pl-4 mt-1 space-y-1">
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-keuangan"
+                                    >Aspek Keuangan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-penjualan"
+                                    >Aspek Penjualan</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-produk-channel"
+                                    >Aspek Produk dan Channel</a>
+                                    <a
+                                        href="#"
+                                        class="sidebar-link block p-2 rounded-md text-sm"
+                                        data-target="cabang-investasi"
+                                    >Aspek Investasi</a>
+                                </div>
+                            </div>
+                        </nav>
+                        <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full hidden">
+                            Analyze All Charts
                         </button>
-                        <div class="submenu hidden pl-4 mt-1 space-y-1">
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-penjualan">Penjualan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-pnl">Profit & Loss</a>
-                        </div>
-                     </div>
-                     <div class="submenu-container">
-                        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                           <span>Perbandingan Cabang</span>
-                           <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
+                        <button id="export-pdf-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition duration-300 w-full hidden">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5 inline-block mr-2"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                            Export PDF Portrait
                         </button>
-                        <div class="submenu hidden pl-4 mt-1 space-y-1">
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-penjualan">Penjualan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-pnl">Profit & Loss</a>
-                        </div>
-                     </div>
-                     <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="produk">Analisa Produk</a>
-                     <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="cabang">Analisa Cabang</a>
-                     <a href="#" class="sidebar-link p-3 rounded-md hidden" data-target="yoy">Analisa YoY</a>
-                  </nav>
-                  <nav id="new-analysis-sidebar" class="flex flex-col space-y-2 bg-white p-4 rounded-lg shadow-md mt-4">
-                     <div class="submenu-container">
-                        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
-                           <span>Analisis General</span>
-                           <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
+                        <button id="export-pdf-landscape-btn" class="bg-orange-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-700 transition duration-300 w-full mt-2 hidden">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5 inline-block mr-2"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                            Export PDF Landscape
                         </button>
-                        <div class="submenu hidden pl-4 mt-1 space-y-1">
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-keuangan">Aspek Keuangan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-penjualan">Aspek Penjualan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-produk-channel">Aspek Produk dan Channel</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="general-investasi">Aspek Investasi</a>
+                    </aside>
+                    <!-- Main Content -->
+                    <main class="flex-1">
+                        <!-- Filters -->
+                        <div id="main-filters" class="bg-white p-4 rounded-lg shadow-md mb-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                                <div>
+                                    <label for="date-start" class="text-sm font-medium">Current Start Date</label>
+                                    <input
+                                        type="date"
+                                        id="date-start"
+                                        class="mt-1 w-full p-2 border rounded-md"
+                                    >
+                                </div>
+                                <div>
+                                    <label for="date-end" class="text-sm font-medium">Current End Date</label>
+                                    <input
+                                        type="date"
+                                        id="date-end"
+                                        class="mt-1 w-full p-2 border rounded-md"
+                                    >
+                                </div>
+                                <div>
+                                    <label for="last-period-start" class="text-sm font-medium">Compare Start Date</label>
+                                    <input
+                                        type="date"
+                                        id="last-period-start"
+                                        class="mt-1 w-full p-2 border rounded-md"
+                                    >
+                                </div>
+                                <div>
+                                    <label for="last-period-end" class="text-sm font-medium">Compare End Date</label>
+                                    <input
+                                        type="date"
+                                        id="last-period-end"
+                                        class="mt-1 w-full p-2 border rounded-md"
+                                    >
+                                </div>
+                                <button id="apply-filters-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-10">Apply</button>
+                            </div>
                         </div>
-                     </div>
-                     <div class="submenu-container">
-                        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
-                           <span>Analisis Perbandingan Waktu</span>
-                           <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </button>
-                        <div class="submenu hidden pl-4 mt-1 space-y-1">
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-keuangan">Aspek Keuangan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-penjualan">Aspek Penjualan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="waktu-produk-channel">Aspek Produk dan Channel</a>
-                        </div>
-                     </div>
-                     <div class="submenu-container">
-                        <button class="submenu-toggle w-full text-left p-3 rounded-md flex justify-between items-center hover:bg-gray-100 font-semibold">
-                           <span>Analisis Perbandingan Cabang</span>
-                           <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </button>
-                        <div class="submenu hidden pl-4 mt-1 space-y-1">
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-keuangan">Aspek Keuangan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-penjualan">Aspek Penjualan</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-produk-channel">Aspek Produk dan Channel</a>
-                           <a href="#" class="sidebar-link block p-2 rounded-md text-sm" data-target="cabang-investasi">Aspek Investasi</a>
-                        </div>
-                     </div>
-                  </nav>
-                  <button id="analyze-all-btn" class="bg-purple-700 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-800 transition duration-300 w-full hidden">
-                  Analyze All Charts
-                  </button>
-                  <button id="export-pdf-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition duration-300 w-full hidden">
-                     <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 inline-block mr-2"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        >
-                        <path
-                           fill-rule="evenodd"
-                           d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
-                           clip-rule="evenodd"
-                           />
-                     </svg>
-                     Export PDF Portrait
-                  </button>
-                  <button id="export-pdf-landscape-btn" class="bg-orange-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-700 transition duration-300 w-full mt-2 hidden">
-                     <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 inline-block mr-2"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        >
-                        <path
-                           fill-rule="evenodd"
-                           d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
-                           clip-rule="evenodd"
-                           />
-                     </svg>
-                     Export PDF Landscape
-                  </button>
-               </aside>
-               <!-- Main Content -->
-               <main class="flex-1">
-                  <!-- Filters -->
-                  <div id="main-filters" class="bg-white p-4 rounded-lg shadow-md mb-6">
-                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                        <div>
-                           <label for="date-start" class="text-sm font-medium">Current Start Date</label>
-                           <input
-                              type="date"
-                              id="date-start"
-                              class="mt-1 w-full p-2 border rounded-md"
-                              >
-                        </div>
-                        <div>
-                           <label for="date-end" class="text-sm font-medium">Current End Date</label>
-                           <input
-                              type="date"
-                              id="date-end"
-                              class="mt-1 w-full p-2 border rounded-md"
-                              >
-                        </div>
-                        <div>
-                           <label for="last-period-start" class="text-sm font-medium">Compare Start Date</label>
-                           <input
-                              type="date"
-                              id="last-period-start"
-                              class="mt-1 w-full p-2 border rounded-md"
-                              >
-                        </div>
-                        <div>
-                           <label for="last-period-end" class="text-sm font-medium">Compare End Date</label>
-                           <input
-                              type="date"
-                              id="last-period-end"
-                              class="mt-1 w-full p-2 border rounded-md"
-                              >
-                        </div>
-                        <button id="apply-filters-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 h-10">Apply</button>
-                     </div>
-                  </div>
-                  <section id="umum-section" class="analysis-section active space-y-6 hidden">
-                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
-                           <p id="ringkasan-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
-                           <p id="ringkasan-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
-                           <p id="ringkasan-total-check" class="text-4xl font-bold mt-2">0</p>
-                           <p id="ringkasan-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow-md">
-                           <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
-                           <p id="ringkasan-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
-                           <p id="ringkasan-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
-                        </div>
-                     </div>
-                     <hr class="border-gray-300 my-6">
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#daily-omzet-heatmap-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="daily-omzet-heatmap-content" class="px-6 pb-6 chart-content">
-                           <div id="daily-omzet-heatmap-container" class="overflow-x-auto"></div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-dailyOmzetHeatmap" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-heatmap-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="omzet-heatmap-content" class="px-6 pb-6 chart-content">
-                           <div id="omzet-heatmap-container" class="overflow-x-auto"></div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-omzetJamHariHeatmap" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#tc-apc-harian-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="tc-apc-harian-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="tc-apc-harian-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="tc-apc-harian-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="tcApcHarian">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-tcApcHarian" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-harian-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="omzet-harian-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="omzet-harian-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-harian-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetHarian">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-omzetHarian" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-mingguan-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="omzet-mingguan-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="omzet-mingguan-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-mingguan-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetMingguan">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-omzetMingguan" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-bulanan-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Bulanan</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="omzet-bulanan-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="omzet-bulanan-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-bulanan-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetBulanan">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-omzetBulanan" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-outlet-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="omzet-outlet-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="omzet-outlet-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-outlet-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetOutlet">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-omzetOutlet" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                  </section>
-                  <section id="analisa-penjualan-section" class="analysis-section space-y-6">
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="penjualan-channel-chart-new"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="penjualan-channel-chart-new">Download Chart</button>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="omzet-vs-check-cabang-chart-new"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="omzet-vs-check-cabang-chart-new">Download Chart</button>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="chart-container">
-                              <canvas id="order-by-menu-category-chart-new"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="order-by-menu-category-chart-new">Download Chart</button>
-                           </div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6">
-                           <h3 class="text-xl font-semibold text-gray-700">Top 5 Menu Items by Quantity</h3>
-                        </div>
-                        <div class="px-6 pb-6">
-                           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                              <div>
-                                 <h4 class="text-lg font-semibold text-center mb-2">Top 5 Makanan</h4>
-                                 <div class="chart-container" style="height: 300px;">
-                                    <canvas id="top-makanan-chart-new"></canvas>
-                                 </div>
-                                 <div class="mt-4 flex justify-end items-center gap-4">
-                                    <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="top-makanan-chart-new">Download Chart</button>
-                                 </div>
-                              </div>
-                              <div>
-                                 <h4 class="text-lg font-semibold text-center mb-2">Top 5 Minuman</h4>
-                                 <div class="chart-container" style="height: 300px;">
-                                    <canvas id="top-minuman-chart-new"></canvas>
-                                 </div>
-                                 <div class="mt-4 flex justify-end items-center gap-4">
-                                    <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="top-minuman-chart-new">Download Chart</button>
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                  </section>
-                  <section id="penjualan-section" class="analysis-section space-y-6">
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-bulanan-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Total Penjualan & Check Per Bulan</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="penjualan-bulanan-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="penjualan-bulanan-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-bulanan-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanBulanan">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-penjualanBulanan" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#menu-sales-trend-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="menu-sales-trend-content" class="px-6 pb-6 chart-content">
-                           <div class="mb-4">
-                              <label for="menu-select" class="block text-sm font-medium text-gray-700 mb-1">Select menu items to display:</label>
-                              <select id="menu-select" multiple></select>
-                           </div>
-                           <div class="chart-container">
-                              <canvas id="menu-sales-trend-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="menu-sales-trend-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="menuSalesTrend">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-menuSalesTrend" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-channel-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="penjualan-channel-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="penjualan-channel-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-channel-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanChannel">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-penjualanChannel" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                     <div class="bg-white rounded-lg shadow-md">
-                        <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#sales-trend-hourly-daily-content">
-                           <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
-                           <svg class="w-6 h-6 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                           </svg>
-                        </div>
-                        <div id="sales-trend-hourly-daily-content" class="px-6 pb-6 chart-content">
-                           <div class="chart-container">
-                              <canvas id="sales-trend-hourly-daily-chart"></canvas>
-                           </div>
-                           <div class="mt-4 flex justify-end items-center gap-4">
-                              <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="sales-trend-hourly-daily-chart">Download Chart</button>
-                              <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="salesTrendHourlyDaily">Analyze with AI</button>
-                           </div>
-                           <div id="analysis-result-salesTrendHourlyDaily" class="analysis-result-container hidden"></div>
-                        </div>
-                     </div>
-                  </section>
-                  <section id="waktu-penjualan-section" class="analysis-section space-y-6">
-    <div class="bg-white p-4 rounded-lg shadow-md">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div>
-                <label for="waktu-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
-                <select id="waktu-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
-            </div>
-            <div>
-                <label for="waktu-penjualan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
-                <select id="waktu-penjualan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
-            </div>
-            <div>
-                <label for="waktu-penjualan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
-                <select id="waktu-penjualan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
-            </div>
-        </div>
-    </div>
+                        <section id="umum-section" class="analysis-section active space-y-6 hidden">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="bg-white p-6 rounded-lg shadow-md">
+                                    <h3 class="text-lg font-semibold text-gray-600">Total Omzet</h3>
+                                    <p id="ringkasan-total-omzet" class="text-4xl font-bold mt-2">Rp0</p>
+                                    <p id="ringkasan-omzet-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+                                </div>
+                                <div class="bg-white p-6 rounded-lg shadow-md">
+                                    <h3 class="text-lg font-semibold text-gray-600">Total Check</h3>
+                                    <p id="ringkasan-total-check" class="text-4xl font-bold mt-2">0</p>
+                                    <p id="ringkasan-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+                                </div>
+                                <div class="bg-white p-6 rounded-lg shadow-md">
+                                    <h3 class="text-lg font-semibold text-gray-600">Avg. Check</h3>
+                                    <p id="ringkasan-avg-check" class="text-4xl font-bold mt-2">Rp0</p>
+                                    <p id="ringkasan-avg-check-growth" class="text-sm mt-1 font-medium">vs comparison period</p>
+                                </div>
+                            </div>
+                            <hr class="border-gray-300 my-6">
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#daily-omzet-heatmap-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet Harian</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="daily-omzet-heatmap-content" class="px-6 pb-6 chart-content">
+                                    <div id="daily-omzet-heatmap-container" class="overflow-x-auto"></div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="dailyOmzetHeatmap">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-dailyOmzetHeatmap" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-heatmap-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Heatmap Omzet per Jam & Hari</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="omzet-heatmap-content" class="px-6 pb-6 chart-content">
+                                    <div id="omzet-heatmap-container" class="overflow-x-auto"></div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetJamHariHeatmap">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-omzetJamHariHeatmap" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#tc-apc-harian-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Tren TC & APC Harian</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="tc-apc-harian-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="tc-apc-harian-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="tc-apc-harian-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="tcApcHarian">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-tcApcHarian" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-harian-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Harian</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="omzet-harian-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="omzet-harian-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-harian-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetHarian">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-omzetHarian" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-mingguan-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Mingguan</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="omzet-mingguan-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="omzet-mingguan-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-mingguan-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetMingguan">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-omzetMingguan" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-bulanan-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Bulanan</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="omzet-bulanan-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="omzet-bulanan-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-bulanan-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetBulanan">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-omzetBulanan" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#omzet-outlet-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Omzet Berdasarkan Outlet</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="omzet-outlet-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="omzet-outlet-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="omzet-outlet-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="omzetOutlet">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-omzetOutlet" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="analisa-penjualan-section" class="analysis-section space-y-6">
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6">
+                                    <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
+                                </div>
+                                <div class="px-6 pb-6">
+                                    <div class="chart-container">
+                                        <canvas id="penjualan-channel-chart-new"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="penjualan-channel-chart-new">Download Chart</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6">
+                                    <h3 class="text-xl font-semibold text-gray-700">Perbandingan Omzet & Total Check per Cabang</h3>
+                                </div>
+                                <div class="px-6 pb-6">
+                                    <div class="chart-container">
+                                        <canvas id="omzet-vs-check-cabang-chart-new"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="omzet-vs-check-cabang-chart-new">Download Chart</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6">
+                                    <h3 class="text-xl font-semibold text-gray-700">Order by Menu Category</h3>
+                                </div>
+                                <div class="px-6 pb-6">
+                                    <div class="chart-container">
+                                        <canvas id="order-by-menu-category-chart-new"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="order-by-menu-category-chart-new">Download Chart</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6">
+                                    <h3 class="text-xl font-semibold text-gray-700">Top 5 Menu Items by Quantity</h3>
+                                </div>
+                                <div class="px-6 pb-6">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div>
+                                            <h4 class="text-lg font-semibold text-center mb-2">Top 5 Makanan</h4>
+                                            <div class="chart-container" style="height: 300px;">
+                                                <canvas id="top-makanan-chart-new"></canvas>
+                                            </div>
+                                            <div class="mt-4 flex justify-end items-center gap-4">
+                                                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="top-makanan-chart-new">Download Chart</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-lg font-semibold text-center mb-2">Top 5 Minuman</h4>
+                                            <div class="chart-container" style="height: 300px;">
+                                                <canvas id="top-minuman-chart-new"></canvas>
+                                            </div>
+                                            <div class="mt-4 flex justify-end items-center gap-4">
+                                                <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700" data-chart-id="top-minuman-chart-new">Download Chart</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="penjualan-section" class="analysis-section space-y-6">
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-bulanan-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Total Penjualan & Check Per Bulan</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="penjualan-bulanan-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="penjualan-bulanan-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-bulanan-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanBulanan">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-penjualanBulanan" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#menu-sales-trend-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Tren Penjualan Menu Harian</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="menu-sales-trend-content" class="px-6 pb-6 chart-content">
+                                    <div class="mb-4">
+                                        <label for="menu-select" class="block text-sm font-medium text-gray-700 mb-1">Select menu items to display:</label>
+                                        <select id="menu-select" multiple></select>
+                                    </div>
+                                    <div class="chart-container">
+                                        <canvas id="menu-sales-trend-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="menu-sales-trend-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="menuSalesTrend">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-menuSalesTrend" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#penjualan-channel-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Penjualan Per Channel (Visit Purpose)</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="penjualan-channel-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="penjualan-channel-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="penjualan-channel-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="penjualanChannel">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-penjualanChannel" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md">
+                                <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#sales-trend-hourly-daily-content">
+                                    <h3 class="text-xl font-semibold text-gray-700">Sales Trend by Hour and Day</h3>
+                                    <svg
+                                        class="w-6 h-6 transform transition-transform chevron-icon"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div id="sales-trend-hourly-daily-content" class="px-6 pb-6 chart-content">
+                                    <div class="chart-container">
+                                        <canvas id="sales-trend-hourly-daily-chart"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex justify-end items-center gap-4">
+                                        <button class="download-chart-btn bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300" data-chart-id="sales-trend-hourly-daily-chart">Download Chart</button>
+                                        <button class="analyze-btn bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-300" data-chart-id="salesTrendHourlyDaily">Analyze with AI</button>
+                                    </div>
+                                    <div id="analysis-result-salesTrendHourlyDaily" class="analysis-result-container hidden"></div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="waktu-penjualan-section" class="analysis-section space-y-6">
+                            <div class="bg-white p-4 rounded-lg shadow-md">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                    <div>
+                                        <label for="waktu-penjualan-branch-select" class="block text-sm font-medium text-gray-700">Select Branch:</label>
+                                        <select id="waktu-penjualan-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+                                    </div>
+                                    <div>
+                                        <label for="waktu-penjualan-period-a" class="block text-sm font-medium text-gray-700">Compare Period A:</label>
+                                        <select id="waktu-penjualan-period-a" class="mt-1 block w-full p-2 border rounded-md"></select>
+                                    </div>
+                                    <div>
+                                        <label for="waktu-penjualan-period-b" class="block text-sm font-medium text-gray-700">With Period B:</label>
+                                        <select id="waktu-penjualan-period-b" class="mt-1 block w-full p-2 border rounded-md"></select>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div class="bg-white rounded-lg shadow-md p-6">
@@ -1276,6 +1591,53 @@
                                 </div>
                             </div>
                         </section>
+                        <section id="general-investasi-section" class="analysis-section space-y-6">
+    <!-- Investment Data Input Form -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-3">Input Data Investasi per Cabang</h3>
+        <div id="investment-feedback" class="text-sm mb-4 text-center hidden"></div>
+        <form id="investment-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label for="investment-branch-name" class="block text-sm font-medium text-gray-700">Nama Cabang</label>
+                <input type="text" id="investment-branch-name" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., Jakarta Pusat" required>
+            </div>
+            <div>
+                <label for="investment-amount" class="block text-sm font-medium text-gray-700">Total Nilai Investasi (Rp)</label>
+                <input type="number" id="investment-amount" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 500000000" required>
+            </div>
+            <div>
+                <label for="investment-slots" class="block text-sm font-medium text-gray-700">Jumlah Slot Investasi</label>
+                <input type="number" id="investment-slots" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 10" required>
+            </div>
+            <button type="submit" class="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 h-10">Save Investment</button>
+        </form>
+    </div>
+
+    <!-- Investment Analysis Display -->
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <div>
+                <label for="investasi-branch-select" class="block text-sm font-medium text-gray-700">Pilih Cabang untuk Analisis:</label>
+                <select id="investasi-branch-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Yield Bisnis per Bulan</h3>
+            <div class="chart-container mt-4">
+                <canvas id="business-yield-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Yield Investor per Bulan (per Slot)</h3>
+            <div class="chart-container mt-4">
+                <canvas id="investor-yield-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
                         <section id="waktu-keuangan-section" class="analysis-section space-y-6">
                             <div class="bg-white p-4 rounded-lg shadow-md">
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
