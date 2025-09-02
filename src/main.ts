@@ -6631,7 +6631,11 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         const targetId = link.dataset.target;
         document.querySelectorAll('.analysis-section').forEach(sec => sec.classList.remove('active'));
         const targetSection = document.getElementById(`${targetId}-section`);
-        if (targetSection) targetSection.classList.add('active');
+        if (targetSection) {
+            targetSection.classList.add('active');
+            $store.resetActiveViewData();
+            setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
+        }
 
         const showMainFilters = ![
             'yoy', 'konfigurasi', 'waktu-penjualan', 'waktu-pnl',
