@@ -1,28 +1,137 @@
 import { produce } from 'immer';
 import { createStore } from 'zustand/vanilla'
 
-interface ViewData<TData = any, TFilters = {[key: string]: any}> {
+export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   viewId: string;
   data: TData;
   filters: TFilters;
 }
 
+export interface AnalysisState {
+  // Data Storage
+  allSalesData: any[];
+  chartDataForAI: Record<string, any>;
+  aiAnalysisResults: Record<string, any>;
+  charts: Record<string, any>;
+  currentPnlData: any;
+
+  // UI Initialization Flags
+  initFlags: {
+    yoyYearSelectInitialized: boolean;
+    monthlyComparisonInitialized: boolean;
+    generalKeuanganSelectorInitialized: boolean;
+    waktuKeuanganSelectorsInitialized: boolean;
+    waktuPenjualanSelectorsInitialized: boolean;
+    waktuProdukChannelSelectorsInitialized: boolean;
+    cabangKeuanganSelectorsInitialized: boolean;
+    cabangPenjualanSelectorsInitialized: boolean;
+    cabangProdukChannelSelectorsInitialized: boolean;
+    generalPenjualanSelectorInitialized: boolean;
+    generalProdukChannelSelectorInitialized: boolean;
+    generalInvestasiSelectorInitialized: boolean;
+    cabangInvestasiSelectorInitialized: boolean;
+  };
+
+  // UI Component References
+  uiComponents: {
+    omzetComparisonSelect: any;
+    menuTrend24MonthSelect: any;
+    generalMenuTrendSelect: any;
+    waktuMenuTrendSelect: any;
+    cabangMenuTrendSelect: any;
+  };
+
+  // Configuration/State
+  config: {
+    monthlyComparisonTargets: Record<string, any>;
+    currentPnlPeriod: string | null;
+    activeSalesTarget: Record<string, any>;
+  };
+}
+
 export interface AppState {
   viewData: {[key: string]: ViewData};
   activeViewData?: ViewData;
+  analysisState: AnalysisState;
 }
 
-interface AppStore extends AppState {
+export interface AppStore extends AppState {
   resetActiveViewData: () => void;
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
   trySetFromExistingViewData: (viewId: string) => void;
   setStore: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
   setStoreObj: (obj: Partial<AppState>) => void;
+
+  // Analysis state management
+  resetAnalysisState: () => void;
+  getAnalysisState: () => AnalysisState;
+  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) => void;
+  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) => void;
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) => void;
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
+}
+
+// Default analysis state factory
+function createDefaultAnalysisState(): AnalysisState {
+  return {
+    // Data Storage
+    allSalesData: [],
+    chartDataForAI: {},
+    aiAnalysisResults: {},
+    charts: {},
+    currentPnlData: null,
+
+    // UI Initialization Flags
+    initFlags: {
+      yoyYearSelectInitialized: false,
+      monthlyComparisonInitialized: false,
+      generalKeuanganSelectorInitialized: false,
+      waktuKeuanganSelectorsInitialized: false,
+      waktuPenjualanSelectorsInitialized: false,
+      waktuProdukChannelSelectorsInitialized: false,
+      cabangKeuanganSelectorsInitialized: false,
+      cabangPenjualanSelectorsInitialized: false,
+      cabangProdukChannelSelectorsInitialized: false,
+      generalPenjualanSelectorInitialized: false,
+      generalProdukChannelSelectorInitialized: false,
+      generalInvestasiSelectorInitialized: false,
+      cabangInvestasiSelectorInitialized: false,
+    },
+
+    // UI Component References
+    uiComponents: {
+      omzetComparisonSelect: null,
+      menuTrend24MonthSelect: null,
+      generalMenuTrendSelect: null,
+      waktuMenuTrendSelect: null,
+      cabangMenuTrendSelect: null,
+    },
+
+    // Configuration/State
+    config: {
+      monthlyComparisonTargets: {},
+      currentPnlPeriod: null,
+      activeSalesTarget: {},
+    },
+  };
+}
+
+// Helper function for safe cleanup with debug logging
+function safeCleanup(componentRef: any, cleanupFn: () => void, componentName: string) {
+  try {
+    if (componentRef) {
+      cleanupFn();
+    }
+  } catch (error) {
+    console.debug(`Failed to cleanup ${componentName}:`, error);
+    // Continue execution - don't throw
+  }
 }
 
 const store = createStore<AppStore>((set, get) => ({
   viewData: {},
   activeViewData: undefined,
+  analysisState: createDefaultAnalysisState(),
 
   resetActiveViewData: () => set({ activeViewData: undefined }),
 
@@ -84,6 +193,97 @@ const store = createStore<AppStore>((set, get) => ({
    * // Updates all specified properties in single operation
    */
   setStoreObj: (obj: Partial<AppState>) => set(obj),
+
+  /**
+   * Reset analysis state with proper cleanup of UI components.
+   *
+   * @description
+   * Performs comprehensive cleanup of analysis state including:
+   * - Destroying Chart.js instances to prevent memory leaks
+   * - Cleaning up SlimSelect instances with proper .destroy() calls
+   * - Clearing window properties
+   * - Resetting all state to default values
+   * Uses safe cleanup with debug logging to prevent crashes.
+   */
+  resetAnalysisState: () => {
+    const currentState = get().analysisState;
+
+    // Cleanup Chart.js instances
+    safeCleanup(currentState.charts, () => {
+      // Call existing destroyCharts function if available
+      if (typeof window !== 'undefined' && (window as any).destroyCharts) {
+        (window as any).destroyCharts();
+      } else {
+        // Fallback: destroy individual charts
+        Object.values(currentState.charts).forEach((chart: any) => {
+          if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+          }
+        });
+      }
+    }, 'Chart.js instances');
+
+    // Cleanup SlimSelect instances
+    Object.entries(currentState.uiComponents).forEach(([name, component]) => {
+      safeCleanup(component, () => {
+        if (component && typeof component.destroy === 'function') {
+          component.destroy();
+        }
+      }, `SlimSelect ${name}`);
+    });
+
+    // Clear window properties
+    safeCleanup((window as any).generalMenuTrendSelect, () => {
+      if ((window as any).generalMenuTrendSelect && typeof (window as any).generalMenuTrendSelect.destroy === 'function') {
+        (window as any).generalMenuTrendSelect.destroy();
+      }
+      (window as any).generalMenuTrendSelect = null;
+    }, 'window.generalMenuTrendSelect');
+
+    // Reset state to defaults
+    set(produce((state: AppState) => {
+      state.analysisState = createDefaultAnalysisState();
+    }));
+
+    console.debug('Analysis state reset completed');
+  },
+
+  /**
+   * Get current analysis state.
+   */
+  getAnalysisState: () => get().analysisState,
+
+  /**
+   * Update specific analysis state property.
+   */
+  setAnalysisState: <K extends keyof AnalysisState>(key: K, value: AnalysisState[K]) =>
+    set(produce((state: AppState) => {
+      state.analysisState[key] = value;
+    })),
+
+  /**
+   * Update specific initialization flag.
+   */
+  updateAnalysisFlag: <K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean) =>
+    set(produce((state: AppState) => {
+      state.analysisState.initFlags[flag] = value;
+    })),
+
+  /**
+   * Update specific UI component reference.
+   */
+  updateAnalysisComponent: <K extends keyof AnalysisState['uiComponents']>(component: K, value: any) =>
+    set(produce((state: AppState) => {
+      state.analysisState.uiComponents[component] = value;
+    })),
+
+  /**
+   * Update specific configuration property.
+   */
+  updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) =>
+    set(produce((state: AppState) => {
+      state.analysisState.config[config] = value;
+    })),
 }))
 
 export function resetActiveViewData(): void {
@@ -187,6 +387,55 @@ export function getStore<T extends keyof AppState>(key: T): AppState[T] {
  */
 export function getStoreState(): AppState {
   return store.getState();
+}
+
+// --- Analysis State Management Functions ---
+
+/**
+ * Reset analysis state with proper cleanup of UI components.
+ *
+ * @description
+ * Cleans up Chart.js instances, SlimSelect components, window properties,
+ * and resets all analysis state to default values. Safe cleanup with
+ * debug logging prevents crashes during cleanup operations.
+ */
+export function resetAnalysisState(): void {
+  store.getState().resetAnalysisState();
+}
+
+/**
+ * Get current analysis state from the store.
+ */
+export function getAnalysisState(): AnalysisState {
+  return store.getState().getAnalysisState();
+}
+
+/**
+ * Update specific analysis state property with type safety.
+ */
+export function setAnalysisState<K extends keyof AnalysisState>(key: K, value: AnalysisState[K]): void {
+  store.getState().setAnalysisState(key, value);
+}
+
+/**
+ * Update initialization flag for UI components.
+ */
+export function updateAnalysisFlag<K extends keyof AnalysisState['initFlags']>(flag: K, value: boolean): void {
+  store.getState().updateAnalysisFlag(flag, value);
+}
+
+/**
+ * Update UI component reference in analysis state.
+ */
+export function updateAnalysisComponent<K extends keyof AnalysisState['uiComponents']>(component: K, value: any): void {
+  store.getState().updateAnalysisComponent(component, value);
+}
+
+/**
+ * Update configuration property in analysis state.
+ */
+export function updateAnalysisConfig<K extends keyof AnalysisState['config']>(config: K, value: any): void {
+  store.getState().updateAnalysisConfig(config, value);
 }
 
 // Export the store for direct access to subscribe/getState if needed
