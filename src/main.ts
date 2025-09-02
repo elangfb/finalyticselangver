@@ -12786,6 +12786,7 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
  */
 function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string) {
     const container = document.getElementById(containerId);
+    if (!container) return; // Added a guard clause for safety
     container.innerHTML = '';
 
     try {
@@ -12829,7 +12830,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${labelA}</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${labelB}</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Change</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">`;
@@ -12837,31 +12838,45 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
         allMetrics.forEach(metric => {
             const valueA = valuesA[metric] || 0;
             const valueB = valuesB[metric] || 0;
+            const change = valueB - valueA;
             const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok produksi');
 
+            // --- FIX START: Calculate percentage change and handle zero division ---
+            let changeText: string;
+            if (valueA === 0) {
+                // If the initial value is 0, a percentage isn't meaningful.
+                // We show the absolute change instead.
+                changeText = `${change >= 0 ? '+' : ''}${formatCurrency(change)}`;
+            } else {
+                const percentage = (change / valueA) * 100;
+                changeText = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%`;
+            }
+            // --- FIX END ---
+
+            let changeColor = 'text-gray-500'; // Default color for no change
+            if (change > 0) changeColor = isCost ? 'text-red-600' : 'text-green-600';
+            if (change < 0) changeColor = isCost ? 'text-green-600' : 'text-red-600';
+
+            // The 'achievement' bar logic can be kept or removed based on your preference.
+            // I've kept it here as it provides a nice visual indicator.
             let achievement = 0;
             if (valueA !== 0) {
-                achievement = isCost ? (valueA / valueB) * 100 : (valueB / valueA) * 100;
+                 achievement = isCost ? (valueA / valueB) * 100 : (valueB / valueA) * 100;
             } else if (valueB > 0) {
-                achievement = 100;
+                 achievement = 100;
             }
-
-            const change = valueB - valueA;
-            let changeColor = change >= 0 ? 'text-green-600' : 'text-red-600';
-            if (isCost && change > 0) changeColor = 'text-red-600';
-            if (isCost && change < 0) changeColor = 'text-green-600';
 
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueA)}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueB)}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">
-                        <div class="flex items-center">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right">
+                        <div class="flex items-center justify-end">
+                            <div class="w-20 bg-gray-200 rounded-full h-2.5 mr-3">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
                             </div>
-                            <span class="font-semibold ${changeColor}">${change >= 0 ? '+' : ''}${shortenCurrency(change)}</span>
+                            <span class="font-semibold ${changeColor} w-20 text-right">${changeText}</span>
                         </div>
                     </td>
                 </tr>`;
