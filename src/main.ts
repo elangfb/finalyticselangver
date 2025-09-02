@@ -71,70 +71,158 @@ const storage = getStorage(app);
 let currentUser = null
 let currentUserRole = 'user'
 
-// Analysis state moved to store - using helper getters for easy migration
+// --- Analysis State Helper Functions ---
+// These functions provide convenient access to analysis state stored in Zustand store
+
+/**
+ * Get all sales data from analysis state.
+ * @returns Array of sales data objects
+ */
 const getAllSalesData = () => $store.getAnalysisState().allSalesData;
+
+/**
+ * Set all sales data in analysis state.
+ * @param data - Array of sales data objects to store
+ */
 const setAllSalesData = (data: $store.AnalysisState['allSalesData']) => $store.setAnalysisState('allSalesData', data);
 
+/**
+ * Get all Chart.js instances from analysis state.
+ * @returns Object containing chart instances keyed by chart ID
+ */
 const getCharts = () => $store.getAnalysisState().charts;
+
+/**
+ * Set all Chart.js instances in analysis state.
+ * @param charts - Object containing chart instances keyed by chart ID
+ */
 const setCharts = (charts: $store.AnalysisState['charts']) => $store.setAnalysisState('charts', charts);
+
+/**
+ * Set a single chart property in the charts object.
+ * @param key - Chart identifier key
+ * @param value - Chart instance to store
+ */
 const setChartProperty = (key: string, value: any) => {
   const currentCharts = getCharts();
   const updatedCharts = { ...currentCharts, [key]: value };
   setCharts(updatedCharts);
 };
+
+/**
+ * Get a single chart instance by key.
+ * @param key - Chart identifier key
+ * @returns Chart instance or undefined if not found
+ */
 const getChartProperty = (key: string) => {
   return getCharts()[key];
 };
 
+/**
+ * Get chart data prepared for AI analysis.
+ * @returns Object containing chart data formatted for AI consumption
+ */
 const getChartDataForAI = () => $store.getAnalysisState().chartDataForAI;
+
+/**
+ * Set chart data prepared for AI analysis.
+ * @param data - Object containing chart data formatted for AI consumption
+ */
 const setChartDataForAI = (data: $store.AnalysisState['chartDataForAI']) => $store.setAnalysisState('chartDataForAI', data);
+
+/**
+ * Set a single property in the chart data for AI object.
+ * @param key - Data property key
+ * @param value - Data value to store
+ */
 const setChartDataForAIProperty = (key: string, value: any) => {
   const currentData = getChartDataForAI();
   const updatedData = { ...currentData, [key]: value };
   setChartDataForAI(updatedData);
 };
 
+/**
+ * Get AI analysis results.
+ * @returns Object containing AI-generated analysis results
+ */
 const getAiAnalysisResults = () => $store.getAnalysisState().aiAnalysisResults;
+
+/**
+ * Set AI analysis results.
+ * @param results - Object containing AI-generated analysis results
+ */
 const setAiAnalysisResults = (results: $store.AnalysisState['aiAnalysisResults']) => $store.setAnalysisState('aiAnalysisResults', results);
 
+/**
+ * Get current P&L data.
+ * @returns Current profit and loss data object
+ */
 const getCurrentPnlData = () => $store.getAnalysisState().currentPnlData;
+
+/**
+ * Set current P&L data.
+ * @param data - Profit and loss data object to store
+ */
 const setCurrentPnlData = (data: $store.AnalysisState['currentPnlData']) => $store.setAnalysisState('currentPnlData', data);
 
-// Helper functions for initialization flags
+/**
+ * Get initialization flag status for UI components.
+ * @param flag - Flag name to check
+ * @returns Boolean indicating if the component has been initialized
+ */
 const getInitFlag = <T extends keyof $store.AnalysisState['initFlags']>(flag: T) => {
   return $store.getAnalysisState().initFlags[flag] || false;
 };
+
+/**
+ * Set initialization flag status for UI components.
+ * @param flag - Flag name to set
+ * @param value - Boolean value to set for the flag
+ */
 const setInitFlag: typeof $store.updateAnalysisFlag = (...params) => {
   $store.updateAnalysisFlag(...params);
 };
 
-// Helper functions for UI components
+/**
+ * Get UI component reference from analysis state.
+ * @param component - Component name to retrieve
+ * @returns Component instance or null if not found
+ */
 const getUIComponent = <T extends keyof $store.AnalysisState['uiComponents']>(component: T) => {
   return $store.getAnalysisState().uiComponents[component] || null;
 };
+
+/**
+ * Set UI component reference in analysis state.
+ * @param component - Component name to set
+ * @param value - Component instance to store
+ */
 const setUIComponent: typeof $store.updateAnalysisComponent = (...params) => {
   $store.updateAnalysisComponent(...params);
 };
 
-// Helper functions for configuration
+/**
+ * Get configuration value from analysis state.
+ * @param config - Configuration key to retrieve
+ * @returns Configuration value
+ */
 const getConfigValue = <T extends keyof $store.AnalysisState['config']>(config: T) => {
   return $store.getAnalysisState().config[config];
 };
+
+/**
+ * Set configuration value in analysis state.
+ * @param config - Configuration key to set
+ * @param value - Configuration value to store
+ */
 const setConfigValue: typeof $store.updateAnalysisConfig = (...params) => {
   $store.updateAnalysisConfig(...params);
 };
 
 let adminCredentials = null
-// Global variables moved to store:
-// - monthlyComparisonTargets -> store.analysisState.config.monthlyComparisonTargets
-// - omzetComparisonSelect -> store.analysisState.uiComponents.omzetComparisonSelect
-// - currentPnlPeriod -> store.analysisState.config.currentPnlPeriod
-// - currentPnlData -> store.analysisState.currentPnlData
-// - menuTrend24MonthSelect -> store.analysisState.uiComponents.menuTrend24MonthSelect
-// - generalMenuTrendSelect -> store.analysisState.uiComponents.generalMenuTrendSelect
-// - waktuMenuTrendSelect -> store.analysisState.uiComponents.waktuMenuTrendSelect
-// - cabangMenuTrendSelect -> store.analysisState.uiComponents.cabangMenuTrendSelect
-// - activeSalesTarget -> store.analysisState.config.activeSalesTarget
+
+// Note: Analysis-related state (charts, data, UI components, flags) is now managed
+// through Zustand store for proper cleanup when navigating between views.
 
 
 
@@ -250,7 +338,7 @@ function setupMonthlyOmzetComparisonChart() {
         }
     });
 
-    // Store in analysis state
+    // Store omzetComparisonSelect instance for cleanup on view reset
     setUIComponent('omzetComparisonSelect', newOmzetSelect);
 
     // Set a default selection (e.g., the two most recent months)
@@ -533,7 +621,7 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
 
     const opexData = pnlData["Beban Operasional (OPEX)"] || {};
     const nonOpexData = pnlData["Beban Non Operasional"] || {};
-    
+
     const providedOpexSubCategories = Object.keys(opexData);
     const providedNonOpexSubCategories = Object.keys(nonOpexData);
 
@@ -1638,7 +1726,7 @@ function listenForProcessingStatus(period: string) {
     const processingView = document.getElementById('processing-view');
     const processingFilename = document.getElementById('processing-filename');
     const processingStatusText = document.getElementById('processing-status-text');
-    
+
     // Get the new UI elements for the processing progress bar
     const processingProgressBar = document.getElementById('processing-progress-bar');
     const processingProgressPercent = document.getElementById('processing-progress-percent');
@@ -1665,16 +1753,16 @@ function listenForProcessingStatus(period: string) {
                 processingProgressBar.style.width = `${percent}%`;
                 processingProgressPercent.textContent = `${percent}%`;
                 processingStatusText.textContent = `Processing row ${status.rowsProcessed.toLocaleString()} of ${status.totalRows.toLocaleString()}`;
-            } 
+            }
             // --- Handle final 'complete' state ---
             else if (status.state === 'complete') {
                 processingProgressBar.style.width = '100%';
                 processingProgressPercent.textContent = '100%';
                 processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
-                
+
                 // Refresh data in the UI
                 populateCompiledDataTable();
-                
+
                 unsubscribe(); // Stop listening after completion
                 setTimeout(() => {
                     progressContainer.classList.remove('show');
@@ -1684,12 +1772,12 @@ function listenForProcessingStatus(period: string) {
                         processingView.classList.add('hidden');
                     }, 300);
                 }, 3000);
-            } 
+            }
             // --- Handle final 'error' state ---
             else if (status.state === 'error') {
                 processingProgressBar.classList.replace('bg-green-500', 'bg-red-500');
                 processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
-                
+
                 unsubscribe(); // Stop listening after error
                 setTimeout(() => {
                     progressContainer.classList.remove('show');
@@ -2734,7 +2822,7 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
         }
     });
 
-    // Store in analysis state
+    // Store generalMenuTrendSelect instance for cleanup on view reset
     setUIComponent('generalMenuTrendSelect', newGeneralMenuSelect);
 
     // Also keep window property for compatibility (will be cleaned up in reset)
@@ -4068,14 +4156,14 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
 // In main.ts, replace the existing generateRingkasanFromSummaries function with this one.
 
 function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }) {
-    
+
     // --- FIX START: Helper function to dynamically adjust font size ---
     const adjustFontSize = (elementId: string, text: string) => {
         const element = document.getElementById(elementId);
         if (!element) return;
 
         element.textContent = text;
-        
+
         // Threshold: If the text is longer than 12 characters (e.g., "Rp10.000.000")
         if (text.length > 12) {
             element.classList.remove('text-4xl');
@@ -4099,7 +4187,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
     adjustFontSize(ids.omzet, `Rp${currentTotals.omzet.toLocaleString('id-ID')}`);
     adjustFontSize(ids.check, currentTotals.checks.toLocaleString('id-ID'));
     adjustFontSize(ids.avgCheck, `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`);
-    
+
     if (lastPeriodSummaries && lastPeriodSummaries.length > 0) {
         const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
         const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
@@ -5557,7 +5645,7 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
         events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
     });
 
-    // Store in analysis state
+    // Store cabangMenuTrendSelect instance for cleanup on view reset
     setUIComponent('cabangMenuTrendSelect', newCabangMenuSelect);
 
     newCabangMenuSelect.setSelected(allMenuItems.slice(0, 3));
@@ -11484,10 +11572,10 @@ function downloadPnlTemplate() {
         { A: "Beban Non Operasional", B: "Biaya Lainnya", C: 1000000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    
+
     const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
-    
+
     wsInstructions['!cols'] = [{ wch: 25 }, { wch: 120 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
 
@@ -12218,7 +12306,7 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
         }
     });
 
-    // Store in analysis state
+    // Store menuTrend24MonthSelect instance for cleanup on view reset
     setUIComponent('menuTrend24MonthSelect', newMenuSelect);
 
     // 5. Set a default selection of the top 5 most popular items
@@ -12762,7 +12850,7 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
         events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
     });
 
-    // Store in analysis state
+    // Store waktuMenuTrendSelect instance for cleanup on view reset
     setUIComponent('waktuMenuTrendSelect', newWaktuMenuSelect);
 
     newWaktuMenuSelect.setSelected(allMenuItems.slice(0, 3));

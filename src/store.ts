@@ -7,6 +7,15 @@ export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   filters: TFilters;
 }
 
+/**
+ * Analysis state interface containing all mutable state for the analysis view.
+ *
+ * @description
+ * Centralizes all analysis-related state that was previously scattered as global variables.
+ * Includes data storage, UI component references, initialization flags, and configuration.
+ * This state is automatically reset when navigating away from the analysis view to prevent
+ * memory leaks and ensure clean state on re-entry.
+ */
 export interface AnalysisState {
   // Data Storage
   allSalesData: any[];
@@ -49,6 +58,14 @@ export interface AnalysisState {
   };
 }
 
+/**
+ * Main application state interface extending basic state with Zustand store methods.
+ *
+ * @description
+ * Contains view data management, active view tracking, and complete analysis state.
+ * The analysisState property contains all state that was previously global variables,
+ * enabling proper cleanup and reset functionality.
+ */
 export interface AppState {
   viewData: {[key: string]: ViewData};
   activeViewData?: ViewData;
@@ -71,7 +88,16 @@ export interface AppStore extends AppState {
   updateAnalysisConfig: <K extends keyof AnalysisState['config']>(config: K, value: any) => void;
 }
 
-// Default analysis state factory
+/**
+ * Factory function to create default analysis state with all properties reset.
+ *
+ * @description
+ * Creates a fresh instance of AnalysisState with all arrays empty, objects empty,
+ * flags set to false, and component references set to null. Used during store
+ * initialization and when resetting analysis state on view navigation.
+ *
+ * @returns Fresh AnalysisState instance with default values
+ */
 function createDefaultAnalysisState(): AnalysisState {
   return {
     // Data Storage
@@ -116,7 +142,18 @@ function createDefaultAnalysisState(): AnalysisState {
   };
 }
 
-// Helper function for safe cleanup with debug logging
+/**
+ * Safely execute cleanup function with error handling and debug logging.
+ *
+ * @description
+ * Provides safe cleanup execution for UI components that may fail during destruction.
+ * Logs cleanup failures as debug messages and continues execution to prevent crashes
+ * during view reset operations. Used for cleaning up Chart.js and SlimSelect instances.
+ *
+ * @param componentRef - Reference to component being cleaned up
+ * @param cleanupFn - Function to execute for cleanup
+ * @param componentName - Name of component for debug logging
+ */
 function safeCleanup(componentRef: any, cleanupFn: () => void, componentName: string) {
   try {
     if (componentRef) {
