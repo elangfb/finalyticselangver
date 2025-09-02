@@ -108,7 +108,7 @@ export function shortenNumber(value: number) {
   // Urutkan dari nilai terbesar ke terkecil
   const sortedKeys = Object.keys(numberSuffixMap)
     .map(Number)
-    .sort((a, b) => b - a);
+    .toSorted((a, b) => b - a);
 
   for (const divisor of sortedKeys) {
     if (value >= divisor) {

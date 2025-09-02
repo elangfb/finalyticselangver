@@ -47,6 +47,7 @@ import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
+import { globalConfigService } from './services/globalConfigService';
 
 // Firebase Config
 const firebaseConfig = {
@@ -183,7 +184,7 @@ function setupMonthlyOmzetComparisonChart() {
     const selectEl = document.getElementById('waktu-omzet-harian-select') as HTMLSelectElement;
 
     // Get all unique months (YYYY-MM) from the data and sort them
-    const availableMonths = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const availableMonths = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (availableMonths.length === 0) {
         selectEl.innerHTML = '<option disabled>No data available</option>';
@@ -371,7 +372,7 @@ onAuthStateChanged(auth, async (user) => {
         });
         if (!adminCredentials) {
             await fetchUserRoleAndSetupUI(user)}
-            
+
     } else {
     if (adminCredentials) {
       signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password)
@@ -421,10 +422,13 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
     await ensureUserDocument(user.uid, user.email)
     currentUserRole = 'user'
   }
-  document.getElementById('user-management-btn').classList.toggle('hidden', currentUserRole !== 'admin')
+  document.getElementById('user-management-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
+  document.getElementById('konfigurasi-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
   showView('main-menu')
   await populateCompiledDataTable(); // Load the new compiled table
-  loadGeminiConfig()
+  if (currentUserRole === 'admin') {
+    loadGeminiConfig()
+  }
 }
 
 async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null = null): Promise<string> {
@@ -552,7 +556,7 @@ async function populateCompiledDataTable() {
 
         tbody.innerHTML = '';
 
-        const sortedKeys = Object.keys(aggregatedData).sort((a, b) => {
+        const sortedKeys = Object.keys(aggregatedData).toSorted((a, b) => {
             const [branchA, periodA] = a.split('|');
             const [branchB, periodB] = b.split('|');
             if (branchA < branchB) return -1;
@@ -1774,69 +1778,30 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
 
 // --- AI Analysis & Configuration ---
 /**
- * Load and merge Gemini AI configuration from localStorage with defaults.
+ * Load Gemini configuration for admin users.
  *
  * @description
- * Retrieves saved Gemini configuration from localStorage and intelligently merges
- * it with default prompts from the codebase. Preserves user's API key and custom
- * prompts while ensuring new default prompts are included. Updates the UI input
- * field and saves the merged configuration back to localStorage.
+ * For admin users, loads the global API key from Firestore and populates
+ * the configuration UI. This replaces the old localStorage-based system.
  *
- * @returns This function does not return a value; it updates global config and UI.
- *
- * @example
- * // Load configuration on app startup
- * loadGeminiConfig();
- * // Merges saved config with defaults, updates geminiConfig global object
- * // and populates the API key input field in the UI
+ * @returns This function does not return a value; it updates the UI.
  */
 function loadGeminiConfig(): void {
-  const savedConfigString = localStorage.getItem('geminiConfig')
-  if (savedConfigString) {
-    const savedConfig = JSON.parse(savedConfigString)
-
-    // Start with the default prompts from the code
-    const defaultPrompts = geminiConfig.prompts
-
-    // Take the saved API key if it exists
-    const apiKey = savedConfig.apiKey || ''
-
-    // Take the saved prompts if they exist
-    const savedPrompts = savedConfig.prompts || {}
-
-    // Merge them: saved prompts overwrite defaults, but new defaults from the code are included
-    const mergedPrompts = { ...defaultPrompts, ...savedPrompts }
-
-    // Update the global config object
-    geminiConfig.apiKey = apiKey
-    geminiConfig.prompts = mergedPrompts
+  // Only load config for admin users
+  if (currentUserRole === 'admin') {
+    loadCurrentApiKey()
   }
-
-  // Update the input field with the final API key
-  document.getElementById('gemini-api-key').value = geminiConfig.apiKey
-
-  // Save the potentially merged config back to ensure it's up-to-date for the next session
-  saveGeminiConfig()
 }
 
 /**
- * Save current Gemini AI configuration to localStorage for persistence.
+ * Legacy function kept for backward compatibility.
+ * No longer saves to localStorage since we use Firestore now.
  *
- * @description
- * Serializes the global geminiConfig object (containing API key and custom prompts)
- * to JSON and stores it in localStorage. This ensures user configuration persists
- * across browser sessions and page reloads.
- *
- * @returns This function does not return a value; it saves config to localStorage.
- *
- * @example
- * // Save configuration after user updates API key or prompts
- * geminiConfig.apiKey = 'new-api-key';
- * saveGeminiConfig();
- * // Configuration is now persisted in localStorage as JSON string
+ * @deprecated This function is no longer used in the new Firestore-based system.
  */
 function saveGeminiConfig(): void {
-  localStorage.setItem('geminiConfig', JSON.stringify(geminiConfig))
+  // This function is now a no-op since we save directly to Firestore
+  // in the setupConfigurationTab function
 }
 
 /**
@@ -1858,65 +1823,44 @@ function saveGeminiConfig(): void {
  * // with modification tracking and automatic saving
  */
 function setupConfigurationTab(): void {
-  const container = document.getElementById('prompt-templates-container')
-  container.innerHTML = ''
+  // Update API key input handler for admin users
+  const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
+  if (apiKeyInput) {
+    // Load current API key for admin
+    loadCurrentApiKey()
 
-  function isPromptModified(key) {
-    return geminiConfig.prompts[key] !== defaultGeminiConfig.prompts[key]
-  }
+    // Add event listener for saving
+    apiKeyInput.addEventListener('change', async (e) => {
+      const target = e.target as HTMLInputElement
+      const apiKey = target.value.trim()
 
-  // Ensure we iterate over the keys of the *current* global geminiConfig object
-  for (const key in geminiConfig.prompts) {
-    const markModifiedHidden = isPromptModified(key) ? '' : 'hidden'
+      if (!apiKey) {
+        alert('Please enter a valid API key.')
+        return
+      }
 
-    const title = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())
-    const div = document.createElement('div')
-    div.innerHTML = `
-                    <label for="prompt-${key}" class="block text-sm font-medium text-gray-700">
-                        ${title}
-                        <span id="modified-mark-${key}" class="text-yellow-600 text-xs font-semibold ml-1 ${markModifiedHidden}">(modified)</span>
-                    </label>
-                    <textarea id="prompt-${key}" rows="4" class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" data-prompt-key="${key}">${geminiConfig.prompts[key]}</textarea>
-                    <button id="reset-prompt-${key}" class="mt-2 bg-red-100 text-red-600 font-semibold px-3 py-1 rounded hover:bg-red-200 block ml-auto">
-                        Reset prompt
-                    </button>
-                `
-    container.appendChild(div)
-
-    const buttonReset = document.getElementById(`reset-prompt-${key}`)
-    buttonReset.addEventListener('click', () => {
-      const textarea = document.getElementById(`prompt-${key}`)
-      textarea.value = defaultGeminiConfig.prompts[key]
-      textarea.dispatchEvent(new Event('change', { bubbles: true }))
+      try {
+        await globalConfigService.setGeminiApiKey(apiKey, (currentUser as DocumentData).uid)
+        alert('API Key saved successfully!')
+      } catch (error) {
+        console.error('Error saving API key:', error)
+        alert('Failed to save API key. Please try again.')
+      }
     })
   }
+}
 
-  document.getElementById('gemini-api-key').addEventListener('change', (e) => {
-    geminiConfig.apiKey = e.target.value
-    saveGeminiConfig()
-    alert('API Key saved.')
-  })
-
-  function hideModifiedMark(key, hide) {
-    const modifiedMark = document.getElementById(`modified-mark-${key}`)
-
-    if (hide) {
-      modifiedMark.classList.add('hidden')
-    } else {
-      modifiedMark.classList.remove('hidden')
+// Helper function to load current API key for admin users
+async function loadCurrentApiKey(): Promise<void> {
+  try {
+    const apiKey = await globalConfigService.getGeminiApiKey()
+    const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
+    if (apiKeyInput && apiKey) {
+      apiKeyInput.value = apiKey
     }
+  } catch (error) {
+    console.error('Error loading current API key:', error)
   }
-
-  container.addEventListener('change', (e) => {
-    if (e.target.tagName === 'TEXTAREA') {
-      const key = e.target.dataset.promptKey
-      geminiConfig.prompts[key] = e.target.value
-      saveGeminiConfig()
-
-      const isModified = isPromptModified(key)
-      hideModifiedMark(key, !isModified)
-    }
-  })
 }
 
 /**
@@ -1944,9 +1888,9 @@ function setupConfigurationTab(): void {
  * }
  */
 async function getGeminiAnalysis(prompt: string): Promise<string> {
-  const apiKey = geminiConfig.apiKey
+  const apiKey = await globalConfigService.getGeminiApiKey()
   if (!apiKey) {
-    throw new Error('Gemini API Key is not set. Please add it in the Konfigurasi tab.')
+    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.')
   }
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
@@ -2090,7 +2034,7 @@ function setupMonthlyComparison(summaries: any[]) {
     const runBtn = document.getElementById('run-comparison-btn'); // We still need the reference to hide it
     const resultsContainer = document.getElementById('comparison-results-container');
 
-    const availableMonths = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const availableMonths = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (availableMonths.length < 2) {
         monthASelect.innerHTML = '<option>Not enough data</option>';
@@ -2327,23 +2271,23 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
 
     // Populate Stat Cards (only if IDs are provided)
     if (ids.topOmzetNameId) {
-        const topOmzet = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
+        const topOmzet = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue)[0];
         document.getElementById(ids.topOmzetNameId).textContent = topOmzet.name;
         document.getElementById(ids.topOmzetValueId).textContent = formatCurrency(topOmzet.totalRevenue);
     }
     if (ids.topCheckNameId) {
-        const topCheck = [...processedStats].sort((a, b) => b.totalCheck - a.totalCheck)[0];
+        const topCheck = [...processedStats].toSorted((a, b) => b.totalCheck - a.totalCheck)[0];
         document.getElementById(ids.topCheckNameId).textContent = topCheck.name;
         document.getElementById(ids.topCheckValueId).textContent = `${topCheck.totalCheck.toLocaleString('id-ID')} checks`;
     }
     if (ids.topApcNameId) {
-        const topApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)[0];
+        const topApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck)[0];
         document.getElementById(ids.topApcNameId).textContent = topApc.name;
         document.getElementById(ids.topApcValueId).textContent = formatCurrency(topApc.avgCheck);
     }
 
     // Create Charts
-    const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const sortedByRevenue = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue);
     const labels = sortedByRevenue.map((s) => s.name);
 
     if (ids.omzetCheckCanvasId) {
@@ -2363,7 +2307,7 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
     }
 
     if (ids.apcCanvasId) {
-        const sortedByApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck);
+        const sortedByApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck);
         chartDataForAI[ids.apcCanvasId] = sortedByApc;
         createChart(ids.apcCanvasId, 'bar', {
             labels: sortedByApc.map((s) => s.name),
@@ -2424,7 +2368,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
                 const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
                 return reportDate >= startDate && reportDate <= endDate;
             })
-            .sort((a, b) => a.period.localeCompare(b.period));
+            .toSorted((a, b) => a.period.localeCompare(b.period));
 
         if (filteredReports.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-gray-500">No P&L reports found for the selected period.</td></tr>';
@@ -2647,7 +2591,7 @@ async function setupPnlPeriodSelector() {
         const periods = reportsSnap.docs
             .map(doc => doc.data().period)
             .filter(Boolean) // Remove any undefined periods
-            .sort()
+            .toSorted()
             .reverse(); // Show most recent first
 
         if (periods.length === 0) {
@@ -2704,7 +2648,7 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
     });
     // --- END OF CORRECTION ---
 
-    const sortedMenuItems = Array.from(allMenuItems).sort();
+    const sortedMenuItems = Array.from(allMenuItems).toSorted();
 
     if(sortedMenuItems.length === 0) {
         menuSelectElement.innerHTML = `<option disabled>No menu items found in this period</option>`;
@@ -2727,7 +2671,7 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
     if (!window.generalMenuTrendSelect) return;
 
     const selectedMenus = window.generalMenuTrendSelect.getSelected() as string[];
-    const labels = summaries.map(s => s.date.toISOString().split('T')[0]).sort();
+    const labels = summaries.map(s => s.date.toISOString().split('T')[0]).toSorted();
 
     const datasets = selectedMenus.map((menuName, index) => {
         const dataPoints = labels.map(dateStr => {
@@ -2765,7 +2709,7 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
 
     // --- Populate Year Selector (only once) ---
     if (!yoyYearSelectInitialized) {
-        const years = [...new Set(summaries.map(s => s.date.getFullYear()))].sort((a, b) => b - a);
+        const years = [...new Set(summaries.map(s => s.date.getFullYear()))].toSorted((a, b) => b - a);
         yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
         // When the year changes, re-run the analysis on the *entire* dataset
         yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(allSalesData));
@@ -2897,7 +2841,7 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
         const top5 = Object.entries(categoryItems)
             // --- FIX: Filter out items with '(PACKAGE)' in their name ---
             .filter(item => !item[0].includes('(PACKAGE)'))
-            .sort((a, b) => b[1] - a[1])
+            .toSorted((a, b) => b[1] - a[1])
             .slice(0, 5);
 
         if (top5.length > 0) {
@@ -2936,7 +2880,7 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: 
         return acc;
     }, {});
 
-    const sortedMonths = Object.keys(monthlyData).sort();
+    const sortedMonths = Object.keys(monthlyData).toSorted();
     const salesData = sortedMonths.map((month) => monthlyData[month].revenue);
     const checkData = sortedMonths.map((month) => monthlyData[month].checks);
 
@@ -2988,8 +2932,8 @@ async function setupCabangKeuanganSelectors() {
     const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const reportsSnap = await getDocs(pnlReportsRef);
 
-    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].sort().reverse();
-    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
+    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].toSorted().reverse();
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].toSorted();
 
     if (periods.length === 0 || branches.length < 2) { return; }
 
@@ -3070,8 +3014,8 @@ async function setupCabangPenjualanSelectors() {
     const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
 
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
-    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
+    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
 
     if (periods.length === 0 || branches.length < 2) { return; }
 
@@ -3216,7 +3160,7 @@ async function setupWaktuPenjualanSelectors() {
     const branchSelect = document.getElementById('waktu-penjualan-branch-select') as HTMLSelectElement;
 
     // Get a unique list of all branches from the entire dataset
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3245,7 +3189,7 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
     const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
 
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
-    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length < 2) {
         selectA.innerHTML = '<option>Not enough data for comparison</option>';
@@ -3371,7 +3315,7 @@ async function generateGeneralKeuanganSection() {
             const reportDate = new Date(report.period + '-02');
             return reportDate >= startDate && reportDate <= endDate;
         })
-        .sort((a, b) => a.period.localeCompare(b.period));
+        .toSorted((a, b) => a.period.localeCompare(b.period));
 
     $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
 
@@ -3422,10 +3366,10 @@ function generateSpecificSubCategoryRatioChart(
     reports.forEach(r => {
         const pnlData = r.pnlData || {};
         const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
-        
+
         // Directly access the specific sub-category value
         const subCategoryValue = pnlData[config.mainCategory]?.[config.subCategory] || 0;
-        
+
         barData.push(subCategoryValue);
         lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
     });
@@ -3456,7 +3400,7 @@ async function setupGeneralKeuanganPeriodSelector() {
 
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const reportsSnap = await getDocs(reportsRef);
-    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches with P&L data</option>';
@@ -3480,7 +3424,7 @@ async function updatePeriodSelectorsForGeneralPenjualan(selectedBranch: string) 
 
     // Filter the main data to find periods available for the selected branch
     const branchData = allSalesData.filter(s => selectedBranch === 'ALL' || s.branches.includes(selectedBranch));
-    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length === 0) {
         periodSelect.innerHTML = '<option>No data for this branch</option>';
@@ -3517,7 +3461,7 @@ async function setupSectionSpecificFilters(config: {
     const startDateInput = document.getElementById(config.startDateId) as HTMLInputElement;
     const endDateInput = document.getElementById(config.endDateId) as HTMLInputElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3560,7 +3504,7 @@ async function setupGeneralProdukChannelSelectors() {
 
     const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3681,7 +3625,7 @@ function generatePnlOverviewChart(reports: any[]) {
         const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
         const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
         const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
-        
+
         const expense = hpp + opex;
         const netIncome = revenue - expense;
 
@@ -3842,7 +3786,7 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
         return acc;
     }, {});
 
-    const sortedOutlets = Object.entries(outletOmzet).sort((a, b) => b[1] - a[1]);
+    const sortedOutlets = Object.entries(outletOmzet).toSorted((a, b) => b[1] - a[1]);
     chartDataForAI[canvasId] = Object.fromEntries(sortedOutlets); // Use dynamic ID for AI data
 
     createChart(canvasId, 'bar', { // Use the provided canvasId
@@ -3872,7 +3816,7 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         return acc;
     }, {});
 
-    const sortedWeeks = Object.keys(weeklyOmzet).sort();
+    const sortedWeeks = Object.keys(weeklyOmzet).toSorted();
 
     // --- FIX START: The chartLabels constant has been removed ---
     const datasets = [{
@@ -3911,7 +3855,7 @@ function generateOmzetBulananChartFromSummaries(summaries: any[]) {
         return acc;
     }, {});
 
-    const sortedMonths = Object.keys(monthlyOmzet).sort();
+    const sortedMonths = Object.keys(monthlyOmzet).toSorted();
     chartDataForAI['omzetBulanan'] = monthlyOmzet;
 
     const chartLabels = sortedMonths.map(monthStr => {
@@ -4072,7 +4016,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
-    const sortedSummaries = summaries.sort((a, b) => a.date.getTime() - b.date.getTime());
+    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const data = sortedSummaries.map(s => s.totalOmzet);
 
@@ -4109,7 +4053,7 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
 
 
 function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string) {
-    const sortedSummaries = summaries.sort((a, b) => a.date.getTime() - b.date.getTime());
+    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const tcData = sortedSummaries.map(s => s.totalTransactions);
     const apcData = sortedSummaries.map(s => s.apc);
@@ -4377,7 +4321,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
     return acc
   }, {})).map((s) => ({ ...s, check: s.bills.size }))
 
-  const topOmzetBranch = [...branchStats].sort((a, b) => b.revenue - a.revenue)[0]
+  const topOmzetBranch = [...branchStats].toSorted((a, b) => b.revenue - a.revenue)[0]
   if (topOmzetBranch) {
     stateUpdate.topOmzetOutletName = topOmzetBranch.name
     stateUpdate.topOmzetPercentage = formatNumber((topOmzetBranch.revenue / currentOmzet) * 100)
@@ -4390,7 +4334,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
     if (!acc[d.Menu]) acc[d.Menu] = { revenue: 0, qty: 0 }
     acc[d.Menu].revenue += d.Revenue
     return acc
-  }, {})).sort(([,a], [,b]) => b.revenue - a.revenue)
+  }, {})).toSorted(([,a], [,b]) => b.revenue - a.revenue)
 
   if (foodByMenu.length > 0) {
     stateUpdate.foodPodium = foodByMenu.slice(0, 3).map(([name]) => name)
@@ -4412,7 +4356,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
     if (!acc[d.Menu]) acc[d.Menu] = { revenue: 0, qty: 0 }
     acc[d.Menu].revenue += d.Revenue
     return acc
-  }, {})).sort(([,a], [,b]) => b.revenue - a.revenue)
+  }, {})).toSorted(([,a], [,b]) => b.revenue - a.revenue)
 
   if (drinkByMenu.length > 0) {
     stateUpdate.drinkPodium = drinkByMenu.slice(0, 3).map(([name]) => name)
@@ -4798,7 +4742,7 @@ function generateTcApcHarianChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedDates = Object.keys(dailyData).sort()
+  const sortedDates = Object.keys(dailyData).toSorted()
   const tcData = sortedDates.map((date) => dailyData[date].bills.size)
   const apcData = sortedDates.map((date) => {
     const tc = dailyData[date].bills.size
@@ -4884,7 +4828,7 @@ function generateOmzetHarianChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedDates = Object.keys(dailyOmzet).sort()
+  const sortedDates = Object.keys(dailyOmzet).toSorted()
 
   chartDataForAI['omzetHarian'] = dailyOmzet // Store data for AI
 
@@ -4936,7 +4880,7 @@ function generateOmzetMingguanChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedWeeks = Object.keys(weeklyOmzet).sort()
+  const sortedWeeks = Object.keys(weeklyOmzet).toSorted()
   chartDataForAI['omzetMingguan'] = weeklyOmzet
 
   createChart('omzet-mingguan-chart', 'line', {
@@ -4999,7 +4943,7 @@ function generateOmzetOutletChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedOutlets = Object.entries(outletOmzet).sort((a, b) => b[1] - a[1])
+  const sortedOutlets = Object.entries(outletOmzet).toSorted((a, b) => b[1] - a[1])
   chartDataForAI['omzetOutlet'] = Object.fromEntries(sortedOutlets)
 
   createChart('omzet-outlet-chart', 'bar', {
@@ -5054,7 +4998,7 @@ function generatePenjualanBulananChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedMonths = Object.keys(monthlyData).sort()
+  const sortedMonths = Object.keys(monthlyData).toSorted()
   const salesData = sortedMonths.map((month) => monthlyData[month].revenue)
   const checkData = sortedMonths.map((month) => monthlyData[month].bills.size)
 
@@ -5185,7 +5129,7 @@ function generateOrderByCategoryCharts(data: any[]): void {
       acc[menu] = (acc[menu] || 0) + d.Quantity
       return acc
     }, {})
-  const top5Makanan = Object.entries(byMakanan).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const top5Makanan = Object.entries(byMakanan).toSorted((a, b) => b[1] - a[1]).slice(0, 5)
   chartDataForAI['topMakanan'] = Object.fromEntries(top5Makanan) // Store for AI
   createChart('top-makanan-chart', 'bar', {
     labels: top5Makanan.map((item) => item[0]),
@@ -5204,7 +5148,7 @@ function generateOrderByCategoryCharts(data: any[]): void {
       acc[menu] = (acc[menu] || 0) + d.Quantity
       return acc
     }, {})
-  const top5Minuman = Object.entries(byMinuman).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const top5Minuman = Object.entries(byMinuman).toSorted((a, b) => b[1] - a[1]).slice(0, 5)
   chartDataForAI['topMinuman'] = Object.fromEntries(top5Minuman) // Store for AI
   createChart('top-minuman-chart', 'bar', {
     labels: top5Minuman.map((item) => item[0]),
@@ -5334,7 +5278,7 @@ function generateCabangAnalysis(data: any[]): void {
   const formatCurrency = (value) => `Rp${value.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`
 
   // Omzet Tertinggi
-  const topOmzet = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)[0]
+  const topOmzet = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue)[0]
   if (topOmzet) {
 
     document.getElementById('cabang-omzet-tertinggi-nama').textContent = topOmzet.name
@@ -5342,21 +5286,21 @@ function generateCabangAnalysis(data: any[]): void {
   }
 
   // Cabang Paling Ramai
-  const topCheck = [...processedStats].sort((a, b) => b.totalCheck - a.totalCheck)[0]
+  const topCheck = [...processedStats].toSorted((a, b) => b.totalCheck - a.totalCheck)[0]
   if (topCheck) {
     document.getElementById('cabang-ramai-nama').textContent = topCheck.name
     document.getElementById('cabang-ramai-nilai').textContent = `${topCheck.totalCheck.toLocaleString('id-ID')} checks`
   }
 
   // APC Tertinggi
-  const topApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)[0]
+  const topApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck)[0]
   if (topApc) {
     document.getElementById('cabang-apc-tertinggi-nama').textContent = topApc.name
     document.getElementById('cabang-apc-tertinggi-nilai').textContent = formatCurrency(topApc.avgCheck)
   }
 
   // --- Create Charts ---
-  const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue)
+  const sortedByRevenue = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue)
   const labels = sortedByRevenue.map((s) => s.name)
 
   chartDataForAI['cabangOmzetCheck'] = processedStats.map((s) => ({ branch: s.name, revenue: s.totalRevenue, transactions: s.totalCheck }))
@@ -5401,7 +5345,7 @@ function generateCabangAnalysis(data: any[]): void {
   })
 
   // APC Chart
-  const sortedByApc = [...processedStats].sort((a, b) => b.avgCheck - a.avgCheck)
+  const sortedByApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck)
   chartDataForAI['cabangApc'] = Object.fromEntries(sortedByApc.map((s) => [s.name, s.avgCheck]))
   createChart('cabang-apc-chart', 'bar', {
     labels: sortedByApc.map((s) => s.name),
@@ -5467,8 +5411,8 @@ async function setupCabangProdukChannelSelectors() {
     const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
 
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
-    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].sort();
+    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
+    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
 
     if (periods.length === 0 || branches.length < 2) { return; }
 
@@ -5500,7 +5444,7 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
     const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
     const combinedData = [...branchAData, ...branchBData];
 
-    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].sort();
+    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
     cabangMenuTrendSelect = new SlimSelect({
@@ -5761,7 +5705,7 @@ function generateYoYAnalysis(data: any[]): void {
 
   // --- Populate Year Selector (only once) ---
   if (!yoyYearSelectInitialized) {
-    const years = [...new Set(data.map((d) => d['Sales Date In'].getFullYear()))].sort((a, b) => b - a)
+    const years = [...new Set(data.map((d) => d['Sales Date In'].getFullYear()))].toSorted((a, b) => b - a)
     yearSelect.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('')
     yearSelect.addEventListener('change', () => generateYoYAnalysis(allSalesData))
     yoyYearSelectInitialized = true
@@ -5900,7 +5844,7 @@ function generateDailyRecap(data: any[], fileName: string) {
         return acc;
     }, {});
 
-    const sortedDates = Object.keys(dataByDay).sort();
+    const sortedDates = Object.keys(dataByDay).toSorted();
     let recapHtml = '';
 
     sortedDates.forEach(dateStr => {
@@ -5913,7 +5857,7 @@ function generateDailyRecap(data: any[], fileName: string) {
             if (!daySummary.menuItemQuantities || !daySummary.menuItemQuantities[categoryName]) return [];
             return Object.entries(daySummary.menuItemQuantities[categoryName])
                 .filter(([name]) => !name.includes('(PACKAGE)'))
-                .sort((a, b) => b[1] - a[1])
+                .toSorted((a, b) => b[1] - a[1])
                 .slice(0, 5);
         };
         const top5Makanan = getTop5FromCategory('MAKANAN');
@@ -6047,7 +5991,7 @@ function generateMonthlySummary(dailySummaries: any[], fileName: string) {
 
     const getTop5 = (category) => Object.entries(monthly.itemQuantities[category] || {})
         .filter(([name]) => !name.includes('(PACKAGE)'))
-        .sort((a, b) => b[1] - a[1])
+        .toSorted((a, b) => b[1] - a[1])
         .slice(0, 5);
 
     const topMakanan = getTop5('MAKANAN');
@@ -6165,7 +6109,7 @@ async function fetchDailySummariesForUpload(uploadId: string): Promise<any[]> {
   });
 
   // Sort by date just in case they come out of order
-  return summariesData.sort((a, b) => a.date - b.date);
+  return summariesData.toSorted((a, b) => a.date - b.date);
 }
 
 document.getElementById('summary-modal-close').addEventListener('click', () => {
@@ -6284,7 +6228,7 @@ async function viewCompiledAnalysis() {
             return;
         }
 
-        validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime());
+        validSummaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
 
         // Setup the main analysis view first
         setupAndShowAnalysisView(validSummaries, 'Compiled Financial Analysis');
@@ -6757,7 +6701,7 @@ async function generateAllTimePnlTable() {
         const recentReports = reportsSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(report => report.period && typeof report.period === 'string' && report.period >= twentyFourMonthsAgoPeriod)
-            .sort((a, b) => a.period.localeCompare(b.period));
+            .toSorted((a, b) => a.period.localeCompare(b.period));
 
         if (recentReports.length === 0) {
             thead.innerHTML = '';
@@ -7023,7 +6967,7 @@ function generateChannelWeeklyChart(data: any[]): void {
  */
 function generateChannelMonthlyChart(data: any[]): void {
   const channelData = {}
-  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].sort()
+  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].toSorted()
   data.forEach((d) => {
     const channel = d['Visit Purpose'] || 'Unknown'
     const month = d['Sales Date In'].toISOString().slice(0, 7)
@@ -7074,7 +7018,7 @@ function generateMonthlyIncreaseChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedMonths = Object.keys(monthlyIncrease).sort()
+  const sortedMonths = Object.keys(monthlyIncrease).toSorted()
   const chartData = sortedMonths.map((month) => monthlyIncrease[month])
 
   createChart('monthly-increase-chart-pdf', 'line', {
@@ -7124,7 +7068,7 @@ function generateTcMonthlyChart(data: any[]): void {
     monthlyBills[monthLabel].add(d['Bill Number'])
   })
 
-  const sortedMonths = Object.keys(monthlyBills).sort()
+  const sortedMonths = Object.keys(monthlyBills).toSorted()
   const tcData = sortedMonths.map((month) => monthlyBills[month].size)
 
   createChart('tc-monthly-chart-pdf', 'line', {
@@ -7175,7 +7119,7 @@ function generateTcWeeklyChart(data: any[]): void {
     weeklyBills[weekLabel].add(d['Bill Number'])
   })
 
-  const sortedWeeks = Object.keys(weeklyBills).sort()
+  const sortedWeeks = Object.keys(weeklyBills).toSorted()
   const tcData = sortedWeeks.map((week) => weeklyBills[week].size)
 
   createChart('tc-weekly-chart-pdf', 'line', {
@@ -7330,7 +7274,7 @@ function generateApcWeeklyChart(data: any[]): void {
     weeklyRevenue[weekLabel] += d.Revenue
   })
 
-  const sortedWeeks = Object.keys(weeklyBills).sort()
+  const sortedWeeks = Object.keys(weeklyBills).toSorted()
   const apcData = sortedWeeks.map((week) => {
     const totalBills = weeklyBills[week].size
     const totalRevenue = weeklyRevenue[week]
@@ -7385,7 +7329,7 @@ function generateApcMonthlyChart(data: any[]): void {
     monthlyRevenue[monthLabel] += d.Revenue
   })
 
-  const sortedMonths = Object.keys(monthlyBills).sort()
+  const sortedMonths = Object.keys(monthlyBills).toSorted()
   const apcData = sortedMonths.map((month) => {
     const totalBills = monthlyBills[month].size
     const totalRevenue = monthlyRevenue[month]
@@ -7435,7 +7379,7 @@ function generateDineInIncreaseChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedMonths = Object.keys(monthlyDineIn).sort()
+  const sortedMonths = Object.keys(monthlyDineIn).toSorted()
   const chartData = sortedMonths.map((month) => monthlyDineIn[month])
 
   createChart('dinein-increase-chart-pdf', 'line', {
@@ -7485,7 +7429,7 @@ function generateDineInIncreaseOutletChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedMonths = [...new Set(dineInData.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].sort()
+  const sortedMonths = [...new Set(dineInData.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].toSorted()
   const datasets = Object.keys(monthlyDineInOutlet).map((outlet) => {
     return {
       label: outlet,
@@ -7528,7 +7472,7 @@ function generateHppHarianChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedDates = Object.keys(dailyHpp).sort()
+  const sortedDates = Object.keys(dailyHpp).toSorted()
   const chartData = sortedDates.map((date) => dailyHpp[date])
 
   createChart('hpp-harian-chart-pdf', 'line', {
@@ -7610,7 +7554,7 @@ function generateFoodCostAktualChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedMonths = Object.keys(monthlyFoodCost).sort()
+  const sortedMonths = Object.keys(monthlyFoodCost).toSorted()
   const chartData = sortedMonths.map((month) => monthlyFoodCost[month])
 
   createChart('food-cost-aktual-chart-pdf', 'line', {
@@ -7657,7 +7601,7 @@ function generateOmzetTrafficHarianChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedDates = Object.keys(dailyData).sort()
+  const sortedDates = Object.keys(dailyData).toSorted()
   const omzetData = sortedDates.map((date) => dailyData[date].revenue)
   const trafficData = sortedDates.map((date) => dailyData[date].bills.size)
 
@@ -7740,7 +7684,7 @@ function generateAvgPurchaseValueChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedDates = Object.keys(dailyData).sort()
+  const sortedDates = Object.keys(dailyData).toSorted()
   const avgPurchaseData = sortedDates.map((date) => {
     const totalBills = dailyData[date].bills.size
     const totalRevenue = dailyData[date].revenue
@@ -7826,7 +7770,7 @@ function generateAvgPurchaseValueChart(data: any[]): void {
          hourlyBills[hour].add(d['Bill Number']);
      });
      const hourlyTraffic = Object.entries(hourlyBills).map(([hour, bills]) => ({ hour: parseInt(hour), count: bills.size }));
-     const peakHour = hourlyTraffic.sort((a, b) => b.count - a.count)[0]?.hour || 12;
+     const peakHour = hourlyTraffic.toSorted((a, b) => b.count - a.count)[0]?.hour || 12;
 
      const peakHourStart = peakHour;
      const peakHourEnd = peakHour + 2; // Define peak period as a 2-hour window
@@ -7842,13 +7786,13 @@ function generateAvgPurchaseValueChart(data: any[]): void {
          acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
          return acc;
      }, {});
-     const popularMenu = Object.entries(peakMenuQty).sort((a, b) => b[1] - a[1]).slice(0, 4);
+     const popularMenu = Object.entries(peakMenuQty).toSorted((a, b) => b[1] - a[1]).slice(0, 4);
 
      // 4. Find the average check range (25th to 75th percentile) during peak period
      const peakBillTotals = Object.values(peakHourData.reduce((acc, d) => {
          acc[d['Bill Number']] = (acc[d['Bill Number']] || 0) + d.Revenue;
          return acc;
-     }, {})).sort((a, b) => a - b);
+     }, {})).toSorted((a, b) => a - b);
 
      const minCheck = peakBillTotals[Math.floor(peakBillTotals.length * 0.25)] || 0;
      const maxCheck = peakBillTotals[Math.floor(peakBillTotals.length * 0.75)] || 0;
@@ -8083,7 +8027,7 @@ function generateApcTrendHourChart(data: any[]): void {
              acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
              return acc;
          }, {});
-         return Object.entries(menuQty).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+         return Object.entries(menuQty).toSorted((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
      };
 
      // 1. Find the top 3 busiest days (Peak Days)
@@ -8093,7 +8037,7 @@ function generateApcTrendHourChart(data: any[]): void {
      });
      const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
      const dailyTraffic = dailyBills.map((bills, i) => ({ dayIndex: i, name: dayLabels[i], count: bills.size }));
-     const peakDays = dailyTraffic.sort((a, b) => b.count - a.count).slice(0, 3);
+     const peakDays = dailyTraffic.toSorted((a, b) => b.count - a.count).slice(0, 3);
      const peakDayIndices = peakDays.map(d => d.dayIndex);
 
      // 2. Analyze transactions on Peak Days
@@ -8101,7 +8045,7 @@ function generateApcTrendHourChart(data: any[]): void {
      const peakDayBillTotals = Object.values(peakDayData.reduce((acc, d) => {
          acc[d['Bill Number']] = (acc[d['Bill Number']] || 0) + d.Revenue;
          return acc;
-     }, {})).sort((a, b) => a - b);
+     }, {})).toSorted((a, b) => a - b);
 
      const minCheck = peakDayBillTotals[Math.floor(peakDayBillTotals.length * 0.25)] || 0;
      const maxCheck = peakDayBillTotals[Math.floor(peakDayBillTotals.length * 0.75)] || 0;
@@ -8160,7 +8104,7 @@ function generateSalesTrendWeekChart(data: any[]): void {
     weeklySales[weekLabel] += d.Revenue
   })
 
-  const sortedWeeks = Object.keys(weeklySales).sort()
+  const sortedWeeks = Object.keys(weeklySales).toSorted()
   const salesData = sortedWeeks.map((week) => weeklySales[week])
 
   createChart('sales-trend-week-pdf', 'line', {
@@ -8211,7 +8155,7 @@ function generateTcTrendWeekChart(data: any[]): void {
     weeklyBills[weekLabel].add(d['Bill Number'])
   })
 
-  const sortedWeeks = Object.keys(weeklyBills).sort()
+  const sortedWeeks = Object.keys(weeklyBills).toSorted()
   const tcData = sortedWeeks.map((week) => weeklyBills[week].size)
 
   createChart('tc-trend-week-pdf', 'line', {
@@ -8264,7 +8208,7 @@ function generateApcTrendWeekChart(data: any[]): void {
     weeklyRevenue[weekLabel] += d.Revenue
   })
 
-  const sortedWeeks = Object.keys(weeklyBills).sort()
+  const sortedWeeks = Object.keys(weeklyBills).toSorted()
   const apcData = sortedWeeks.map((week) => {
     const totalBills = weeklyBills[week].size
     const totalRevenue = weeklyRevenue[week]
@@ -8430,7 +8374,7 @@ function generateSalesTrendChannelWeekChart(data: any[]): void {
  */
 function generateSalesTrendChannelMonthChart(data: any[]): void {
   const channelData = {}
-  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].sort()
+  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].toSorted()
   data.forEach((d) => {
     const channel = d['Visit Purpose'] || 'Unknown'
     const month = d['Sales Date In'].toISOString().slice(0, 7)
@@ -8561,7 +8505,7 @@ function generateTcTrendChannelWeekChart(data: any[]): void {
  */
 function generateTcTrendChannelMonthChart(data: any[]): void {
   const channelData = {}
-  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].sort()
+  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].toSorted()
   data.forEach((d) => {
     const channel = d['Visit Purpose'] || 'Unknown'
     const month = d['Sales Date In'].toISOString().slice(0, 7)
@@ -8713,7 +8657,7 @@ function generateApcTrendChannelWeekChart(data: any[]): void {
  */
 function generateApcTrendChannelMonthChart(data: any[]): void {
   const channelData = {}
-  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].sort()
+  const months = [...new Set(data.map((d) => d['Sales Date In'].toISOString().slice(0, 7)))].toSorted()
   data.forEach((d) => {
     const channel = d['Visit Purpose'] || 'Unknown'
     const month = d['Sales Date In'].toISOString().slice(0, 7)
@@ -8781,7 +8725,7 @@ function generateBranchSalesDonutChart(data: any[]): void {
     return acc
   }, {})
 
-  const sortedBranches = Object.entries(branchSales).sort((a, b) => b - a)
+  const sortedBranches = Object.entries(branchSales).toSorted((a, b) => b - a)
 
   createChart('branch-sales-donut-chart', 'doughnut', {
     labels: sortedBranches.map((entry) => entry),
@@ -8858,7 +8802,7 @@ function generateBranchSalesDonutChart(data: any[]): void {
 
    // Sort each quadrant by revenue
    for (const key in quadrants) {
-     quadrants[key].sort((a, b) => b.revenue - a.revenue);
+     quadrants[key].toSorted((a, b) => b.revenue - a.revenue);
    }
 
    const createQuadrantHTML = (title, products) => {
@@ -9124,7 +9068,7 @@ function generateDailyRevenueChart(data: any[], canvasId: string): void {
     return acc;
   }, {});
 
-  const sortedDates = Object.keys(dailyData).sort();
+  const sortedDates = Object.keys(dailyData).toSorted();
   const chartData = {
     labels: sortedDates.map(date => new Date(date).toLocaleDateString('id-ID')),
     datasets: [{
@@ -9222,7 +9166,7 @@ function generateTrafficTrendChart(data: any[], canvasId: string): void {
     return acc;
   }, {});
 
-  const sortedDates = Object.keys(dailyTraffic).sort();
+  const sortedDates = Object.keys(dailyTraffic).toSorted();
   const chartData = {
     labels: sortedDates.map(date => new Date(date).toLocaleDateString('id-ID')),
     datasets: [{
@@ -9397,7 +9341,7 @@ function generateCustomerSpendingInsights(data: any[]): void {
   const highestSingleTransaction = Math.max(...billTotals);
 
   // 2. Calculate Average Spending Range (using 25th and 75th percentiles)
-  billTotals.sort((a, b) => a - b);
+  billTotals.toSorted((a, b) => a - b);
   const lowerQuartileIndex = Math.floor(billTotals.length * 0.25);
   const upperQuartileIndex = Math.floor(billTotals.length * 0.75);
   const avgSpendLower = billTotals[lowerQuartileIndex] || 0;
@@ -9775,7 +9719,7 @@ function generateStackedChannelTrendChart(data: any[], canvasId: string, groupBy
   }, {});
 
   const channels = [...new Set(data.map(d => d['Visit Purpose'] || 'Unknown'))];
-  const labels = [...new Set(data.map(getGroupKey))].sort();
+  const labels = [...new Set(data.map(getGroupKey))].toSorted();
   const percentageData = {};
   channels.forEach(ch => percentageData[ch] = []);
 
@@ -10026,7 +9970,7 @@ function generateChannelComparisonInsights(data: any[]): void {
     });
 
     // 1. Top Growth Channels
-    const topGrowth = [...comparison].sort((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
+    const topGrowth = [...comparison].toSorted((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
     $store.setStoreObj({
         growthChan1Name: topGrowth[0]?.name || '',
         growthChan1TC: formatNumber(topGrowth[0]?.currentTC),
@@ -10039,7 +9983,7 @@ function generateChannelComparisonInsights(data: any[]): void {
     });
 
     // 2. Top Sales Channels
-    const topSales = [...comparison].sort((a, b) => b.currentSales - a.currentSales).slice(0, 2);
+    const topSales = [...comparison].toSorted((a, b) => b.currentSales - a.currentSales).slice(0, 2);
     $store.setStoreObj({
         topSalesChan1Name: topSales[0]?.name || '',
         topSalesChan1Nominal: formatNumber(topSales[0]?.currentSales),
@@ -10048,7 +9992,7 @@ function generateChannelComparisonInsights(data: any[]): void {
     });
 
     // 3. Top Monthly Increase Channels
-    const topIncrease = [...comparison].sort((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
+    const topIncrease = [...comparison].toSorted((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
     $store.setStoreObj({
         monthlyIncreaseChan1Name: topIncrease[0]?.name || '',
         monthlyIncreaseChan1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
@@ -10103,11 +10047,11 @@ function generateFoodAnalysisInsights(data: any[]): void {
     const foodArray = Object.entries(foodStats).map(([name, stats]) => ({ name, ...stats }));
 
     // 1. Podium (by quantity)
-    const topByQuantity = [...foodArray].sort((a, b) => b.quantity - a.quantity).slice(0, 3);
+    const topByQuantity = [...foodArray].toSorted((a, b) => b.quantity - a.quantity).slice(0, 3);
     const podiumNames = topByQuantity.map(item => item.name);
 
     // 2. Top 5 Revenue Contributor
-    const topByRevenue = [...foodArray].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const topByRevenue = [...foodArray].toSorted((a, b) => b.revenue - a.revenue).slice(0, 5);
     const top5Data = {};
     topByRevenue.forEach((item, i) => {
         top5Data[`top5_${i+1}_name`] = item.name;
@@ -10139,7 +10083,7 @@ function generateFoodAnalysisInsights(data: any[]): void {
 
     const getTopItemInSlot = (slot) => {
         if (Object.keys(slot.items).length === 0) return 'N/A';
-        return Object.entries(slot.items).sort((a, b) => b[1] - a[1])[0][0];
+        return Object.entries(slot.items).toSorted((a, b) => b[1] - a[1])[0][0];
     };
 
     // Update the store with all calculated values
@@ -10205,11 +10149,11 @@ function generateDrinkAnalysisInsights(data: any[]): void {
     const drinkArray = Object.entries(drinkStats).map(([name, stats]) => ({ name, ...stats }));
 
     // 1. Podium (by quantity)
-    const topByQuantity = [...drinkArray].sort((a, b) => b.quantity - a.quantity).slice(0, 3);
+    const topByQuantity = [...drinkArray].toSorted((a, b) => b.quantity - a.quantity).slice(0, 3);
     const podiumNames = topByQuantity.map(item => item.name);
 
     // 2. Top 5 Revenue Contributor
-    const topByRevenue = [...drinkArray].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const topByRevenue = [...drinkArray].toSorted((a, b) => b.revenue - a.revenue).slice(0, 5);
     const top5Data = {};
     topByRevenue.forEach((item, i) => {
         top5Data[`top5_drink_${i+1}_name`] = item.name;
@@ -10241,7 +10185,7 @@ function generateDrinkAnalysisInsights(data: any[]): void {
 
     const getTopItemInSlot = (slot) => {
         if (Object.keys(slot.items).length === 0) return 'N/A';
-        return Object.entries(slot.items).sort((a, b) => b[1] - a[1])[0][0];
+        return Object.entries(slot.items).toSorted((a, b) => b[1] - a[1])[0][0];
     };
 
     // Update the store with all calculated values
@@ -10381,7 +10325,7 @@ function generateOutletComparisonInsights(data: any[]): void {
     });
 
     // 1. Top Growth Outlets
-    const topGrowth = [...comparison].sort((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
+    const topGrowth = [...comparison].toSorted((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
     $store.setStoreObj({
         outletGrowth1Name: topGrowth[0]?.name || '',
         outletGrowth1TC: formatNumber(topGrowth[0]?.currentTC),
@@ -10394,7 +10338,7 @@ function generateOutletComparisonInsights(data: any[]): void {
     });
 
     // 2. Top Sales Outlets
-    const topSales = [...comparison].sort((a, b) => b.currentSales - a.currentSales).slice(0, 2);
+    const topSales = [...comparison].toSorted((a, b) => b.currentSales - a.currentSales).slice(0, 2);
     $store.setStoreObj({
         topOutlet1Name: topSales[0]?.name || '',
         topOutlet1Nominal: formatNumber(topSales[0]?.currentSales),
@@ -10403,7 +10347,7 @@ function generateOutletComparisonInsights(data: any[]): void {
     });
 
     // 3. Top Monthly Increase Outlets
-    const topIncrease = [...comparison].sort((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
+    const topIncrease = [...comparison].toSorted((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
     $store.setStoreObj({
         monthlyOutletIncrease1Name: topIncrease[0]?.name || '',
         monthlyOutletIncrease1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
@@ -10476,7 +10420,7 @@ function generateHppAnalysis(currentData: any[], lastPeriodData: any[]): void {
         acc[date] = (acc[date] || 0) + calculateHpp(d);
         return acc;
     }, {});
-    const sortedDates = Object.keys(dailyHpp).sort();
+    const sortedDates = Object.keys(dailyHpp).toSorted();
 
     // 4. Update the store with all calculated values
     $store.setStoreObj({
@@ -10593,8 +10537,8 @@ function generateFoodCostAnalysis(data: any[]): void {
     });
 
     // 5. Top Lists
-    const topCost = [...outletAnalysis].sort((a, b) => b.costPercent - a.costPercent).slice(0, 4);
-    const topVariance = [...outletAnalysis].sort((a, b) => b.variance - a.variance).slice(0, 4);
+    const topCost = [...outletAnalysis].toSorted((a, b) => b.costPercent - a.costPercent).slice(0, 4);
+    const topVariance = [...outletAnalysis].toSorted((a, b) => b.variance - a.variance).slice(0, 4);
 
     // 6. Update Store
     const listUpdate = {};
@@ -10673,7 +10617,7 @@ function generateCustomerAnalysisInsights(currentData: any[], allData: any[], pe
 
     // Calculate average spend for all active customers to find high spenders
     const spendings = activeProfiles.map(p => p.totalSpend / p.bills.size);
-    spendings.sort((a,b)=> a-b);
+    spendings.toSorted((a,b)=> a-b);
     const highSpenderThreshold = spendings[Math.floor(spendings.length * 0.8)]; // Top 20%
 
     activeProfiles.forEach(p => {
@@ -10699,8 +10643,8 @@ function generateCustomerAnalysisInsights(currentData: any[], allData: any[], pe
     };
 
     // 3. Find newest members and top customers
-    const newestMembers = Object.values(customerProfiles).sort((a, b) => b.firstSeen - a.firstSeen).slice(0, 10);
-    const topCustomers = Object.values(customerProfiles).sort((a, b) => b.totalSpend - a.totalSpend).slice(0, 3);
+    const newestMembers = Object.values(customerProfiles).toSorted((a, b) => b.firstSeen - a.firstSeen).slice(0, 10);
+    const topCustomers = Object.values(customerProfiles).toSorted((a, b) => b.totalSpend - a.totalSpend).slice(0, 3);
 
     const newestMemberUpdate = {};
     newestMembers.forEach((item, i) => {
@@ -10757,7 +10701,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
         acc[branch] = (acc[branch] || 0) + d.Revenue;
         return acc;
     }, {});
-    const topBranchName = Object.entries(revenueByBranch).sort((a, b) => b[1] - a[1])[0][0];
+    const topBranchName = Object.entries(revenueByBranch).toSorted((a, b) => b[1] - a[1])[0][0];
 
     // 2. Filter data for only the top branch
     const topBranchCurrentData = currentData.filter(d => d.Branch === topBranchName);
@@ -10802,7 +10746,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
         acc[date].bills.add(d['Bill Number']);
         return acc;
     }, {});
-    const sortedDates = Object.keys(dailyStats).sort();
+    const sortedDates = Object.keys(dailyStats).toSorted();
 
     createChart('omzet-traffic-harian-chart-pdf', 'line', {
         labels: sortedDates.map(d => d.slice(5)), // Show MM-DD
@@ -10815,9 +10759,9 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     // 6. Calculate Highlights
     const dailySales = sortedDates.map(d => ({ date: d, revenue: dailyStats[d].revenue }));
     const dailyTraffic = sortedDates.map(d => ({ date: d, traffic: dailyStats[d].bills.size }));
-    const peakSales = [...dailySales].sort((a,b) => b.revenue - a.revenue);
-    const peakTraffic = [...dailyTraffic].sort((a,b) => b.traffic - a.traffic)[0];
-    const lowestTraffic = [...dailyTraffic].sort((a,b) => a.traffic - b.traffic)[0];
+    const peakSales = [...dailySales].toSorted((a,b) => b.revenue - a.revenue);
+    const peakTraffic = [...dailyTraffic].toSorted((a,b) => b.traffic - a.traffic)[0];
+    const lowestTraffic = [...dailyTraffic].toSorted((a,b) => a.traffic - b.traffic)[0];
 
     // 7. Update Store
     $store.setStoreObj({
@@ -11003,7 +10947,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
             acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
             return acc;
         }, {});
-        return Object.entries(menuQty).sort((a, b) => b[1] - a[1]).slice(0, count).map(item => item[0]);
+        return Object.entries(menuQty).toSorted((a, b) => b[1] - a[1]).slice(0, count).map(item => item[0]);
     };
 
     // Helper to get APC from a dataset
@@ -11023,7 +10967,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
         return acc;
     }, {});
     const hourlyTraffic = Object.entries(hourlyBills).map(([hour, bills]) => ({ hour: parseInt(hour), count: bills.size }));
-    const peakHour2 = hourlyTraffic.sort((a, b) => b.count - a.count)[0]?.hour || 18;
+    const peakHour2 = hourlyTraffic.toSorted((a, b) => b.count - a.count)[0]?.hour || 18;
 
     const peakHour2Start = peakHour2;
     const peakHour2End = peakHour2 + 2;
@@ -11034,7 +10978,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     const peak2BillTotals = Object.values(peakHour2Data.reduce((acc, d) => {
         acc[d['Bill Number']] = (acc[d['Bill Number']] || 0) + d.Revenue;
         return acc;
-    }, {})).sort((a, b) => a - b);
+    }, {})).toSorted((a, b) => a - b);
     const minSpend = peak2BillTotals[Math.floor(peak2BillTotals.length * 0.25)] || 0;
     const maxSpend = peak2BillTotals[Math.floor(peak2BillTotals.length * 0.75)] || 0;
 
@@ -11166,7 +11110,7 @@ function generateSalesChannelBarChart(data: any[]): void {
         return acc;
     }, {});
 
-    const sortedChannels = Object.entries(channelSales).sort((a, b) => b[1] - a[1]);
+    const sortedChannels = Object.entries(channelSales).toSorted((a, b) => b[1] - a[1]);
 
     createChart('sales-channel-chart-pdf', 'bar', {
         labels: sortedChannels.map(c => c[0]),
@@ -11213,7 +11157,7 @@ function generateSalesChannelSummaryInsights(data: any[], lastPeriodData: any[])
             acc[d.Menu] = (acc[d.Menu] || 0) + d.Quantity;
             return acc;
         }, {});
-        return Object.entries(menuQty).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'N/A';
+        return Object.entries(menuQty).toSorted((a,b)=>b[1]-a[1])[0]?.[0] || 'N/A';
     };
 
     // Find top menu for each of the key channels
@@ -11263,7 +11207,7 @@ function generateTopBranchChannelAnalysis(data: any[]): void {
         acc[branch] = (acc[branch] || 0) + d.Revenue;
         return acc;
     }, {});
-    const topBranchName = Object.entries(revenueByBranch).sort((a, b) => b[1] - a[1])[0][0];
+    const topBranchName = Object.entries(revenueByBranch).toSorted((a, b) => b[1] - a[1])[0][0];
 
     // 2. Filter data for only the top branch
     const topBranchData = data.filter(d => d.Branch === topBranchName);
@@ -11307,7 +11251,7 @@ function generateTopBranchTcAnalysis(data: any[]): void {
         acc[branch] = (acc[branch] || 0) + d.Revenue;
         return acc;
     }, {});
-    const topBranchName = Object.entries(revenueByBranch).sort((a, b) => b[1] - a[1])[0][0];
+    const topBranchName = Object.entries(revenueByBranch).toSorted((a, b) => b[1] - a[1])[0][0];
 
     // 2. Filter data for only the top branch
     const topBranchData = data.filter(d => d.Branch === topBranchName);
@@ -11351,7 +11295,7 @@ function generateTopBranchApcAnalysis(data: any[]): void {
         acc[branch] = (acc[branch] || 0) + d.Revenue;
         return acc;
     }, {});
-    const topBranchName = Object.entries(revenueByBranch).sort((a, b) => b[1] - a[1])[0][0];
+    const topBranchName = Object.entries(revenueByBranch).toSorted((a, b) => b[1] - a[1])[0][0];
 
     // 2. Filter data for only the top branch
     const topBranchData = data.filter(d => d.Branch === topBranchName);
@@ -11426,10 +11370,10 @@ function downloadPnlTemplate() {
         { A: "Beban Operasional (OPEX)", B: "Biaya Lainnya", C: 1000000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    
+
     const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
-    
+
     wsInstructions['!cols'] = [{ wch: 25 }, { wch: 120 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
 
@@ -11875,7 +11819,7 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
     }));
 
     // Sort by revenue to show the highest-performing branches first
-    const sortedByRevenue = [...processedStats].sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const sortedByRevenue = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue);
     const labels = sortedByRevenue.map((s) => s.name);
 
     createChart('omzet-vs-check-cabang-chart-new', 'bar', {
@@ -11949,7 +11893,7 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
         const categoryItems = aggregatedData.itemQuantities[categoryName] || {};
         const top5 = Object.entries(categoryItems)
             .filter(item => !item[0].includes('(PACKAGE)'))
-            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .toSorted((a, b) => (b[1] as number) - (a[1] as number))
             .slice(0, 5);
 
         if (top5.length > 0) {
@@ -11997,7 +11941,7 @@ function generate24MonthTcApcTrend(summaries: any[]) {
     }, {});
 
     // 4. Prepare data for the chart
-    const sortedMonths = Object.keys(monthlyData).sort();
+    const sortedMonths = Object.keys(monthlyData).toSorted();
     const tcData = sortedMonths.map(month => monthlyData[month].transactions);
     const apcData = sortedMonths.map(month => {
         const monthStats = monthlyData[month];
@@ -12064,7 +12008,7 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
     // 1. Get all unique months that have data, sort them chronologically,
     //    and take only the last 24 months. This creates a rolling window.
     const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
-    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+    const allMonthLabels = uniqueMonthsWithData.toSorted().slice(-24);
     // --- MODIFICATION END ---
 
     const chartLabels = allMonthLabels.map(monthStr => {
@@ -12142,7 +12086,7 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
     }
 
     // 2. Sort items by total quantity to find the most popular ones for the default selection
-    const sortedItems = Object.entries(allItems).sort((a, b) => (b[1] as number) - (a[1] as number));
+    const sortedItems = Object.entries(allItems).toSorted((a, b) => (b[1] as number) - (a[1] as number));
 
     // 3. Populate the select element
     selectEl.innerHTML = sortedItems.map(item => `<option value="${item[0]}">${item[0]}</option>`).join('');
@@ -12172,7 +12116,7 @@ function generate24MonthChannelTrendChart(summaries: any[]) {
 
     // 1. Get the last 24 months that have data
     const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
-    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+    const allMonthLabels = uniqueMonthsWithData.toSorted().slice(-24);
 
     // 2. Get all unique channels across the entire dataset
     const channels = [...new Set(summaries.flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
@@ -12240,7 +12184,7 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
 
     // 1. Get the last 24 months that have data
     const uniqueMonthsWithData = [...new Set(summaries.map(s => s.date.toISOString().slice(0, 7)))];
-    const allMonthLabels = uniqueMonthsWithData.sort().slice(-24);
+    const allMonthLabels = uniqueMonthsWithData.toSorted().slice(-24);
 
     // 2. Get all unique menu categories
     const categories = [...new Set(summaries.flatMap(s => Object.keys(s.menuCategories || {})))];
@@ -12397,7 +12341,7 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
         return acc;
     }, {});
 
-    const sortedItems = Object.entries(allItems).sort((a, b) => (b[1] as number) - (a[1] as number));
+    const sortedItems = Object.entries(allItems).toSorted((a, b) => (b[1] as number) - (a[1] as number));
 
     const top5 = sortedItems.slice(0, 5);
     const othersCount = sortedItems.slice(5).reduce((sum, item) => sum + (item[1] as number), 0);
@@ -12495,8 +12439,8 @@ async function setupWaktuKeuanganPeriodSelectors() {
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
     const reportsSnap = await getDocs(reportsRef);
 
-    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].sort().reverse();
-    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].sort();
+    const periods = [...new Set(reportsSnap.docs.map(doc => doc.data().period))].toSorted().reverse();
+    const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].toSorted();
 
     if (periods.length < 2 || branches.length === 0) {
         selectA.innerHTML = '<option>Not enough data</option>';
@@ -12548,7 +12492,7 @@ async function updatePeriodSelectorsForBranch(selectedBranch: string) {
     const periods = reportsSnap.docs
         .map(doc => doc.data().period)
         .filter(Boolean) // Remove any null/undefined periods
-        .sort()
+        .toSorted()
         .reverse(); // Show most recent first
 
     // If there aren't at least 2 periods, we can't do a comparison
@@ -12613,7 +12557,7 @@ async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
     const periods = reportsSnap.docs
         .map(doc => doc.data().period)
         .filter(Boolean)
-        .sort()
+        .toSorted()
         .reverse();
 
     if (periods.length === 0) {
@@ -12633,7 +12577,7 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
 
     const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
-    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].sort().reverse();
+    const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length < 2) {
         selectA.innerHTML = '<option>Not enough data for comparison</option>';
@@ -12659,7 +12603,7 @@ async function setupWaktuProdukChannelSelectors() {
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-produk-branch-select') as HTMLSelectElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].sort();
+    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -12690,7 +12634,7 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
     }
     const selectEl = document.getElementById('waktu-menu-trend-select') as HTMLSelectElement;
     const combinedData = [...periodAData, ...periodBData];
-    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].sort();
+    const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
     waktuMenuTrendSelect = new SlimSelect({
@@ -13097,7 +13041,7 @@ async function setupGeneralInvestasiSelectors() {
     try {
         const investmentsRef = collection(db, `users/${currentUser.uid}/investments`);
         const investmentSnap = await getDocs(investmentsRef);
-        const branches = investmentSnap.docs.map(doc => doc.data().branchName).sort();
+        const branches = investmentSnap.docs.map(doc => doc.data().branchName).toSorted();
 
         if (branches.length === 0) {
             branchSelect.innerHTML = '<option>No investment data saved</option>';
@@ -13150,8 +13094,8 @@ async function generateGeneralInvestasiSection() {
         const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
         const q = query(pnlReportsRef, where("branchName", "==", selectedBranch), orderBy("period", "desc"), limit(24));
         const reportsSnap = await getDocs(q);
-        
-        const recentReports = reportsSnap.docs.map(doc => doc.data()).sort((a, b) => a.period.localeCompare(b.period));
+
+        const recentReports = reportsSnap.docs.map(doc => doc.data()).toSorted((a, b) => a.period.localeCompare(b.period));
 
         if (recentReports.length === 0) {
             throw new Error(`No P&L reports found for ${selectedBranch} in the last 24 months.`);
@@ -13166,7 +13110,7 @@ async function generateGeneralInvestasiSection() {
             const depreciation = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((s: number, v: number) => s + v, 0);
             const interest = Object.values(pnlData["Bunga"] || {}).reduce((s: number, v: number) => s + v, 0);
             const tax = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((s: number, v: number) => s + v, 0);
-            
+
             const netIncome = revenue - hpp - opex - nonOpex - depreciation - interest - tax;
             return {
                 period: report.period,
