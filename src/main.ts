@@ -92,6 +92,8 @@ let generalPenjualanSelectorInitialized = false;
 let generalProdukChannelSelectorInitialized = false;
 let activeSalesTarget = {};
 let generalInvestasiSelectorInitialized = false;
+let cabangInvestasiSelectorInitialized = false;
+
 
 
 
@@ -6647,6 +6649,9 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         if (targetId === 'general-investasi') {
             await setupGeneralInvestasiSelectors();
         }
+        if (targetId === 'cabang-investasi') {
+            await setupCabangInvestasiSelectors();
+        }
 
         if (targetId === 'waktu-pnl') generateAllTimePnlTable();
         if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
@@ -13113,6 +13118,181 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
         scales: {
             'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+        }
+    });
+}
+
+async function setupCabangInvestasiSelectors() {
+    if (cabangInvestasiSelectorInitialized) return;
+    if (!currentUser) return;
+
+    const periodSelect = document.getElementById('cabang-investasi-period-select') as HTMLSelectElement;
+    const branchASelect = document.getElementById('cabang-investasi-branch-a-select') as HTMLSelectElement;
+    const branchBSelect = document.getElementById('cabang-investasi-branch-b-select') as HTMLSelectElement;
+
+    branchASelect.innerHTML = '<option>Loading...</option>';
+
+    try {
+        const investmentsRef = collection(db, `users/${currentUser.uid}/investments`);
+        const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+
+        const [investmentSnap, pnlSnap] = await Promise.all([
+            getDocs(investmentsRef),
+            getDocs(pnlReportsRef)
+        ]);
+
+        const branchesWithInvestment = investmentSnap.docs.map(doc => doc.data().branchName).sort();
+        const availablePeriods = [...new Set(pnlSnap.docs.map(doc => doc.data().period))].sort().reverse();
+
+        if (branchesWithInvestment.length < 2 || availablePeriods.length === 0) {
+            branchASelect.innerHTML = '<option>Not enough data for comparison</option>';
+            branchBSelect.innerHTML = '';
+            periodSelect.innerHTML = '';
+            return;
+        }
+
+        const branchOptionsHtml = branchesWithInvestment.map(b => `<option value="${b}">${b}</option>`).join('');
+        branchASelect.innerHTML = branchOptionsHtml;
+        branchBSelect.innerHTML = branchOptionsHtml;
+
+        const periodOptionsHtml = availablePeriods.map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`).join('');
+        periodSelect.innerHTML = periodOptionsHtml;
+
+        // Set default selections
+        branchASelect.value = branchesWithInvestment[0];
+        branchBSelect.value = branchesWithInvestment[1];
+        periodSelect.value = availablePeriods[0];
+
+        const handler = () => generateCabangInvestasiSection();
+        periodSelect.addEventListener('change', handler);
+        branchASelect.addEventListener('change', handler);
+        branchBSelect.addEventListener('change', handler);
+
+        cabangInvestasiSelectorInitialized = true;
+        await generateCabangInvestasiSection();
+
+    } catch (error) {
+        console.error("Error setting up investment comparison selectors:", error);
+        branchASelect.innerHTML = '<option>Error loading data</option>';
+    }
+}
+
+/**
+ * Fetches data and generates the comparison charts for investment analysis between two branches.
+ */
+async function generateCabangInvestasiSection() {
+    if (!currentUser) return;
+    const period = (document.getElementById('cabang-investasi-period-select') as HTMLSelectElement).value;
+    const branchA = (document.getElementById('cabang-investasi-branch-a-select') as HTMLSelectElement).value;
+    const branchB = (document.getElementById('cabang-investasi-branch-b-select') as HTMLSelectElement).value;
+
+    const clearChartsAndShowError = (message: string) => {
+        const containerA = document.getElementById('cabang-business-yield-chart-container');
+        const containerB = document.getElementById('cabang-investor-yield-chart-container');
+        
+        // --- THIS IS THE FIX ---
+        // When showing an error, we now add the <canvas> elements back into the HTML.
+        // This ensures they exist for the next time the function runs successfully.
+        if(containerA) containerA.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p><canvas id="cabang-business-yield-chart"></canvas>`;
+        if(containerB) containerB.innerHTML = `<canvas id="cabang-investor-yield-chart"></canvas>`;
+    };
+
+    if (!period || !branchA || !branchB) return;
+    if (branchA === branchB) {
+        clearChartsAndShowError('Please select two different branches to compare.');
+        return;
+    }
+
+    showLoading({ message: 'Comparing investment data...' });
+
+    try {
+        // This part is now wrapped in a helper to avoid repeating code.
+        const fetchData = async (branchName: string) => {
+            const investmentRef = doc(db, `users/${currentUser.uid}/investments`, branchName);
+            // The P&L report ID is a composite of period and a "safe" branch name
+            const pnlId = `${period}_${branchName.replace(/\s+/g, '_')}`;
+            const pnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, pnlId);
+            
+            const [investmentSnap, pnlSnap] = await Promise.all([getDoc(investmentRef), getDoc(pnlRef)]);
+
+            if (!investmentSnap.exists()) throw new Error(`Investment data not found for ${branchName}.`);
+            if (!pnlSnap.exists()) throw new Error(`P&L report for ${period} not found for ${branchName}.`);
+
+            const pnlData = pnlSnap.data().pnlData || {};
+            const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
+            const profit = revenue - hpp - opex; // Simplified Profit
+
+            return { investment: investmentSnap.data(), profit };
+        };
+
+        const [dataA, dataB] = await Promise.all([fetchData(branchA), fetchData(branchB)]);
+
+        // Before drawing new charts, ensure the containers are clean (removes old error messages)
+        document.getElementById('cabang-business-yield-chart-container').innerHTML = '<canvas id="cabang-business-yield-chart"></canvas>';
+        document.getElementById('cabang-investor-yield-chart-container').innerHTML = '<canvas id="cabang-investor-yield-chart"></canvas>';
+
+        generateCabangBusinessYieldComparisonChart(dataA, dataB);
+        generateCabangInvestorYieldComparisonChart(dataA, dataB);
+
+    } catch (error) {
+        console.error("Error generating branch investment comparison:", error);
+        clearChartsAndShowError(error.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Renders the Business Yield comparison chart.
+ */
+function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
+    const labels = [dataA.investment.branchName, dataB.investment.branchName];
+    const profitData = [dataA.profit, dataB.profit];
+    const yieldData = [
+        (dataA.profit / dataA.investment.investmentAmount) * 100,
+        (dataB.profit / dataB.investment.investmentAmount) * 100
+    ];
+
+    createChart('cabang-business-yield-chart', 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: 'Profit (Rp)', data: profitData, backgroundColor: '#10B981', yAxisID: 'y-rp' },
+            { type: 'line', label: 'Yield (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
+        ]
+    }, {
+        scales: {
+            'y-rp': { position: 'left', title: { display: true, text: 'Profit (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+        }
+    });
+}
+
+/**
+ * Renders the Investor Yield comparison chart.
+ */
+function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
+    const investmentPerSlotA = dataA.investment.investmentSlots > 0 ? dataA.investment.investmentAmount / dataA.investment.investmentSlots : 0;
+    const investmentPerSlotB = dataB.investment.investmentSlots > 0 ? dataB.investment.investmentAmount / dataB.investment.investmentSlots : 0;
+
+    const labels = [dataA.investment.branchName, dataB.investment.branchName];
+    const profitData = [dataA.profit, dataB.profit];
+    const yieldData = [
+        investmentPerSlotA > 0 ? (dataA.profit / investmentPerSlotA) * 100 : 0,
+        investmentPerSlotB > 0 ? (dataB.profit / investmentPerSlotB) * 100 : 0
+    ];
+
+    createChart('cabang-investor-yield-chart', 'bar', {
+        labels,
+        datasets: [
+            { type: 'bar', label: 'Profit (Rp)', data: profitData, backgroundColor: '#10B981', yAxisID: 'y-rp' },
+            { type: 'line', label: 'Yield per Slot (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
+        ]
+    }, {
+        scales: {
+            'y-rp': { position: 'left', title: { display: true, text: 'Profit (Rp)' }, ticks: { callback: shortenCurrency } },
+            'y-percent': { position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
         }
     });
 }

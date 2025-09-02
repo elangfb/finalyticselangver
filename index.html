@@ -1907,6 +1907,41 @@
                                 </div>
                             </div>
                         </section>
+                        <section id="cabang-investasi-section" class="analysis-section space-y-6">
+    <!-- Filters for Branch Comparison -->
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="cabang-investasi-period-select" class="block text-sm font-medium text-gray-700">Select Period:</label>
+                <select id="cabang-investasi-period-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-investasi-branch-a-select" class="block text-sm font-medium text-gray-700">Compare Branch A:</label>
+                <select id="cabang-investasi-branch-a-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+                <label for="cabang-investasi-branch-b-select" class="block text-sm font-medium text-gray-700">With Branch B:</label>
+                <select id="cabang-investasi-branch-b-select" class="mt-1 block w-full p-2 border rounded-md"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Containers -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Bisnis</h3>
+            <div id="cabang-business-yield-chart-container" class="chart-container mt-4">
+                <canvas id="cabang-business-yield-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold text-gray-700">Perbandingan Yield Investor (per Slot)</h3>
+            <div id="cabang-investor-yield-chart-container" class="chart-container mt-4">
+                <canvas id="cabang-investor-yield-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
                         <section id="produk-section" class="analysis-section space-y-6">
                             <div class="bg-white rounded-lg shadow-md">
                                 <div class="flex justify-between items-center p-6 cursor-pointer toggle-chart-btn" data-target="#order-by-category-content">
