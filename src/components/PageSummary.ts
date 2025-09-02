@@ -97,25 +97,20 @@ export const PageSummaryError = (props: { pageId: string, message?: string }) =>
     `})
 )
 
-const GHOST_DIV = document.createElement('div')
-
 export const setupPageSummary = (params: {
     pageId: string,
     promptKey?: keyof typeof viewPromptCreators,
     analyzeUsingAI: (prompt: string) => Promise<string>,
 }) => {
     const page = document.getElementById(params.pageId)
-    const placeholder = (): HTMLDivElement => {
-        const div = page?.querySelector<HTMLDivElement>('div[data-el="analyze-page-summary"]')
-
-        if (!div) {
-            console.error(`Placeholder not found for page: ${params.pageId}`)
-            return GHOST_DIV // Silent error
-        }
-
-        return div
+    const placeholder = () => {
+        return page?.querySelector<HTMLDivElement>('div[data-el="analyze-page-summary"]')
     }
-    const isInitialized = () => placeholder().getAttribute('data-initialized') === 'true'
+    const ifPlaceholder = (callback: (placeholder: HTMLDivElement) => void) => {
+        const div = placeholder()
+        if (div) callback(div)
+    }
+    const isInitialized = () => placeholder()?.getAttribute('data-initialized') === 'true'
 
     const promptKey = (params.promptKey || params.pageId.replace('-section', '')) as keyof typeof viewPromptCreators
     const promptCreator = viewPromptCreators[promptKey]
@@ -139,7 +134,7 @@ export const setupPageSummary = (params: {
             const cached = await findLiveCache(filtersHash, dataHash)
             if (cached) {
                 // Cache found - replace with finished state
-                placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary })
+                ifPlaceholder(($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary }))
             }
             // If no cache found, do nothing (keep current state)
         } catch (err) {
@@ -158,7 +153,7 @@ export const setupPageSummary = (params: {
 
         const { data, filters } = viewData
 
-        placeholder().outerHTML = PageSummaryLoading({ pageId: params.pageId })
+        ifPlaceholder(($p) => $p.outerHTML = PageSummaryLoading({ pageId: params.pageId }))
 
         try {
             const filtersHash = await generateSHA256(filters || {})
@@ -167,7 +162,7 @@ export const setupPageSummary = (params: {
             const cached = await findLiveCache(filtersHash, dataHash)
             if (cached) {
                 // Cache hit
-                placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary })
+                ifPlaceholder(($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary }))
                 return
             }
 
@@ -180,18 +175,20 @@ export const setupPageSummary = (params: {
             // Create a new live cache document (no expireAt)
             await createLiveCache({ filtersHash, dataHash, summary, filters })
 
-            placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary })
+            ifPlaceholder(($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary }))
         } catch (err) {
             console.error('Error analyzing page:', err)
             const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err)
-            placeholder().outerHTML = PageSummaryError({ pageId: params.pageId, message })
+            ifPlaceholder(($p) => $p.outerHTML = PageSummaryError({ pageId: params.pageId, message }))
         }
     }
 
     const showInit = () => {
         // Always show init state initially
-        placeholder().outerHTML = PageSummaryInit({ pageId: params.pageId })
-        placeholder().querySelector('button')?.addEventListener('click', onAnalyze)
+        ifPlaceholder(($p) => {
+            $p.outerHTML = PageSummaryInit({ pageId: params.pageId })
+            $p.querySelector('button')?.addEventListener('click', onAnalyze)
+        })
     }
 
     const registerSubscriber = () => {
