@@ -27,7 +27,7 @@ function sortKeys(obj: any): any {
     if (Array.isArray(obj)) return obj.map(sortKeys)
     if (typeof obj === 'object') {
         const sorted: any = {}
-        Object.keys(obj).sort().forEach((key) => {
+        Object.keys(obj).toSorted().forEach((key) => {
             const v = (obj as any)[key]
             sorted[key] = sortKeys(v)
         })
