@@ -481,23 +481,35 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
         }
     }
 
-    // --- NEW VALIDATION BLOCK ---
-    // After parsing all data, we check if the required sub-categories exist under OPEX.
-    const requiredOpexSubCategories = ["Wages", "Rent", "Advertising"];
-    const opexData = pnlData["Beban Operasional (OPEX)"] || {};
-    const providedOpexSubCategories = Object.keys(opexData);
+    // --- FIX: UPDATED VALIDATION BLOCK ---
+    // We now check both OPEX and Non-OPEX for their required sub-categories.
+    const requiredOpexSubCategories = ["Wages", "Rent"]; // "Advertising" is removed from here.
+    const requiredNonOpexSubCategories = ["Advertising"]; // "Advertising" is added here.
 
-    const missingSubCategories = requiredOpexSubCategories.filter(
+    const opexData = pnlData["Beban Operasional (OPEX)"] || {};
+    const nonOpexData = pnlData["Beban Non Operasional"] || {};
+    
+    const providedOpexSubCategories = Object.keys(opexData);
+    const providedNonOpexSubCategories = Object.keys(nonOpexData);
+
+    const missingOpex = requiredOpexSubCategories.filter(
         subCat => !providedOpexSubCategories.includes(subCat)
     );
+    const missingNonOpex = requiredNonOpexSubCategories.filter(
+        subCat => !providedNonOpexSubCategories.includes(subCat)
+    );
 
-    if (missingSubCategories.length > 0) {
-        // If any are missing, we stop the process and inform the user.
+    if (missingOpex.length > 0) {
         throw new Error(
-            `The 'Beban Operasional (OPEX)' category is missing required sub-categories: ${missingSubCategories.join(', ')}. Please update your file.`
+            `The 'Beban Operasional (OPEX)' category is missing required sub-categories: ${missingOpex.join(', ')}. Please update your file.`
         );
     }
-    // --- END OF VALIDATION BLOCK ---
+    if (missingNonOpex.length > 0) {
+        throw new Error(
+            `The 'Beban Non Operasional' category is missing required sub-categories: ${missingNonOpex.join(', ')}. Please update your file.`
+        );
+    }
+    // --- END OF FIX ---
 
     if (Object.keys(pnlData).length === 0) {
         throw new Error("No valid P&L rows could be parsed from the file.");
@@ -517,6 +529,7 @@ async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null
 
     return actualPeriod;
 }
+
 
 async function populateCompiledDataTable() {
     if (!currentUser) return;
@@ -1556,87 +1569,78 @@ async function deleteUserRecord(userId: string): Promise<void> {
   }
 }
 
-function listenForProcessingStatus(fileName: string) {
-  if (!currentUser) return;
+function listenForProcessingStatus(period: string) {
+    if (!currentUser) return;
 
-  const progressContainer = document.getElementById('upload-progress-container');
-  const uploadView = document.getElementById('upload-view');
-  const processingView = document.getElementById('processing-view');
-  const processingFilename = document.getElementById('processing-filename');
-  const processingStatusText = document.getElementById('processing-status-text');
+    const progressContainer = document.getElementById('upload-progress-container');
+    const uploadView = document.getElementById('upload-view');
+    const processingView = document.getElementById('processing-view');
+    const processingFilename = document.getElementById('processing-filename');
+    const processingStatusText = document.getElementById('processing-status-text');
+    
+    // Get the new UI elements for the processing progress bar
+    const processingProgressBar = document.getElementById('processing-progress-bar');
+    const processingProgressPercent = document.getElementById('processing-progress-percent');
 
-  // --- Transition UI to "Processing" state ---
-  uploadView.classList.add('hidden');
-  processingView.classList.remove('hidden');
-  processingFilename.textContent = fileName;
-  processingStatusText.textContent = 'Please wait while the server is processing your file. Do not refresh or close this page.';
+    // Transition UI to "Processing" state
+    uploadView.classList.add('hidden');
+    processingView.classList.remove('hidden');
+    processingFilename.textContent = `Processing for ${period}`;
+    processingStatusText.textContent = 'Initializing on server...';
+    processingProgressBar.style.width = '0%';
+    processingProgressPercent.textContent = '0%';
 
-  const uploadsRef = collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`);
-  const q = query(uploadsRef, where("name", "==", fileName), orderBy("createdAt", "desc"), limit(1));
+    const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
 
-  let progressReceived = false;
-  let unsubscribeProcessor = () => {};
-  let unsubscribeFinder = () => {};
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (!docSnap.exists()) return;
 
-  const progressTimeout = setTimeout(() => {
-    if (!progressReceived) {
-      unsubscribeFinder();
-      unsubscribeProcessor();
-      processingStatusText.textContent = 'Processing is taking longer than usual. It will continue in the background.';
-      setTimeout(() => {
-        progressContainer.classList.remove('show');
-        setTimeout(() => progressContainer.classList.add('hidden'), 300);
-        loadUploadHistory();
-        populateCompiledDataTable(); // Also refresh here on timeout
-      }, 5000);
-    }
-  }, 25000);
-
-  unsubscribeFinder = onSnapshot(q, (querySnapshot) => {
-    if (!querySnapshot.empty) {
-      const uploadDoc = querySnapshot.docs[0];
-      unsubscribeFinder();
-
-      unsubscribeProcessor = onSnapshot(doc(uploadsRef, uploadDoc.id), (docSnap) => {
         const status = docSnap.data()?.processingStatus;
 
         if (status) {
-          clearTimeout(progressTimeout);
-          progressReceived = true;
-
-          if (status.state === 'complete') {
-            processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
-            // START: Add the missing function call here
-            loadUploadHistory();
-            populateCompiledDataTable(); // This line was missing
-            // END: Add the missing function call here
-            unsubscribeProcessor();
-            setTimeout(() => {
-                progressContainer.classList.remove('show');
+            // --- NEW: Handle intermediate 'processing' state ---
+            if (status.state === 'processing' && status.totalRows > 0) {
+                const percent = Math.round((status.rowsProcessed / status.totalRows) * 100);
+                processingProgressBar.style.width = `${percent}%`;
+                processingProgressPercent.textContent = `${percent}%`;
+                processingStatusText.textContent = `Processing row ${status.rowsProcessed.toLocaleString()} of ${status.totalRows.toLocaleString()}`;
+            } 
+            // --- Handle final 'complete' state ---
+            else if (status.state === 'complete') {
+                processingProgressBar.style.width = '100%';
+                processingProgressPercent.textContent = '100%';
+                processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
+                
+                // Refresh data in the UI
+                populateCompiledDataTable();
+                
+                unsubscribe(); // Stop listening after completion
                 setTimeout(() => {
-                    progressContainer.classList.add('hidden');
-                    // Reset for next upload
-                    uploadView.classList.remove('hidden');
-                    processingView.classList.add('hidden');
-                }, 300);
-            }, 3000);
-            } else if (status.state === 'error') {
-              processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
-              unsubscribeProcessor();
-              setTimeout(() => {
-                  progressContainer.classList.remove('show');
-                  setTimeout(() => {
-                      progressContainer.classList.add('hidden');
-                      // Reset for next upload
-                      uploadView.classList.remove('hidden');
-                      processingView.classList.add('hidden');
-                  }, 300);
-              }, 5000);
-          }
+                    progressContainer.classList.remove('show');
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        uploadView.classList.remove('hidden');
+                        processingView.classList.add('hidden');
+                    }, 300);
+                }, 3000);
+            } 
+            // --- Handle final 'error' state ---
+            else if (status.state === 'error') {
+                processingProgressBar.classList.replace('bg-green-500', 'bg-red-500');
+                processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
+                
+                unsubscribe(); // Stop listening after error
+                setTimeout(() => {
+                    progressContainer.classList.remove('show');
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        uploadView.classList.remove('hidden');
+                        processingView.classList.add('hidden');
+                    }, 300);
+                }, 5000);
+            }
         }
-      });
-    }
-  });
+    });
 }
 
 function getPeriodFromSalesData(worksheet) {
@@ -3315,7 +3319,7 @@ async function generateGeneralKeuanganSection() {
             const reportDate = new Date(report.period + '-02');
             return reportDate >= startDate && reportDate <= endDate;
         })
-        .toSorted((a, b) => a.period.localeCompare(b.period));
+        .sort((a, b) => a.period.localeCompare(b.period));
 
     $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
 
@@ -3328,27 +3332,30 @@ async function generateGeneralKeuanganSection() {
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
     generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
     generateSpecificSubCategoryRatioChart(historicalReports, {
-    canvasId: 'general-hr-chart',
-    mainCategory: 'Beban Operasional (OPEX)',
-    subCategory: 'Wages',
-    title: 'Wages'
-});
- generateSpecificSubCategoryRatioChart(historicalReports, {
+        canvasId: 'general-hr-chart',
+        mainCategory: 'Beban Operasional (OPEX)',
+        subCategory: 'Wages',
+        title: 'Wages'
+    });
+    generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-rent-chart',
         mainCategory: 'Beban Operasional (OPEX)',
         subCategory: 'Rent',
         title: 'Rent'
     });
-  generateSpecificSubCategoryRatioChart(historicalReports, {
+    // --- FIX: Main Category for Advertising is now Beban Non Operasional ---
+    generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-advertising-chart',
-        mainCategory: 'Beban Operasional (OPEX)',
+        mainCategory: 'Beban Non Operasional', // Corrected Main Category
         subCategory: 'Advertising',
         title: 'Advertising'
     });
-generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
+    // --- END OF FIX ---
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
 
     hideLoading();
 }
+
 
 function generateSpecificSubCategoryRatioChart(
     reports: any[],
@@ -11355,7 +11362,7 @@ function downloadPnlTemplate() {
     const instructions = [
         { Step: 1, Instruction: "In the 'P&L Data' sheet, enter your Business Name in cell B1 and a date from the desired month in cell B2 (e.g., '01/12/2024' for December 2024)." },
         { Step: 2, Instruction: "For the 'Main Category' column, you MUST use the exact values from the list provided." },
-        { Step: 3, Instruction: "Under the 'Beban Operasional (OPEX)' category, you MUST include the sub-categories: 'Wages', 'Rent', and 'Advertising'. You can add other operational expenses as well." }
+        { Step: 3, Instruction: "Under 'Beban Operasional (OPEX)', you MUST include 'Wages' and 'Rent'. Under 'Beban Non Operasional', you MUST include 'Advertising'." }
     ];
     const pnlSheetData = [
         { A: "Business Name:", B: "[Enter Business Name Here]" },
@@ -11366,18 +11373,18 @@ function downloadPnlTemplate() {
         { A: "Pendapatan (Revenue)", B: "Penjualan Minuman", C: 25000000 },
         { A: "Harga Pokok Produksi", B: "Bahan Baku Makanan", C: 15000000 },
         { A: "Harga Pokok Produksi", B: "Bahan Baku Minuman", C: 5000000 },
-        // --- MODIFIED SECTION: Required OPEX fields are now included as examples ---
         { A: "Beban Operasional (OPEX)", B: "Wages", C: 12000000 },
         { A: "Beban Operasional (OPEX)", B: "Rent", C: 8000000 },
-        { A: "Beban Operasional (OPEX)", B: "Advertising", C: 2000000 },
         { A: "Beban Operasional (OPEX)", B: "Utilitas (Listrik, Air)", C: 3000000 },
-        { A: "Beban Operasional (OPEX)", B: "Biaya Lainnya", C: 1000000 },
+        // --- FIX: Advertising is now under Beban Non Operasional ---
+        { A: "Beban Non Operasional", B: "Advertising", C: 2000000 },
+        { A: "Beban Non Operasional", B: "Biaya Lainnya", C: 1000000 },
     ];
     const mainCategories = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-
+    
     const wsInstructions = XLSX.utils.json_to_sheet([...instructions, {}, { Step: "Valid Main Categories:" }, ...mainCategories.map(cat => ({ Step: `  - ${cat}` }))], { skipHeader: true });
     const wsData = XLSX.utils.json_to_sheet(pnlSheetData, { skipHeader: true });
-
+    
     wsInstructions['!cols'] = [{ wch: 25 }, { wch: 120 }];
     wsData['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 20 }];
 
