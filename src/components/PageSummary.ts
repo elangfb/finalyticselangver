@@ -2,6 +2,8 @@ import { viewPromptCreators } from "@/prompt"
 import { getStore } from "@/store"
 import { html } from "@/utils/string"
 import { marked } from "marked"
+import { generateSHA256 } from "@/utils/hash"
+import { findLiveCache, deactivateHistoricalCache, createLiveCache } from "@/services/analysisCacheService"
 
 const BasePageSummaryCard = (props: { children: string }) => (
     html`
@@ -74,6 +76,27 @@ export const PageSummaryFinished = (props: { pageId: string, summary: string }) 
     `})
 )
 
+export const PageSummaryError = (props: { pageId: string, message?: string }) => (
+    BasePageSummaryCard({ children: html`
+        <div data-state="error">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold text-gray-700">Summary</h3>
+                <button
+                    class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300 invisible"
+                    data-el="analyze-page-summary-button"
+                    data-target="${props.pageId}"
+                >
+                    Analyze with AI
+                </button>
+            </div>
+
+            <div class="mt-4" data-el="analyze-page-summary-content" data-target="${props.pageId}">
+                <p class="text-red-600">${props.message || 'An error occurred while generating the summary.'}</p>
+            </div>
+        </div>
+    `})
+)
+
 const GHOST_DIV = document.createElement('div')
 
 export const setupPageSummary = (params: {
@@ -109,17 +132,36 @@ export const setupPageSummary = (params: {
             return
         }
 
-        const { viewId, ...dataWithoutId } = viewData
+        const { data, filters } = viewData
 
         placeholder().outerHTML = PageSummaryLoading({ pageId: params.pageId })
 
-        params.analyzeUsingAI(promptCreator(dataWithoutId))
-            .then((summary) => {
-                placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary })
-            })
-            .catch((error) => {
-                console.error('Error analyzing page:', error)
-            })
+        try {
+            const filtersHash = await generateSHA256(filters || {})
+            const dataHash = await generateSHA256(data || [])
+
+            const cached = await findLiveCache(filtersHash, dataHash)
+            if (cached) {
+                // Cache hit
+                placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary })
+                return
+            }
+
+            // Cache miss: deactivate previous live docs for this filtersHash
+            await deactivateHistoricalCache(filtersHash)
+
+            const prompt = promptCreator({ data, filters })
+            const summary = await params.analyzeUsingAI(prompt)
+
+            // Create a new live cache document (no expireAt)
+            await createLiveCache({ filtersHash, dataHash, summary, filters })
+
+            placeholder().outerHTML = PageSummaryFinished({ pageId: params.pageId, summary })
+        } catch (err) {
+            console.error('Error analyzing page:', err)
+            const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err)
+            placeholder().outerHTML = PageSummaryError({ pageId: params.pageId, message })
+        }
     }
 
     placeholder().outerHTML = PageSummaryInit({ pageId: params.pageId })
