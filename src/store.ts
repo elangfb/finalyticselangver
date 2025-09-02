@@ -1,13 +1,13 @@
 import { produce } from 'immer';
 import { createStore } from 'zustand/vanilla'
 
-interface ViewData<TData = any, TFilters = {[key: string]: any}> {
+export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   viewId: string;
   data: TData;
   filters: TFilters;
 }
 
-interface AnalysisState {
+export interface AnalysisState {
   // Data Storage
   allSalesData: any[];
   chartDataForAI: Record<string, any>;
@@ -54,7 +54,7 @@ export interface AppState {
   analysisState: AnalysisState;
 }
 
-interface AppStore extends AppState {
+export interface AppStore extends AppState {
   resetActiveViewData: () => void;
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
   trySetFromExistingViewData: (viewId: string) => void;

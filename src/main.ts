@@ -73,10 +73,10 @@ let currentUserRole = 'user'
 
 // Analysis state moved to store - using helper getters for easy migration
 const getAllSalesData = () => $store.getAnalysisState().allSalesData;
-const setAllSalesData = (data: any[]) => $store.setAnalysisState('allSalesData', data);
+const setAllSalesData = (data: $store.AnalysisState['allSalesData']) => $store.setAnalysisState('allSalesData', data);
 
 const getCharts = () => $store.getAnalysisState().charts;
-const setCharts = (charts: Record<string, any>) => $store.setAnalysisState('charts', charts);
+const setCharts = (charts: $store.AnalysisState['charts']) => $store.setAnalysisState('charts', charts);
 const setChartProperty = (key: string, value: any) => {
   const currentCharts = getCharts();
   const updatedCharts = { ...currentCharts, [key]: value };
@@ -87,7 +87,7 @@ const getChartProperty = (key: string) => {
 };
 
 const getChartDataForAI = () => $store.getAnalysisState().chartDataForAI;
-const setChartDataForAI = (data: Record<string, any>) => $store.setAnalysisState('chartDataForAI', data);
+const setChartDataForAI = (data: $store.AnalysisState['chartDataForAI']) => $store.setAnalysisState('chartDataForAI', data);
 const setChartDataForAIProperty = (key: string, value: any) => {
   const currentData = getChartDataForAI();
   const updatedData = { ...currentData, [key]: value };
@@ -95,17 +95,42 @@ const setChartDataForAIProperty = (key: string, value: any) => {
 };
 
 const getAiAnalysisResults = () => $store.getAnalysisState().aiAnalysisResults;
-const setAiAnalysisResults = (results: Record<string, any>) => $store.setAnalysisState('aiAnalysisResults', results);
+const setAiAnalysisResults = (results: $store.AnalysisState['aiAnalysisResults']) => $store.setAnalysisState('aiAnalysisResults', results);
+
+// Helper functions for initialization flags
+const getInitFlag = <T extends keyof $store.AnalysisState['initFlags']>(flag: T) => {
+  return $store.getAnalysisState().initFlags[flag] || false;
+};
+const setInitFlag: typeof $store.updateAnalysisFlag = (...params) => {
+  $store.updateAnalysisFlag(...params);
+};
+
+// Helper functions for UI components
+const getUIComponent = <T extends keyof $store.AnalysisState['uiComponents']>(component: T) => {
+  return $store.getAnalysisState().uiComponents[component] || null;
+};
+const setUIComponent: typeof $store.updateAnalysisComponent = (...params) => {
+  $store.updateAnalysisComponent(...params);
+};
+
+// Helper functions for configuration
+const getConfigValue = <T extends keyof $store.AnalysisState['config']>(config: T) => {
+  return $store.getAnalysisState().config[config];
+};
+const setConfigValue: typeof $store.updateAnalysisConfig = (...params) => {
+  $store.updateAnalysisConfig(...params);
+};
 
 let adminCredentials = null
-let monthlyComparisonTargets = {};
-let omzetComparisonSelect: SlimSelect | null = null;
-let currentPnlPeriod: string | null = null;
-let menuTrend24MonthSelect: SlimSelect | null = null;
-let generalMenuTrendSelect: SlimSelect | null = null;
-let waktuMenuTrendSelect: SlimSelect | null = null;
-let cabangMenuTrendSelect: SlimSelect | null = null;
-let activeSalesTarget = {};
+// Global variables moved to store:
+// - monthlyComparisonTargets -> store.analysisState.config.monthlyComparisonTargets
+// - omzetComparisonSelect -> store.analysisState.uiComponents.omzetComparisonSelect
+// - currentPnlPeriod -> store.analysisState.config.currentPnlPeriod
+// - menuTrend24MonthSelect -> store.analysisState.uiComponents.menuTrend24MonthSelect
+// - generalMenuTrendSelect -> store.analysisState.uiComponents.generalMenuTrendSelect
+// - waktuMenuTrendSelect -> store.analysisState.uiComponents.waktuMenuTrendSelect
+// - cabangMenuTrendSelect -> store.analysisState.uiComponents.cabangMenuTrendSelect
+// - activeSalesTarget -> store.analysisState.config.activeSalesTarget
 
 
 
@@ -138,9 +163,10 @@ const periodError = document.getElementById('period-error');
 
 
 function drawMonthlyOmzetComparisonChart() {
-    if (!omzetComparisonSelect) return;
+    const omzetSelect = getUIComponent('omzetComparisonSelect');
+    if (!omzetSelect) return;
 
-    const selectedMonths = omzetComparisonSelect.getSelected() as string[];
+    const selectedMonths = omzetSelect.getSelected() as string[];
 
     // The X-axis will be days 1 through 31
     const labels = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -187,7 +213,8 @@ function drawMonthlyOmzetComparisonChart() {
  */
 function setupMonthlyOmzetComparisonChart() {
     // Prevent re-initializing the dropdown if it already exists
-    if (omzetComparisonSelect) {
+    const existingSelect = getUIComponent('omzetComparisonSelect');
+    if (existingSelect) {
         drawMonthlyOmzetComparisonChart(); // Just redraw the chart with current data
         return;
     }
@@ -208,7 +235,7 @@ function setupMonthlyOmzetComparisonChart() {
     ).join('');
 
     // Initialize Slim Select
-    omzetComparisonSelect = new SlimSelect({
+    const newOmzetSelect = new SlimSelect({
         select: '#waktu-omzet-harian-select',
         settings: { placeholderText: 'Select months...' },
         events: {
@@ -219,8 +246,11 @@ function setupMonthlyOmzetComparisonChart() {
         }
     });
 
+    // Store in analysis state
+    setUIComponent('omzetComparisonSelect', newOmzetSelect);
+
     // Set a default selection (e.g., the two most recent months)
-    omzetComparisonSelect.setSelected(availableMonths.slice(0, 2));
+    newOmzetSelect.setSelected(availableMonths.slice(0, 2));
 
     // Initial drawing of the chart is handled by the afterChange event from setSelected
 }
@@ -2084,13 +2114,13 @@ function setupMonthlyComparison(summaries: any[]) {
     monthASelect.value = availableMonths[1];
 
     // --- FIX: Add event listeners to the dropdowns to auto-update ---
-    if (!$store.store.getState().analysisState.initFlags.monthlyComparisonInitialized) {
+    if (!getInitFlag('monthlyComparisonInitialized')) {
         const autoRunComparison = () => runMonthlyComparison(getAllSalesData());
 
         monthASelect.addEventListener('change', autoRunComparison);
         monthBSelect.addEventListener('change', autoRunComparison);
 
-        $store.store.getState().updateAnalysisFlag('monthlyComparisonInitialized', true);
+        setInitFlag('monthlyComparisonInitialized', true);
     }
 
     // Run initial comparison and show the results
@@ -2106,7 +2136,7 @@ function runMonthlyComparison(summaries: any[]) {
     // --- Load saved targets from localStorage ---
     const savedTargets = localStorage.getItem('monthlyComparisonTargets');
     if (savedTargets) {
-        monthlyComparisonTargets = JSON.parse(savedTargets);
+        setConfigValue('monthlyComparisonTargets', JSON.parse(savedTargets));
     }
 
     const monthAValue = (document.getElementById('month-a-select') as HTMLSelectElement).value;
@@ -2167,8 +2197,10 @@ function runMonthlyComparison(summaries: any[]) {
 
         // --- NEW: Function to update and save targets ---
         const updateTarget = (targetValue) => {
-            monthlyComparisonTargets[metricId] = targetValue;
-            localStorage.setItem('monthlyComparisonTargets', JSON.stringify(monthlyComparisonTargets));
+            const currentTargets = getConfigValue('monthlyComparisonTargets') || {};
+            currentTargets[metricId] = targetValue;
+            setConfigValue('monthlyComparisonTargets', currentTargets);
+            localStorage.setItem('monthlyComparisonTargets', JSON.stringify(currentTargets));
 
             const actualValue = metricData.valB;
             const resultCell = document.getElementById(`target-result-${metricId}`);
@@ -2179,7 +2211,8 @@ function runMonthlyComparison(summaries: any[]) {
         };
 
         // --- NEW: Load and apply saved target on initialization ---
-        const savedTarget = monthlyComparisonTargets[metricId];
+        const currentTargets = getConfigValue('monthlyComparisonTargets') || {};
+        const savedTarget = currentTargets[metricId];
         if (savedTarget) {
             (input as HTMLInputElement).value = metricData.format(savedTarget);
             updateTarget(savedTarget);
@@ -2657,7 +2690,8 @@ async function setupPnlPeriodSelector() {
 function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string) {
     // This check is to prevent re-creating the dropdown over and over.
     // We will create it once and then just update the chart.
-    if (window.generalMenuTrendSelect) {
+    const existingSelect = getUIComponent('generalMenuTrendSelect');
+    if (existingSelect) {
         drawGeneralMenuTrendChart(summaries, canvasId);
         return;
     }
@@ -2688,20 +2722,28 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
 
     menuSelectElement.innerHTML = sortedMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
-    window.generalMenuTrendSelect = new SlimSelect({
+    const newGeneralMenuSelect = new SlimSelect({
         select: `#${selectId}`,
         settings: { placeholderText: 'Select menus...' },
         events: {
             afterChange: () => drawGeneralMenuTrendChart(getAllSalesData(), canvasId)
         }
     });
-    window.generalMenuTrendSelect.setSelected(sortedMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('generalMenuTrendSelect', newGeneralMenuSelect);
+
+    // Also keep window property for compatibility (will be cleaned up in reset)
+    window.generalMenuTrendSelect = newGeneralMenuSelect;
+
+    newGeneralMenuSelect.setSelected(sortedMenuItems.slice(0, 3));
 }
 
 function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
-    if (!window.generalMenuTrendSelect) return;
+    const menuSelect = getUIComponent('generalMenuTrendSelect');
+    if (!menuSelect) return;
 
-    const selectedMenus = window.generalMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = menuSelect.getSelected() as string[];
     const labels = summaries.map(s => s.date.toISOString().split('T')[0]).toSorted();
 
     const datasets = selectedMenus.map((menuName, index) => {
@@ -2739,12 +2781,12 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
     const yearSelect = document.getElementById('yoy-year-select') as HTMLSelectElement;
 
     // --- Populate Year Selector (only once) ---
-    if (!$store.store.getState().analysisState.initFlags.yoyYearSelectInitialized) {
+    if (!getInitFlag('yoyYearSelectInitialized')) {
         const years = [...new Set(summaries.map(s => s.date.getFullYear()))].toSorted((a, b) => b - a);
         yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
         // When the year changes, re-run the analysis on the *entire* dataset
         yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(getAllSalesData()));
-        $store.store.getState().updateAnalysisFlag('yoyYearSelectInitialized', true);
+        setInitFlag('yoyYearSelectInitialized', true);
     }
 
     const selectedYear = parseInt(yearSelect.value);
@@ -2955,7 +2997,7 @@ function generateWaktuPenjualanSection() {
 }
 
 async function setupCabangKeuanganSelectors() {
-    if ($store.store.getState().analysisState.initFlags.cabangKeuanganSelectorsInitialized) return;
+    if (getInitFlag('cabangKeuanganSelectorsInitialized')) return;
 
     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
@@ -2981,7 +3023,7 @@ async function setupCabangKeuanganSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    $store.store.getState().updateAnalysisFlag('cabangKeuanganSelectorsInitialized', true);
+    setInitFlag('cabangKeuanganSelectorsInitialized', true);
     generateCabangKeuanganSection();
 }
 
@@ -3041,7 +3083,7 @@ function generateCabangPenjualanSection() {
  * Sets up the selectors for the "Cabang > Penjualan" section.
  */
 async function setupCabangPenjualanSelectors() {
-    if ($store.store.getState().analysisState.initFlags.cabangPenjualanSelectorsInitialized) return;
+    if (getInitFlag('cabangPenjualanSelectorsInitialized')) return;
     const periodSelect = document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
@@ -3063,7 +3105,7 @@ async function setupCabangPenjualanSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    $store.store.getState().updateAnalysisFlag('cabangPenjualanSelectorsInitialized', true);
+    setInitFlag('cabangPenjualanSelectorsInitialized', true);
     generateCabangPenjualanSection();
 }
 
@@ -3184,7 +3226,7 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
 }
 
 async function setupWaktuPenjualanSelectors() {
-    if ($store.store.getState().analysisState.initFlags.waktuPenjualanSelectorsInitialized) return;
+    if (getInitFlag('waktuPenjualanSelectorsInitialized')) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
@@ -3210,7 +3252,7 @@ async function setupWaktuPenjualanSelectors() {
         await updatePeriodSelectorsForPenjualan(branchSelect.value);
     });
 
-    $store.store.getState().updateAnalysisFlag('waktuPenjualanSelectorsInitialized', true);
+    setInitFlag('waktuPenjualanSelectorsInitialized', true);
 
     // Trigger the initial population of the period selectors for the default branch
     await updatePeriodSelectorsForPenjualan(branches[0]);
@@ -3427,7 +3469,7 @@ function generateSpecificSubCategoryRatioChart(
  * Sets up the period selector dropdown for the "Aspek Keuangan" section.
  */
 async function setupGeneralKeuanganPeriodSelector() {
-    if ($store.store.getState().analysisState.initFlags.generalKeuanganSelectorInitialized) return;
+    if (getInitFlag('generalKeuanganSelectorInitialized')) return;
     if (!currentUser) return;
 
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
@@ -3448,7 +3490,7 @@ async function setupGeneralKeuanganPeriodSelector() {
     branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralKeuangan(branchSelect.value));
     periodSelect.addEventListener('change', () => generateGeneralKeuanganSection());
 
-    $store.store.getState().updateAnalysisFlag('generalKeuanganSelectorInitialized', true);
+    setInitFlag('generalKeuanganSelectorInitialized', true);
 
     await updatePeriodSelectorsForGeneralKeuangan(branches[0]);
 }
@@ -3528,10 +3570,10 @@ async function setupGeneralPenjualanSelectors() {
         startDateId: 'general-penjualan-start-date',
         endDateId: 'general-penjualan-end-date',
         applyBtnId: 'general-penjualan-apply-btn',
-        initializationFlag: $store.store.getState().analysisState.initFlags.generalPenjualanSelectorInitialized,
+        initializationFlag: getInitFlag('generalPenjualanSelectorInitialized'),
         callback: generateGeneralPenjualanSection
     });
-    $store.store.getState().updateAnalysisFlag('generalPenjualanSelectorInitialized', true);
+    setInitFlag('generalPenjualanSelectorInitialized', true);
 }
 
 async function setupGeneralProdukChannelSelectors() {
@@ -3861,11 +3903,12 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         borderColor: '#10B981',
     }];
 
-    if (activeSalesTarget && activeSalesTarget['Omzet Mingguan']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Mingguan']) {
         datasets.push({
             type: 'line',
             label: 'Target Omzet Mingguan',
-            data: Array(sortedWeeks.length).fill(activeSalesTarget['Omzet Mingguan']),
+            data: Array(sortedWeeks.length).fill(salesTarget['Omzet Mingguan']),
             borderColor: '#EF4444',
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4083,11 +4126,12 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     }];
 
     // Check if the "Omzet Harian" target was loaded
-    if (activeSalesTarget && activeSalesTarget['Omzet Harian']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Harian']) {
         datasets.push({
             label: 'Target Omzet Harian',
             // Create an array filled with the target value, one for each day
-            data: Array(labels.length).fill(activeSalesTarget['Omzet Harian']),
+            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
             borderColor: '#EF4444', // Red color for the target line
             borderDash: [5, 5], // Make the line dashed
             borderWidth: 2,
@@ -4134,11 +4178,12 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     ];
 
     // Add Target Line for "Total Transaksi Per Hari" (TC)
-    if (activeSalesTarget && activeSalesTarget['Total Transaksi Per Hari']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
         datasets.push({
             type: 'line',
             label: 'Target TC Harian',
-            data: Array(labels.length).fill(activeSalesTarget['Total Transaksi Per Hari']),
+            data: Array(labels.length).fill(salesTarget['Total Transaksi Per Hari']),
             borderColor: '#3B82F6', // A darker blue for TC target
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4148,11 +4193,11 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     }
 
     // Add Target Line for "Average Check" (APC)
-    if (activeSalesTarget && activeSalesTarget['Average Check']) {
+    if (salesTarget && salesTarget['Average Check']) {
         datasets.push({
             type: 'line',
             label: 'Target Average Check',
-            data: Array(labels.length).fill(activeSalesTarget['Average Check']),
+            data: Array(labels.length).fill(salesTarget['Average Check']),
             borderColor: '#EF4444', // Red for APC target
             borderDash: [5, 5],
             borderWidth: 2,
@@ -5461,7 +5506,7 @@ function generateCabangProdukChannelSection() {
  * Sets up the selectors for the "Cabang > Produk dan Channel" section.
  */
 async function setupCabangProdukChannelSelectors() {
-    if ($store.store.getState().analysisState.initFlags.cabangProdukChannelSelectorsInitialized) return;
+    if (getInitFlag('cabangProdukChannelSelectorsInitialized')) return;
     const periodSelect = document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
@@ -5483,7 +5528,7 @@ async function setupCabangProdukChannelSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    $store.store.getState().updateAnalysisFlag('cabangProdukChannelSelectorsInitialized', true);
+    setInitFlag('cabangProdukChannelSelectorsInitialized', true);
     generateCabangProdukChannelSection();
 }
 
@@ -5491,8 +5536,9 @@ async function setupCabangProdukChannelSelectors() {
  * Sets up the interactive menu trend chart for comparing two branches.
  */
 function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
-    if (cabangMenuTrendSelect) {
-        cabangMenuTrendSelect.destroy();
+    const existingSelect = getUIComponent('cabangMenuTrendSelect');
+    if (existingSelect) {
+        existingSelect.destroy();
     }
     const selectEl = document.getElementById('cabang-menu-trend-select') as HTMLSelectElement;
     const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
@@ -5502,17 +5548,22 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    cabangMenuTrendSelect = new SlimSelect({
+    const newCabangMenuSelect = new SlimSelect({
         select: '#cabang-menu-trend-select',
         events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
     });
-    cabangMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('cabangMenuTrendSelect', newCabangMenuSelect);
+
+    newCabangMenuSelect.setSelected(allMenuItems.slice(0, 3));
 }
 
 function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
-    if (!cabangMenuTrendSelect) return;
+    const cabangMenuSelect = getUIComponent('cabangMenuTrendSelect');
+    if (!cabangMenuSelect) return;
 
-    const selectedMenus = cabangMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = cabangMenuSelect.getSelected() as string[];
     const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
@@ -5759,11 +5810,11 @@ function generateYoYAnalysis(data: any[]): void {
   const yearSelect = document.getElementById('yoy-year-select')
 
   // --- Populate Year Selector (only once) ---
-  if (!$store.store.getState().analysisState.initFlags.yoyYearSelectInitialized) {
+  if (!getInitFlag('yoyYearSelectInitialized')) {
     const years = [...new Set(data.map((d) => d['Sales Date In'].getFullYear()))].toSorted((a, b) => b - a)
     yearSelect.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('')
     yearSelect.addEventListener('change', () => generateYoYAnalysis(getAllSalesData()))
-    $store.store.getState().updateAnalysisFlag('yoyYearSelectInitialized', true)
+    setInitFlag('yoyYearSelectInitialized', true)
   }
 
   const selectedYear = parseInt(yearSelect.value)
@@ -12059,9 +12110,10 @@ function generate24MonthTcApcTrend(summaries: any[]) {
  * Draws the 24-month menu trend chart based on the current dropdown selection.
  */
 function draw24MonthMenuTrendChart(summaries: any[]) {
-    if (!menuTrend24MonthSelect) return;
+    const menuSelect = getUIComponent('menuTrend24MonthSelect');
+    if (!menuSelect) return;
 
-    const selectedMenus = menuTrend24MonthSelect.getSelected() as string[];
+    const selectedMenus = menuSelect.getSelected() as string[];
 
     // --- MODIFICATION START ---
     // 1. Get all unique months that have data, sort them chronologically,
@@ -12118,7 +12170,8 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
  * Sets up the multi-select dropdown for the 24-month menu trend chart.
  */
 function setup24MonthMenuTrendChart(summaries: any[]) {
-    if (menuTrend24MonthSelect) {
+    const existingSelect = getUIComponent('menuTrend24MonthSelect');
+    if (existingSelect) {
         draw24MonthMenuTrendChart(summaries);
         return;
     }
@@ -12151,7 +12204,7 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
     selectEl.innerHTML = sortedItems.map(item => `<option value="${item[0]}">${item[0]}</option>`).join('');
 
     // 4. Initialize Slim Select
-    menuTrend24MonthSelect = new SlimSelect({
+    const newMenuSelect = new SlimSelect({
         select: '#menu-trend-24-bulan-select',
         settings: { placeholderText: 'Select menus...' },
         events: {
@@ -12161,9 +12214,12 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
         }
     });
 
+    // Store in analysis state
+    setUIComponent('menuTrend24MonthSelect', newMenuSelect);
+
     // 5. Set a default selection of the top 5 most popular items
     const top5Items = sortedItems.slice(0, 5).map(item => item[0]);
-    menuTrend24MonthSelect.setSelected(top5Items);
+    newMenuSelect.setSelected(top5Items);
 }
 
 /**
@@ -12490,7 +12546,7 @@ async function generateWaktuKeuanganSection() {
  * Sets up the period selectors for the "Waktu > Keuangan" section.
  */
 async function setupWaktuKeuanganPeriodSelectors() {
-    if ($store.store.getState().analysisState.initFlags.waktuKeuanganSelectorsInitialized) return;
+    if (getInitFlag('waktuKeuanganSelectorsInitialized')) return;
     const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
@@ -12523,7 +12579,7 @@ async function setupWaktuKeuanganPeriodSelectors() {
     selectB.addEventListener('change', handler);
     branchSelect.addEventListener('change', handler);
 
-    $store.store.getState().updateAnalysisFlag('waktuKeuanganSelectorsInitialized', true);
+    setInitFlag('waktuKeuanganSelectorsInitialized', true);
 
     generateWaktuKeuanganSection();
 }
@@ -12655,7 +12711,7 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
 }
 
 async function setupWaktuProdukChannelSelectors() {
-    if ($store.store.getState().analysisState.initFlags.waktuProdukChannelSelectorsInitialized) return;
+    if (getInitFlag('waktuProdukChannelSelectorsInitialized')) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
@@ -12678,7 +12734,7 @@ async function setupWaktuProdukChannelSelectors() {
         await updatePeriodSelectorsForProdukChannel(branchSelect.value);
     });
 
-    $store.store.getState().updateAnalysisFlag('waktuProdukChannelSelectorsInitialized', true);
+    setInitFlag('waktuProdukChannelSelectorsInitialized', true);
 
     await updatePeriodSelectorsForProdukChannel(branches[0]);
 }
@@ -12688,28 +12744,34 @@ async function setupWaktuProdukChannelSelectors() {
  * Sets up the interactive menu trend chart for comparing two periods.
  */
 function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
-    if (waktuMenuTrendSelect) {
-        waktuMenuTrendSelect.destroy(); // Destroy old instance to repopulate options
+    const existingSelect = getUIComponent('waktuMenuTrendSelect');
+    if (existingSelect) {
+        existingSelect.destroy(); // Destroy old instance to repopulate options
     }
     const selectEl = document.getElementById('waktu-menu-trend-select') as HTMLSelectElement;
     const combinedData = [...periodAData, ...periodBData];
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    waktuMenuTrendSelect = new SlimSelect({
+    const newWaktuMenuSelect = new SlimSelect({
         select: '#waktu-menu-trend-select',
         events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
     });
-    waktuMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('waktuMenuTrendSelect', newWaktuMenuSelect);
+
+    newWaktuMenuSelect.setSelected(allMenuItems.slice(0, 3));
 }
 
 /**
  * Draws the menu trend comparison chart.
  */
 function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
-    if (!waktuMenuTrendSelect) return;
+    const waktuMenuSelect = getUIComponent('waktuMenuTrendSelect');
+    if (!waktuMenuSelect) return;
 
-    const selectedMenus = waktuMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = waktuMenuSelect.getSelected() as string[];
     const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
@@ -13113,9 +13175,9 @@ async function setupGeneralInvestasiSelectors() {
         branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
         // Attach event listener only once
-        if (!$store.store.getState().analysisState.initFlags.generalInvestasiSelectorInitialized) {
+        if (!getInitFlag('generalInvestasiSelectorInitialized')) {
             branchSelect.addEventListener('change', generateGeneralInvestasiSection);
-            $store.store.getState().updateAnalysisFlag('generalInvestasiSelectorInitialized', true);
+            setInitFlag('generalInvestasiSelectorInitialized', true);
         }
 
         // Trigger the initial chart generation
@@ -13268,7 +13330,7 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
 }
 
 async function setupCabangInvestasiSelectors() {
-    if ($store.store.getState().analysisState.initFlags.cabangInvestasiSelectorInitialized) return;
+    if (getInitFlag('cabangInvestasiSelectorInitialized')) return;
     if (!currentUser) return;
 
     const startPeriodSelect = document.getElementById('cabang-investasi-start-period') as HTMLSelectElement;
@@ -13317,7 +13379,7 @@ async function setupCabangInvestasiSelectors() {
         branchASelect.addEventListener('change', handler);
         branchBSelect.addEventListener('change', handler);
 
-        $store.store.getState().updateAnalysisFlag('cabangInvestasiSelectorInitialized', true);
+        setInitFlag('cabangInvestasiSelectorInitialized', true);
         await generateCabangInvestasiSection();
 
     } catch (error) {
@@ -13579,4 +13641,3 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
         }
     });
 }
-
