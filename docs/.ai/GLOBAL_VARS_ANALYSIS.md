@@ -1,4 +1,4 @@
-# Globals Inventory — Exhaustive List
+# Globals Variables — Exhaustive List
 
 Generated on: 2025-09-02
 
