@@ -1,4 +1,5 @@
 declare const XLSX: any;
+declare const SlimSelect: any;
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app'
@@ -69,32 +70,71 @@ const storage = getStorage(app);
 // --- Global State ---
 let currentUser = null
 let currentUserRole = 'user'
-let allSalesData = []
-let charts = {}
-const chartDataForAI = {}
-let aiAnalysisResults = {} // <-- New: To store AI analysis for PDF export
+
+// Analysis state moved to store - using helper getters for easy migration
+const getAllSalesData = () => $store.getAnalysisState().allSalesData;
+const setAllSalesData = (data: $store.AnalysisState['allSalesData']) => $store.setAnalysisState('allSalesData', data);
+
+const getCharts = () => $store.getAnalysisState().charts;
+const setCharts = (charts: $store.AnalysisState['charts']) => $store.setAnalysisState('charts', charts);
+const setChartProperty = (key: string, value: any) => {
+  const currentCharts = getCharts();
+  const updatedCharts = { ...currentCharts, [key]: value };
+  setCharts(updatedCharts);
+};
+const getChartProperty = (key: string) => {
+  return getCharts()[key];
+};
+
+const getChartDataForAI = () => $store.getAnalysisState().chartDataForAI;
+const setChartDataForAI = (data: $store.AnalysisState['chartDataForAI']) => $store.setAnalysisState('chartDataForAI', data);
+const setChartDataForAIProperty = (key: string, value: any) => {
+  const currentData = getChartDataForAI();
+  const updatedData = { ...currentData, [key]: value };
+  setChartDataForAI(updatedData);
+};
+
+const getAiAnalysisResults = () => $store.getAnalysisState().aiAnalysisResults;
+const setAiAnalysisResults = (results: $store.AnalysisState['aiAnalysisResults']) => $store.setAnalysisState('aiAnalysisResults', results);
+
+const getCurrentPnlData = () => $store.getAnalysisState().currentPnlData;
+const setCurrentPnlData = (data: $store.AnalysisState['currentPnlData']) => $store.setAnalysisState('currentPnlData', data);
+
+// Helper functions for initialization flags
+const getInitFlag = <T extends keyof $store.AnalysisState['initFlags']>(flag: T) => {
+  return $store.getAnalysisState().initFlags[flag] || false;
+};
+const setInitFlag: typeof $store.updateAnalysisFlag = (...params) => {
+  $store.updateAnalysisFlag(...params);
+};
+
+// Helper functions for UI components
+const getUIComponent = <T extends keyof $store.AnalysisState['uiComponents']>(component: T) => {
+  return $store.getAnalysisState().uiComponents[component] || null;
+};
+const setUIComponent: typeof $store.updateAnalysisComponent = (...params) => {
+  $store.updateAnalysisComponent(...params);
+};
+
+// Helper functions for configuration
+const getConfigValue = <T extends keyof $store.AnalysisState['config']>(config: T) => {
+  return $store.getAnalysisState().config[config];
+};
+const setConfigValue: typeof $store.updateAnalysisConfig = (...params) => {
+  $store.updateAnalysisConfig(...params);
+};
+
 let adminCredentials = null
-let yoyYearSelectInitialized = false
-let monthlyComparisonInitialized = false;
-let monthlyComparisonTargets = {};
-let omzetComparisonSelect: SlimSelect | null = null;
-let currentPnlPeriod: string | null = null;
-let menuTrend24MonthSelect: SlimSelect | null = null;
-let generalKeuanganSelectorInitialized = false;
-let generalMenuTrendSelect: SlimSelect | null = null;
-let waktuKeuanganSelectorsInitialized = false;
-let waktuPenjualanSelectorsInitialized = false;
-let waktuProdukChannelSelectorsInitialized = false;
-let waktuMenuTrendSelect: SlimSelect | null = null;
-let cabangKeuanganSelectorsInitialized = false;
-let cabangPenjualanSelectorsInitialized = false;
-let cabangProdukChannelSelectorsInitialized = false;
-let cabangMenuTrendSelect: SlimSelect | null = null;
-let generalPenjualanSelectorInitialized = false;
-let generalProdukChannelSelectorInitialized = false;
-let activeSalesTarget = {};
-let generalInvestasiSelectorInitialized = false;
-let cabangInvestasiSelectorInitialized = false;
+// Global variables moved to store:
+// - monthlyComparisonTargets -> store.analysisState.config.monthlyComparisonTargets
+// - omzetComparisonSelect -> store.analysisState.uiComponents.omzetComparisonSelect
+// - currentPnlPeriod -> store.analysisState.config.currentPnlPeriod
+// - currentPnlData -> store.analysisState.currentPnlData
+// - menuTrend24MonthSelect -> store.analysisState.uiComponents.menuTrend24MonthSelect
+// - generalMenuTrendSelect -> store.analysisState.uiComponents.generalMenuTrendSelect
+// - waktuMenuTrendSelect -> store.analysisState.uiComponents.waktuMenuTrendSelect
+// - cabangMenuTrendSelect -> store.analysisState.uiComponents.cabangMenuTrendSelect
+// - activeSalesTarget -> store.analysisState.config.activeSalesTarget
 
 
 
@@ -127,9 +167,10 @@ const periodError = document.getElementById('period-error');
 
 
 function drawMonthlyOmzetComparisonChart() {
-    if (!omzetComparisonSelect) return;
+    const omzetSelect = getUIComponent('omzetComparisonSelect');
+    if (!omzetSelect) return;
 
-    const selectedMonths = omzetComparisonSelect.getSelected() as string[];
+    const selectedMonths = omzetSelect.getSelected() as string[];
 
     // The X-axis will be days 1 through 31
     const labels = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -138,7 +179,7 @@ function drawMonthlyOmzetComparisonChart() {
 
     const datasets = selectedMonths.map((monthStr, index) => {
         // Filter the main data for summaries belonging to the selected month
-        const monthSummaries = allSalesData.filter(s => s.date.toISOString().startsWith(monthStr));
+        const monthSummaries = getAllSalesData().filter((s: any) => s.date.toISOString().startsWith(monthStr));
 
         // Create an array to hold the revenue for each day (1-31)
         const dailyData = Array(31).fill(null); // Use null for days with no data
@@ -176,7 +217,8 @@ function drawMonthlyOmzetComparisonChart() {
  */
 function setupMonthlyOmzetComparisonChart() {
     // Prevent re-initializing the dropdown if it already exists
-    if (omzetComparisonSelect) {
+    const existingSelect = getUIComponent('omzetComparisonSelect');
+    if (existingSelect) {
         drawMonthlyOmzetComparisonChart(); // Just redraw the chart with current data
         return;
     }
@@ -184,7 +226,7 @@ function setupMonthlyOmzetComparisonChart() {
     const selectEl = document.getElementById('waktu-omzet-harian-select') as HTMLSelectElement;
 
     // Get all unique months (YYYY-MM) from the data and sort them
-    const availableMonths = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
+    const availableMonths = [...new Set(getAllSalesData().map((s: any) => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (availableMonths.length === 0) {
         selectEl.innerHTML = '<option disabled>No data available</option>';
@@ -197,7 +239,7 @@ function setupMonthlyOmzetComparisonChart() {
     ).join('');
 
     // Initialize Slim Select
-    omzetComparisonSelect = new SlimSelect({
+    const newOmzetSelect = new SlimSelect({
         select: '#waktu-omzet-harian-select',
         settings: { placeholderText: 'Select months...' },
         events: {
@@ -208,15 +250,18 @@ function setupMonthlyOmzetComparisonChart() {
         }
     });
 
+    // Store in analysis state
+    setUIComponent('omzetComparisonSelect', newOmzetSelect);
+
     // Set a default selection (e.g., the two most recent months)
-    omzetComparisonSelect.setSelected(availableMonths.slice(0, 2));
+    newOmzetSelect.setSelected(availableMonths.slice(0, 2));
 
     // Initial drawing of the chart is handled by the afterChange event from setSelected
 }
 
 
 function renderPnlResults(pnlData) {
-    currentPnlData = pnlData;
+    setCurrentPnlData(pnlData);
     const container = document.getElementById('pnl-results-container');
     container.innerHTML = '';
     const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
@@ -1189,6 +1234,11 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
 
 // --- View Management ---
 /**
+ * Track current view for navigation reset logic
+ */
+let currentView: string | null = null;
+
+/**
  * Display a specific application view while hiding all others.
  *
  * @description
@@ -1196,6 +1246,8 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
  * the requested one. Implements role-based access control for admin views and
  * automatically loads required data for certain views (user management, configuration).
  * Provides fallback to dashboard for unauthorized access attempts.
+ *
+ * Now includes analysis state reset when leaving analysis view to ensure clean state.
  *
  * @param viewName - Name of the view to display ('auth', 'dashboard', 'analysis', 'usermanagement', 'konfigurasi').
  * @returns This function does not return a value; it updates the UI view state.
@@ -1210,6 +1262,15 @@ async function ensureUserDocument(uid: string, email: string, role = 'user'): Pr
  * // Shows user management if admin, otherwise shows "Access Denied" alert and returns to dashboard
  */
 function showView(viewName: string): void {
+  // Reset analysis state when leaving analysis view
+  if (currentView === 'analysis' && viewName !== 'analysis') {
+    console.debug(`Leaving analysis view (${currentView} → ${viewName}), resetting analysis state`);
+    $store.resetAnalysisState();
+  }
+
+  // Update current view tracker
+  currentView = viewName;
+
   // Add all the new view variables here
   const mainMenuview = document.getElementById('main-menu-view');
   const salesDashboardView = document.getElementById('sales-dashboard-view');
@@ -1944,18 +2005,18 @@ async function getGeminiAnalysis(prompt: string): Promise<string> {
  */
 function setupAndShowAnalysisView(data: any[], title: string): void {
   showLoading({ message: 'Preparing data...', value: 60 });
-  allSalesData = data.map((d) => ({ ...d, date: new Date(d.date) }));
-  aiAnalysisResults = {};
+  setAllSalesData(data.map((d: any) => ({ ...d, date: new Date(d.date) })));
+  setAiAnalysisResults({});
 
   document.getElementById('analysis-title').textContent = title;
   showLoading({ message: 'Preparing view...', value: 80 });
 
-  populateFilters(allSalesData);
+  populateFilters(getAllSalesData());
   runAnalysis();
 
   // Call both setup functions
-  generateYoYAnalysisFromSummaries(allSalesData);
-  setupMonthlyComparison(allSalesData); // ADD THIS LINE
+  generateYoYAnalysisFromSummaries(getAllSalesData());
+  setupMonthlyComparison(getAllSalesData()); // ADD THIS LINE
 
   hideLoading();
   showView('analysis');
@@ -2057,13 +2118,13 @@ function setupMonthlyComparison(summaries: any[]) {
     monthASelect.value = availableMonths[1];
 
     // --- FIX: Add event listeners to the dropdowns to auto-update ---
-    if (!monthlyComparisonInitialized) {
-        const autoRunComparison = () => runMonthlyComparison(allSalesData);
+    if (!getInitFlag('monthlyComparisonInitialized')) {
+        const autoRunComparison = () => runMonthlyComparison(getAllSalesData());
 
         monthASelect.addEventListener('change', autoRunComparison);
         monthBSelect.addEventListener('change', autoRunComparison);
 
-        monthlyComparisonInitialized = true;
+        setInitFlag('monthlyComparisonInitialized', true);
     }
 
     // Run initial comparison and show the results
@@ -2079,7 +2140,7 @@ function runMonthlyComparison(summaries: any[]) {
     // --- Load saved targets from localStorage ---
     const savedTargets = localStorage.getItem('monthlyComparisonTargets');
     if (savedTargets) {
-        monthlyComparisonTargets = JSON.parse(savedTargets);
+        setConfigValue('monthlyComparisonTargets', JSON.parse(savedTargets));
     }
 
     const monthAValue = (document.getElementById('month-a-select') as HTMLSelectElement).value;
@@ -2140,8 +2201,10 @@ function runMonthlyComparison(summaries: any[]) {
 
         // --- NEW: Function to update and save targets ---
         const updateTarget = (targetValue) => {
-            monthlyComparisonTargets[metricId] = targetValue;
-            localStorage.setItem('monthlyComparisonTargets', JSON.stringify(monthlyComparisonTargets));
+            const currentTargets = getConfigValue('monthlyComparisonTargets') || {};
+            currentTargets[metricId] = targetValue;
+            setConfigValue('monthlyComparisonTargets', currentTargets);
+            localStorage.setItem('monthlyComparisonTargets', JSON.stringify(currentTargets));
 
             const actualValue = metricData.valB;
             const resultCell = document.getElementById(`target-result-${metricId}`);
@@ -2152,7 +2215,8 @@ function runMonthlyComparison(summaries: any[]) {
         };
 
         // --- NEW: Load and apply saved target on initialization ---
-        const savedTarget = monthlyComparisonTargets[metricId];
+        const currentTargets = getConfigValue('monthlyComparisonTargets') || {};
+        const savedTarget = currentTargets[metricId];
         if (savedTarget) {
             (input as HTMLInputElement).value = metricData.format(savedTarget);
             updateTarget(savedTarget);
@@ -2180,10 +2244,10 @@ function runMonthlyComparison(summaries: any[]) {
         });
     });
 
-    chartDataForAI['monthlyComparison'] = {
+    setChartDataForAIProperty('monthlyComparison', {
         monthA: { month: monthAValue, summary: dataA },
         monthB: { month: monthBValue, summary: dataB }
-    };
+    });
 }
 
 
@@ -2199,8 +2263,8 @@ async function runAnalysis(): Promise<void> {
   const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;
   const selectedBranch = branchSelect?.value;
 
-  let currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
-  let lastPeriodData = allSalesData.filter((summary) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
+  let currentData = getAllSalesData().filter((summary: any) => summary.date >= currentStartDate && summary.date <= currentEndDate);
+  let lastPeriodData = getAllSalesData().filter((summary: any) => summary.date >= lastPeriodStartDate && summary.date <= lastPeriodEndDate);
 
   if (selectedBranch && selectedBranch !== 'ALL') {
       currentData = currentData.filter(s => s.branches.includes(selectedBranch));
@@ -2295,7 +2359,7 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
     const labels = sortedByRevenue.map((s) => s.name);
 
     if (ids.omzetCheckCanvasId) {
-        chartDataForAI[ids.omzetCheckCanvasId] = sortedByRevenue;
+        setChartDataForAIProperty(ids.omzetCheckCanvasId, sortedByRevenue);
         createChart(ids.omzetCheckCanvasId, 'bar', {
             labels,
             datasets: [
@@ -2312,7 +2376,7 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
 
     if (ids.apcCanvasId) {
         const sortedByApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck);
-        chartDataForAI[ids.apcCanvasId] = sortedByApc;
+        setChartDataForAIProperty(ids.apcCanvasId, sortedByApc);
         createChart(ids.apcCanvasId, 'bar', {
             labels: sortedByApc.map((s) => s.name),
             datasets: [{ label: 'Average Check (APC)', data: sortedByApc.map((s) => s.avgCheck), backgroundColor: '#10B981' }],
@@ -2336,7 +2400,7 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
             `;
             tbody.appendChild(tr);
         });
-        chartDataForAI[ids.detailTableId] = sortedByRevenue;
+        setChartDataForAIProperty(ids.detailTableId, sortedByRevenue);
     }
 }
 
@@ -2441,7 +2505,7 @@ async function generatePnlAnalysisTable(startDate: Date, endDate: Date) {
             tbody.appendChild(tr);
         });
 
-        chartDataForAI['pnlAnalysis'] = aiData;
+        setChartDataForAIProperty('pnlAnalysis', aiData);
 
     } catch (error) {
         console.error("Error generating P&L analysis table:", error);
@@ -2630,7 +2694,8 @@ async function setupPnlPeriodSelector() {
 function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string) {
     // This check is to prevent re-creating the dropdown over and over.
     // We will create it once and then just update the chart.
-    if (window.generalMenuTrendSelect) {
+    const existingSelect = getUIComponent('generalMenuTrendSelect');
+    if (existingSelect) {
         drawGeneralMenuTrendChart(summaries, canvasId);
         return;
     }
@@ -2661,20 +2726,28 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
 
     menuSelectElement.innerHTML = sortedMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
-    window.generalMenuTrendSelect = new SlimSelect({
+    const newGeneralMenuSelect = new SlimSelect({
         select: `#${selectId}`,
         settings: { placeholderText: 'Select menus...' },
         events: {
-            afterChange: () => drawGeneralMenuTrendChart(allSalesData, canvasId)
+            afterChange: () => drawGeneralMenuTrendChart(getAllSalesData(), canvasId)
         }
     });
-    window.generalMenuTrendSelect.setSelected(sortedMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('generalMenuTrendSelect', newGeneralMenuSelect);
+
+    // Also keep window property for compatibility (will be cleaned up in reset)
+    window.generalMenuTrendSelect = newGeneralMenuSelect;
+
+    newGeneralMenuSelect.setSelected(sortedMenuItems.slice(0, 3));
 }
 
 function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
-    if (!window.generalMenuTrendSelect) return;
+    const menuSelect = getUIComponent('generalMenuTrendSelect');
+    if (!menuSelect) return;
 
-    const selectedMenus = window.generalMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = menuSelect.getSelected() as string[];
     const labels = summaries.map(s => s.date.toISOString().split('T')[0]).toSorted();
 
     const datasets = selectedMenus.map((menuName, index) => {
@@ -2712,12 +2785,12 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
     const yearSelect = document.getElementById('yoy-year-select') as HTMLSelectElement;
 
     // --- Populate Year Selector (only once) ---
-    if (!yoyYearSelectInitialized) {
+    if (!getInitFlag('yoyYearSelectInitialized')) {
         const years = [...new Set(summaries.map(s => s.date.getFullYear()))].toSorted((a, b) => b - a);
         yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
         // When the year changes, re-run the analysis on the *entire* dataset
-        yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(allSalesData));
-        yoyYearSelectInitialized = true;
+        yearSelect.addEventListener('change', () => generateYoYAnalysisFromSummaries(getAllSalesData()));
+        setInitFlag('yoyYearSelectInitialized', true);
     }
 
     const selectedYear = parseInt(yearSelect.value);
@@ -2726,7 +2799,8 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
         document.getElementById('yoy-omzet-growth').textContent = 'N/A';
         document.getElementById('yoy-check-growth').textContent = 'N/A';
         document.getElementById('yoy-apc-growth').textContent = 'N/A';
-        if (charts['yoy-omzet-chart']) charts['yoy-omzet-chart'].destroy();
+        const existingYoyChart = getChartProperty('yoy-omzet-chart');
+        if (existingYoyChart) existingYoyChart.destroy();
         document.getElementById('yoy-detail-tbody').innerHTML = '<tr><td colspan="4" class="text-center p-4">Select a year to see data.</td></tr>';
         return;
     };
@@ -2780,7 +2854,7 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
     currentYearData.forEach(s => { monthlyData[s.date.getMonth()].currentRevenue += s.totalOmzet; });
     prevYearData.forEach(s => { monthlyData[s.date.getMonth()].prevRevenue += s.totalOmzet; });
 
-    chartDataForAI['yoyOmzet'] = { year: selectedYear, previous_year: prevYear, monthly_comparison: monthlyData };
+    setChartDataForAIProperty('yoyOmzet', { year: selectedYear, previous_year: prevYear, monthly_comparison: monthlyData });
 
     // --- Create Chart ---
     createChart('yoy-omzet-chart', 'line', {
@@ -2806,7 +2880,7 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
         `;
         tbody.appendChild(tr);
     });
-    chartDataForAI['yoyDetail'] = monthlyData;
+    setChartDataForAIProperty('yoyDetail', monthlyData);
 }
 
 function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
@@ -2833,7 +2907,7 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
     }, { categoryQuantities: {}, itemQuantities: {} });
 
     // --- Chart 1: Order by Menu Category (Donut Chart) ---
-    chartDataForAI['orderByCategory'] = aggregatedData.categoryQuantities;
+    setChartDataForAIProperty('orderByCategory', aggregatedData.categoryQuantities);
     createChart('order-by-menu-category-chart', 'doughnut', {
         labels: Object.keys(aggregatedData.categoryQuantities),
         datasets: [{ data: Object.values(aggregatedData.categoryQuantities), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'] }],
@@ -2849,7 +2923,7 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
             .slice(0, 5);
 
         if (top5.length > 0) {
-            chartDataForAI[containerId] = Object.fromEntries(top5);
+            setChartDataForAIProperty(containerId, Object.fromEntries(top5));
             createChart(containerId, 'bar', {
                 labels: top5.map(item => item[0]),
                 datasets: [{
@@ -2888,7 +2962,7 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: 
     const salesData = sortedMonths.map((month) => monthlyData[month].revenue);
     const checkData = sortedMonths.map((month) => monthlyData[month].checks);
 
-    chartDataForAI['penjualanBulanan'] = sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] }));
+    setChartDataForAIProperty('penjualanBulanan', sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] })));
 
     createChart(canvasId, 'bar', { // Use the provided canvasId
         labels: sortedMonths,
@@ -2912,9 +2986,9 @@ function generateWaktuPenjualanSection() {
 
     if (!periodA || !periodB || !selectedBranch) return;
 
-    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter((s: any) => s.branches.includes(selectedBranch));
 
-    const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
+    const periodAData = branchData.filter((s: any) => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
@@ -2927,7 +3001,7 @@ function generateWaktuPenjualanSection() {
 }
 
 async function setupCabangKeuanganSelectors() {
-    if (cabangKeuanganSelectorsInitialized) return;
+    if (getInitFlag('cabangKeuanganSelectorsInitialized')) return;
 
     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
@@ -2953,7 +3027,7 @@ async function setupCabangKeuanganSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangKeuanganSelectorsInitialized = true;
+    setInitFlag('cabangKeuanganSelectorsInitialized', true);
     generateCabangKeuanganSection();
 }
 
@@ -2999,7 +3073,7 @@ function generateCabangPenjualanSection() {
 
     if (!period || !branchA || !branchB || branchA === branchB) return;
 
-    const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
+    const periodData = getAllSalesData().filter((s: any) => s.date.toISOString().startsWith(period));
 
     generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
     generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
@@ -3013,13 +3087,13 @@ function generateCabangPenjualanSection() {
  * Sets up the selectors for the "Cabang > Penjualan" section.
  */
 async function setupCabangPenjualanSelectors() {
-    if (cabangPenjualanSelectorsInitialized) return;
+    if (getInitFlag('cabangPenjualanSelectorsInitialized')) return;
     const periodSelect = document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
 
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
-    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
+    const periods = [...new Set(getAllSalesData().map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
+    const branches = [...new Set(getAllSalesData().flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
 
     if (periods.length === 0 || branches.length < 2) { return; }
 
@@ -3035,7 +3109,7 @@ async function setupCabangPenjualanSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangPenjualanSelectorsInitialized = true;
+    setInitFlag('cabangPenjualanSelectorsInitialized', true);
     generateCabangPenjualanSection();
 }
 
@@ -3156,7 +3230,7 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
 }
 
 async function setupWaktuPenjualanSelectors() {
-    if (waktuPenjualanSelectorsInitialized) return;
+    if (getInitFlag('waktuPenjualanSelectorsInitialized')) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
@@ -3164,7 +3238,7 @@ async function setupWaktuPenjualanSelectors() {
     const branchSelect = document.getElementById('waktu-penjualan-branch-select') as HTMLSelectElement;
 
     // Get a unique list of all branches from the entire dataset
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
+    const branches = [...new Set(getAllSalesData().flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3182,7 +3256,7 @@ async function setupWaktuPenjualanSelectors() {
         await updatePeriodSelectorsForPenjualan(branchSelect.value);
     });
 
-    waktuPenjualanSelectorsInitialized = true;
+    setInitFlag('waktuPenjualanSelectorsInitialized', true);
 
     // Trigger the initial population of the period selectors for the default branch
     await updatePeriodSelectorsForPenjualan(branches[0]);
@@ -3192,7 +3266,7 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-penjualan-period-b') as HTMLSelectElement;
 
-    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter(s => s.branches.includes(selectedBranch));
     const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length < 2) {
@@ -3275,7 +3349,7 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
 
     const periodA = `${yearA}-${String(month + 1).padStart(2, '0')}`;
 
-    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter(s => s.branches.includes(selectedBranch));
 
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
@@ -3399,7 +3473,7 @@ function generateSpecificSubCategoryRatioChart(
  * Sets up the period selector dropdown for the "Aspek Keuangan" section.
  */
 async function setupGeneralKeuanganPeriodSelector() {
-    if (generalKeuanganSelectorInitialized) return;
+    if (getInitFlag('generalKeuanganSelectorInitialized')) return;
     if (!currentUser) return;
 
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
@@ -3420,7 +3494,7 @@ async function setupGeneralKeuanganPeriodSelector() {
     branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralKeuangan(branchSelect.value));
     periodSelect.addEventListener('change', () => generateGeneralKeuanganSection());
 
-    generalKeuanganSelectorInitialized = true;
+    setInitFlag('generalKeuanganSelectorInitialized', true);
 
     await updatePeriodSelectorsForGeneralKeuangan(branches[0]);
 }
@@ -3430,7 +3504,7 @@ async function updatePeriodSelectorsForGeneralPenjualan(selectedBranch: string) 
     periodSelect.innerHTML = '<option>Loading periods...</option>';
 
     // Filter the main data to find periods available for the selected branch
-    const branchData = allSalesData.filter(s => selectedBranch === 'ALL' || s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter(s => selectedBranch === 'ALL' || s.branches.includes(selectedBranch));
     const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length === 0) {
@@ -3468,7 +3542,7 @@ async function setupSectionSpecificFilters(config: {
     const startDateInput = document.getElementById(config.startDateId) as HTMLInputElement;
     const endDateInput = document.getElementById(config.endDateId) as HTMLInputElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
+    const branches = [...new Set(getAllSalesData().flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3478,8 +3552,8 @@ async function setupSectionSpecificFilters(config: {
     branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
     // Set default date range to the last 30 days of available data
-    if (allSalesData.length > 0) {
-        const lastDate = allSalesData[allSalesData.length - 1].date;
+    if (getAllSalesData().length > 0) {
+        const lastDate = getAllSalesData()[getAllSalesData().length - 1].date;
         const firstDate = new Date(lastDate);
         firstDate.setDate(lastDate.getDate() - 29);
 
@@ -3500,10 +3574,10 @@ async function setupGeneralPenjualanSelectors() {
         startDateId: 'general-penjualan-start-date',
         endDateId: 'general-penjualan-end-date',
         applyBtnId: 'general-penjualan-apply-btn',
-        initializationFlag: generalPenjualanSelectorInitialized,
+        initializationFlag: getInitFlag('generalPenjualanSelectorInitialized'),
         callback: generateGeneralPenjualanSection
     });
-    generalPenjualanSelectorInitialized = true;
+    setInitFlag('generalPenjualanSelectorInitialized', true);
 }
 
 async function setupGeneralProdukChannelSelectors() {
@@ -3511,7 +3585,7 @@ async function setupGeneralProdukChannelSelectors() {
 
     const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
+    const branches = [...new Set(getAllSalesData().flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -3526,7 +3600,7 @@ async function setupGeneralProdukChannelSelectors() {
         const currentStartDate = new Date((document.getElementById('date-start') as HTMLInputElement).value);
         const currentEndDate = new Date((document.getElementById('date-end') as HTMLInputElement).value);
         currentEndDate.setHours(23, 59, 59, 999);
-        const currentData = allSalesData.filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
+        const currentData = getAllSalesData().filter((summary) => summary.date >= currentStartDate && summary.date <= currentEndDate);
         generateGeneralProdukChannelSection(currentData);
     });
 }
@@ -3777,7 +3851,7 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
         fill: false,
     }));
 
-    chartDataForAI['salesTrendHourlyDaily'] = datasets.map(ds => ({ [ds.label]: ds.data }));
+    setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [ds.label]: ds.data })));
 
     // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
     createChart(canvasId, 'line', { labels, datasets });
@@ -3794,7 +3868,7 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
     }, {});
 
     const sortedOutlets = Object.entries(outletOmzet).toSorted((a, b) => b[1] - a[1]);
-    chartDataForAI[canvasId] = Object.fromEntries(sortedOutlets); // Use dynamic ID for AI data
+    setChartDataForAIProperty(canvasId, Object.fromEntries(sortedOutlets)); // Use dynamic ID for AI data
 
     createChart(canvasId, 'bar', { // Use the provided canvasId
         labels: sortedOutlets.map((entry) => entry[0]),
@@ -3833,11 +3907,12 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         borderColor: '#10B981',
     }];
 
-    if (activeSalesTarget && activeSalesTarget['Omzet Mingguan']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Mingguan']) {
         datasets.push({
             type: 'line',
             label: 'Target Omzet Mingguan',
-            data: Array(sortedWeeks.length).fill(activeSalesTarget['Omzet Mingguan']),
+            data: Array(sortedWeeks.length).fill(salesTarget['Omzet Mingguan']),
             borderColor: '#EF4444',
             borderDash: [5, 5],
             borderWidth: 2,
@@ -3863,7 +3938,7 @@ function generateOmzetBulananChartFromSummaries(summaries: any[]) {
     }, {});
 
     const sortedMonths = Object.keys(monthlyOmzet).toSorted();
-    chartDataForAI['omzetBulanan'] = monthlyOmzet;
+    setChartDataForAIProperty('omzetBulanan', monthlyOmzet);
 
     const chartLabels = sortedMonths.map(monthStr => {
         const date = new Date(monthStr + '-02');
@@ -3913,7 +3988,7 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
         }
     });
 
-    chartDataForAI['omzetJamHariHeatmap'] = heatmapData;
+    setChartDataForAIProperty('omzetJamHariHeatmap', heatmapData);
 
     let tableHTML = '<table class="heatmap-table"><thead><tr><th></th>';
     hours.forEach(hour => tableHTML += `<th>${hour.toString().padStart(2, '0')}</th>`);
@@ -3947,7 +4022,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   }
 
   const dailyTotals = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
-  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals;
+  setChartDataForAIProperty('dailyOmzetHeatmap', dailyTotals);
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
@@ -4055,11 +4130,12 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     }];
 
     // Check if the "Omzet Harian" target was loaded
-    if (activeSalesTarget && activeSalesTarget['Omzet Harian']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Harian']) {
         datasets.push({
             label: 'Target Omzet Harian',
             // Create an array filled with the target value, one for each day
-            data: Array(labels.length).fill(activeSalesTarget['Omzet Harian']),
+            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
             borderColor: '#EF4444', // Red color for the target line
             borderDash: [5, 5], // Make the line dashed
             borderWidth: 2,
@@ -4106,11 +4182,12 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     ];
 
     // Add Target Line for "Total Transaksi Per Hari" (TC)
-    if (activeSalesTarget && activeSalesTarget['Total Transaksi Per Hari']) {
+    const salesTarget = getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
         datasets.push({
             type: 'line',
             label: 'Target TC Harian',
-            data: Array(labels.length).fill(activeSalesTarget['Total Transaksi Per Hari']),
+            data: Array(labels.length).fill(salesTarget['Total Transaksi Per Hari']),
             borderColor: '#3B82F6', // A darker blue for TC target
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4120,11 +4197,11 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     }
 
     // Add Target Line for "Average Check" (APC)
-    if (activeSalesTarget && activeSalesTarget['Average Check']) {
+    if (salesTarget && salesTarget['Average Check']) {
         datasets.push({
             type: 'line',
             label: 'Target Average Check',
-            data: Array(labels.length).fill(activeSalesTarget['Average Check']),
+            data: Array(labels.length).fill(salesTarget['Average Check']),
             borderColor: '#EF4444', // Red for APC target
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4175,8 +4252,8 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
  * // All existing Chart.js instances are destroyed and charts object is reset to {}
  */
 function destroyCharts(): void {
-  Object.values(charts).forEach((chart) => chart.destroy())
-  charts = {}
+  Object.values(getCharts()).forEach((chart) => chart.destroy())
+  setCharts({})
 }
 
 /**
@@ -4204,10 +4281,12 @@ function destroyCharts(): void {
  * // Creates chart on canvas with ID 'revenue-chart' and PDF version on 'revenue-chart-pdf' if it exists
  */
 function createChart(canvasId: string, type: string, data: any, options: any = {}): void {
-  if (charts[canvasId]) charts[canvasId].destroy()
+  const existingChart = getChartProperty(canvasId);
+  if (existingChart) existingChart.destroy();
   const ctx = document.getElementById(canvasId).getContext('2d')
   const finalOptions = { responsive: true, maintainAspectRatio: false, ...options }
-  charts[canvasId] = new Chart(ctx, { type, data, options: finalOptions })
+  const newChart = new Chart(ctx, { type, data, options: finalOptions });
+  setChartProperty(canvasId, newChart);
 
   // Auto create chart inside PDF with same data and options
   const chartPdf = document.getElementById(`${canvasId}-pdf`)
@@ -4592,7 +4671,7 @@ function generateDailyOmzetHeatmap(data: any[]): void {
     return acc
   }, {})
 
-  chartDataForAI['dailyOmzetHeatmap'] = dailyTotals // Store data for AI
+  setChartDataForAIProperty('dailyOmzetHeatmap', dailyTotals); // Store data for AI
 
   const maxOmzet = Math.max(...Object.values(dailyTotals))
 
@@ -4701,13 +4780,13 @@ function generateOmzetHeatmap(data: any[]): void {
     }
   })
 
-  chartDataForAI['omzetJamHariHeatmap'] = heatmapData.map((hourlyData, dayIndex) => {
+  setChartDataForAIProperty('omzetJamHariHeatmap', heatmapData.map((hourlyData, dayIndex) => {
     const dayData = {}
     hourlyData.forEach((revenue, hour) => {
       if (revenue > 0) dayData[hour] = revenue
     })
     return { [days[dayIndex]]: dayData }
-  })
+  }));
 
   // Generate HTML table
   let tableHTML = '<table class="heatmap-table">'
@@ -4774,7 +4853,7 @@ function generateTcApcHarianChart(data: any[]): void {
     return tc > 0 ? dailyData[date].revenue / tc : 0
   })
 
-  chartDataForAI['tcApcHarian'] = sortedDates.map((date, i) => ({ date, totalChecks: tcData[i], averageCheck: apcData[i] }))
+  setChartDataForAIProperty('tcApcHarian', sortedDates.map((date, i) => ({ date, totalChecks: tcData[i], averageCheck: apcData[i] })));
 
   createChart('tc-apc-harian-chart', 'bar', {
     labels: sortedDates,
@@ -4855,7 +4934,7 @@ function generateOmzetHarianChart(data: any[]): void {
 
   const sortedDates = Object.keys(dailyOmzet).toSorted()
 
-  chartDataForAI['omzetHarian'] = dailyOmzet // Store data for AI
+  setChartDataForAIProperty('omzetHarian', dailyOmzet); // Store data for AI
 
   createChart('omzet-harian-chart', 'line', {
     labels: sortedDates,
@@ -4906,7 +4985,7 @@ function generateOmzetMingguanChart(data: any[]): void {
   }, {})
 
   const sortedWeeks = Object.keys(weeklyOmzet).toSorted()
-  chartDataForAI['omzetMingguan'] = weeklyOmzet
+  setChartDataForAIProperty('omzetMingguan', weeklyOmzet);
 
   createChart('omzet-mingguan-chart', 'line', {
     labels: sortedWeeks,
@@ -4969,7 +5048,7 @@ function generateOmzetOutletChart(data: any[]): void {
   }, {})
 
   const sortedOutlets = Object.entries(outletOmzet).toSorted((a, b) => b[1] - a[1])
-  chartDataForAI['omzetOutlet'] = Object.fromEntries(sortedOutlets)
+  setChartDataForAIProperty('omzetOutlet', Object.fromEntries(sortedOutlets));
 
   createChart('omzet-outlet-chart', 'bar', {
     labels: sortedOutlets.map((entry) => entry[0]),
@@ -5027,7 +5106,7 @@ function generatePenjualanBulananChart(data: any[]): void {
   const salesData = sortedMonths.map((month) => monthlyData[month].revenue)
   const checkData = sortedMonths.map((month) => monthlyData[month].bills.size)
 
-  chartDataForAI['penjualanBulanan'] = sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] }))
+  setChartDataForAIProperty('penjualanBulanan', sortedMonths.map((month, i) => ({ month, revenue: salesData[i], checks: checkData[i] })))
 
   createChart('penjualan-bulanan-chart', 'bar', {
     labels: sortedMonths,
@@ -5100,7 +5179,7 @@ function generatePenjualanChannelChart(data: any[]): void {
     return acc
   }, {})
 
-  chartDataForAI['penjualanChannel'] = channelSales
+  setChartDataForAIProperty('penjualanChannel', channelSales)
 
   createChart('penjualan-channel-chart', 'doughnut', {
     labels: Object.keys(channelSales),
@@ -5140,7 +5219,7 @@ function generateOrderByCategoryCharts(data: any[]): void {
     acc[category] = (acc[category] || 0) + d.Quantity
     return acc
   }, {})
-  chartDataForAI['orderByCategory'] = byMenuCategory
+  setChartDataForAIProperty('orderByCategory', byMenuCategory)
   createChart('order-by-menu-category-chart', 'doughnut', {
     labels: Object.keys(byMenuCategory),
     datasets: [{ data: Object.values(byMenuCategory), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'] }],
@@ -5155,7 +5234,7 @@ function generateOrderByCategoryCharts(data: any[]): void {
       return acc
     }, {})
   const top5Makanan = Object.entries(byMakanan).toSorted((a, b) => b[1] - a[1]).slice(0, 5)
-  chartDataForAI['topMakanan'] = Object.fromEntries(top5Makanan) // Store for AI
+  setChartDataForAIProperty('topMakanan', Object.fromEntries(top5Makanan)) // Store for AI
   createChart('top-makanan-chart', 'bar', {
     labels: top5Makanan.map((item) => item[0]),
     datasets: [{
@@ -5174,7 +5253,7 @@ function generateOrderByCategoryCharts(data: any[]): void {
       return acc
     }, {})
   const top5Minuman = Object.entries(byMinuman).toSorted((a, b) => b[1] - a[1]).slice(0, 5)
-  chartDataForAI['topMinuman'] = Object.fromEntries(top5Minuman) // Store for AI
+  setChartDataForAIProperty('topMinuman', Object.fromEntries(top5Minuman)) // Store for AI
   createChart('top-minuman-chart', 'bar', {
     labels: top5Minuman.map((item) => item[0]),
     datasets: [{
@@ -5229,7 +5308,7 @@ function generateTcHarianJamChart(data: any[]): void {
     }
   }
 
-  chartDataForAI['tcJamRataRata'] = hourlyTc
+  setChartDataForAIProperty('tcJamRataRata', hourlyTc)
 
   createChart('tc-jam-chart-pdf', 'line', {
     labels: Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')),
@@ -5328,7 +5407,7 @@ function generateCabangAnalysis(data: any[]): void {
   const sortedByRevenue = [...processedStats].toSorted((a, b) => b.totalRevenue - a.totalRevenue)
   const labels = sortedByRevenue.map((s) => s.name)
 
-  chartDataForAI['cabangOmzetCheck'] = processedStats.map((s) => ({ branch: s.name, revenue: s.totalRevenue, transactions: s.totalCheck }))
+  setChartDataForAIProperty('cabangOmzetCheck', processedStats.map((s) => ({ branch: s.name, revenue: s.totalRevenue, transactions: s.totalCheck })))
 
   // Omzet & Check Chart
   createChart('cabang-omzet-check-chart', 'bar', {
@@ -5371,7 +5450,7 @@ function generateCabangAnalysis(data: any[]): void {
 
   // APC Chart
   const sortedByApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck)
-  chartDataForAI['cabangApc'] = Object.fromEntries(sortedByApc.map((s) => [s.name, s.avgCheck]))
+  setChartDataForAIProperty('cabangApc', Object.fromEntries(sortedByApc.map((s) => [s.name, s.avgCheck])))
   createChart('cabang-apc-chart', 'bar', {
     labels: sortedByApc.map((s) => s.name),
     datasets: [{
@@ -5404,7 +5483,7 @@ function generateCabangAnalysis(data: any[]): void {
                 `
     tbody.appendChild(tr)
   })
-  chartDataForAI['cabangDetail'] = sortedByRevenue
+  setChartDataForAIProperty('cabangDetail', sortedByRevenue)
 }
 
 /**
@@ -5418,7 +5497,7 @@ function generateCabangProdukChannelSection() {
 
     if (!period || !branchA || !branchB || branchA === branchB) return;
 
-    const periodData = allSalesData.filter(s => s.date.toISOString().startsWith(period));
+    const periodData = getAllSalesData().filter(s => s.date.toISOString().startsWith(period));
 
     setupBranchMenuTrendChart(periodData, branchA, branchB);
     generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart');
@@ -5431,13 +5510,13 @@ function generateCabangProdukChannelSection() {
  * Sets up the selectors for the "Cabang > Produk dan Channel" section.
  */
 async function setupCabangProdukChannelSelectors() {
-    if (cabangProdukChannelSelectorsInitialized) return;
+    if (getInitFlag('cabangProdukChannelSelectorsInitialized')) return;
     const periodSelect = document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
 
-    const periods = [...new Set(allSalesData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
-    const branches = [...new Set(allSalesData.flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
+    const periods = [...new Set(getAllSalesData().map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
+    const branches = [...new Set(getAllSalesData().flatMap(s => Object.keys(s.revenueByBranch || {})))].toSorted();
 
     if (periods.length === 0 || branches.length < 2) { return; }
 
@@ -5453,7 +5532,7 @@ async function setupCabangProdukChannelSelectors() {
     branchASelect.addEventListener('change', handler);
     branchBSelect.addEventListener('change', handler);
 
-    cabangProdukChannelSelectorsInitialized = true;
+    setInitFlag('cabangProdukChannelSelectorsInitialized', true);
     generateCabangProdukChannelSection();
 }
 
@@ -5461,8 +5540,9 @@ async function setupCabangProdukChannelSelectors() {
  * Sets up the interactive menu trend chart for comparing two branches.
  */
 function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
-    if (cabangMenuTrendSelect) {
-        cabangMenuTrendSelect.destroy();
+    const existingSelect = getUIComponent('cabangMenuTrendSelect');
+    if (existingSelect) {
+        existingSelect.destroy();
     }
     const selectEl = document.getElementById('cabang-menu-trend-select') as HTMLSelectElement;
     const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
@@ -5472,17 +5552,22 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    cabangMenuTrendSelect = new SlimSelect({
+    const newCabangMenuSelect = new SlimSelect({
         select: '#cabang-menu-trend-select',
         events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
     });
-    cabangMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('cabangMenuTrendSelect', newCabangMenuSelect);
+
+    newCabangMenuSelect.setSelected(allMenuItems.slice(0, 3));
 }
 
 function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
-    if (!cabangMenuTrendSelect) return;
+    const cabangMenuSelect = getUIComponent('cabangMenuTrendSelect');
+    if (!cabangMenuSelect) return;
 
-    const selectedMenus = cabangMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = cabangMenuSelect.getSelected() as string[];
     const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
@@ -5729,11 +5814,11 @@ function generateYoYAnalysis(data: any[]): void {
   const yearSelect = document.getElementById('yoy-year-select')
 
   // --- Populate Year Selector (only once) ---
-  if (!yoyYearSelectInitialized) {
+  if (!getInitFlag('yoyYearSelectInitialized')) {
     const years = [...new Set(data.map((d) => d['Sales Date In'].getFullYear()))].toSorted((a, b) => b - a)
     yearSelect.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('')
-    yearSelect.addEventListener('change', () => generateYoYAnalysis(allSalesData))
-    yoyYearSelectInitialized = true
+    yearSelect.addEventListener('change', () => generateYoYAnalysis(getAllSalesData()))
+    setInitFlag('yoyYearSelectInitialized', true)
   }
 
   const selectedYear = parseInt(yearSelect.value)
@@ -5808,11 +5893,11 @@ function generateYoYAnalysis(data: any[]): void {
     monthlyData[d['Sales Date In'].getMonth()].prevRevenue += d.Revenue
   })
 
-  chartDataForAI['yoyOmzet'] = {
+  setChartDataForAIProperty('yoyOmzet', {
     year: selectedYear,
     previous_year: prevYear,
     monthly_comparison: monthlyData,
-  }
+  })
 
   // --- Create Chart ---
   createChart('yoy-omzet-chart', 'line', {
@@ -5850,7 +5935,7 @@ function generateYoYAnalysis(data: any[]): void {
                 `
     tbody.appendChild(tr)
   })
-  chartDataForAI['yoyDetail'] = monthlyData
+  setChartDataForAIProperty('yoyDetail', monthlyData)
 }
 
 function generateDailyRecap(data: any[], fileName: string) {
@@ -6338,8 +6423,8 @@ async function generatePdfReport(progressCallback: (current: number, total: numb
   lastPeriodEndDate.setHours(23, 59, 59, 999)
 
   // Filter data for both periods from the global dataset
-  const currentData = allSalesData.filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate)
-  const lastPeriodData = allSalesData.filter((d) => d['Sales Date In'] >= lastPeriodStartDate && d['Sales Date In'] <= lastPeriodEndDate)
+  const currentData = getAllSalesData().filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate)
+  const lastPeriodData = getAllSalesData().filter((d) => d['Sales Date In'] >= lastPeriodStartDate && d['Sales Date In'] <= lastPeriodEndDate)
 
   await generateGeneralPdfInsights(currentData, lastPeriodData)
 
@@ -6434,7 +6519,7 @@ async function generatePdfReport(progressCallback: (current: number, total: numb
 async function analyzeChart(chartId: string): Promise<void> {
   const analyzeBtn = document.querySelector(`.analyze-btn[data-chart-id="${chartId}"]`)
   const resultContainer = document.getElementById(`analysis-result-${chartId}`)
-  const data = chartDataForAI[chartId]
+  const data = getChartDataForAI()[chartId]
 
   if (!resultContainer || !data) {
     if (resultContainer) {
@@ -6482,7 +6567,7 @@ async function analyzeChart(chartId: string): Promise<void> {
 
     const chartBlock = analyzeBtn.closest('.bg-white.rounded-lg.shadow-md')
     const chartTitle = chartBlock.querySelector('h3').textContent
-    aiAnalysisResults[chartId] = { title: chartTitle, content: html }
+    setChartDataForAIProperty(chartId, { title: chartTitle, content: html })
   } catch (error) {
     resultContainer.innerHTML = `<span class="text-red-600"><strong>Error:</strong> ${error.message}</span>`
   } finally {
@@ -6587,9 +6672,9 @@ document.querySelector('main.flex-1').addEventListener('click', async (e) => {
         }
 
         // Check if the ID corresponds to a Chart.js instance
-        if (charts[elementId]) {
+        const chartInstance = getChartProperty(elementId);
+        if (chartInstance) {
             // It's a chart, use the fast, built-in method
-            const chartInstance = charts[elementId];
             const imageUrl = chartInstance.toBase64Image('image/png', 1);
             const link = document.createElement('a');
             link.href = imageUrl;
@@ -6828,7 +6913,7 @@ function generateApcPerJamChart(data: any[]): void {
       hourlyApc[i] = hourlyRevenue[i] / totalBills
     }
   }
-  chartDataForAI['apcPerJam'] = hourlyApc
+  setChartDataForAIProperty('apcPerJam', hourlyApc)
   createChart('apc-per-jam-chart-pdf', 'line', {
     labels: Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')),
     datasets: [{
@@ -6873,7 +6958,7 @@ function generateSalesTrendHourlyDailyChart(data: any[]): void {
       maxOmzet = heatmapData[day][hour]
     }
   })
-  chartDataForAI['salesTrendHourlyDaily'] = heatmapData
+  setChartDataForAIProperty('salesTrendHourlyDaily', heatmapData)
   createChart('sales-trend-hourly-daily-chart-pdf', 'bar', {
     labels: Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')),
     datasets: [{
@@ -6919,7 +7004,7 @@ function generateChannelHourlyChart(data: any[]): void {
     }
     channelData[channel][hour] += d.Revenue
   })
-  chartDataForAI['channelHourly'] = channelData
+  setChartDataForAIProperty('channelHourly', channelData)
   createChart('channel-hourly-chart-pdf', 'line', {
     labels: Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')),
     datasets: Object.keys(channelData).map((channel) => ({
@@ -6962,7 +7047,7 @@ function generateChannelWeeklyChart(data: any[]): void {
     }
     channelData[channel][day] += d.Revenue
   })
-  chartDataForAI['channelWeekly'] = channelData
+  setChartDataForAIProperty('channelWeekly', channelData)
   createChart('channel-weekly-chart-pdf', 'line', {
     labels: days,
     datasets: Object.keys(channelData).map((channel) => ({
@@ -7005,7 +7090,7 @@ function generateChannelMonthlyChart(data: any[]): void {
     }
     channelData[channel][month] = (channelData[channel][month] || 0) + d.Revenue
   })
-  chartDataForAI['channelMonthly'] = channelData
+  setChartDataForAIProperty('channelMonthly', channelData)
   createChart('channel-monthly-chart-pdf', 'line', {
     labels: months,
     datasets: Object.keys(channelData).map((channel) => ({
@@ -8963,7 +9048,7 @@ function initializePdfExport(): void {
   const currentStartDate = new Date(document.getElementById('date-start').value);
   const currentEndDate = new Date(document.getElementById('date-end').value);
   currentEndDate.setHours(23, 59, 59, 999);
-  const currentData = allSalesData.filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate);
+  const currentData = getAllSalesData().filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate);
 
 generatePdfSalesTrendByHourChart(currentData);
 
@@ -9264,8 +9349,8 @@ async function generateLandscapePdfReport(progressCallback: (current: number, to
   lastPeriodEndDate.setHours(23, 59, 59, 999)
 
   // Filter data for both periods
-  const currentData = allSalesData.filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate)
-  const lastPeriodData = allSalesData.filter((d) => d['Sales Date In'] >= lastPeriodStartDate && d['Sales Date In'] <= lastPeriodEndDate)
+  const currentData = getAllSalesData().filter((d) => d['Sales Date In'] >= currentStartDate && d['Sales Date In'] <= currentEndDate)
+  const lastPeriodData = getAllSalesData().filter((d) => d['Sales Date In'] >= lastPeriodStartDate && d['Sales Date In'] <= lastPeriodEndDate)
 
   await generateGeneralPdfInsights(currentData, lastPeriodData)
 
@@ -9537,7 +9622,7 @@ function generateDailyHourTrendChart(data: any[], canvasId: string, metric: stri
 
   // Store data for AI analysis if the metric is 'Sales'
   if (metric === 'Sales') {
-      chartDataForAI['salesTrendHourlyDaily'] = datasets.map(ds => ({ [ds.label]: ds.data }));
+      setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [ds.label]: ds.data })));
   }
 
   createChart(canvasId, 'line', { labels, datasets });
@@ -11536,7 +11621,7 @@ document.getElementById('konfigurasi-btn').addEventListener('click', () => showV
  * @param {string} chartId - The canvas ID of the chart to download.
  */
 function downloadChartAsImage(chartId: string) {
-    const chartInstance = charts[chartId]; // Get the chart from our global charts object
+    const chartInstance = getChartProperty(chartId); // Get the chart from our store
     if (!chartInstance) {
         console.error(`Chart with ID "${chartId}" not found.`);
         alert('Could not download chart. Instance not found.');
@@ -11982,10 +12067,10 @@ function generate24MonthTcApcTrend(summaries: any[]) {
         return date.toLocaleString('default', { month: 'short', year: '2-digit' });
     });
 
-    chartDataForAI['tcApc24Month'] = {
+    setChartDataForAIProperty('tcApc24Month', {
         period: "Last 24 Months",
         trends: sortedMonths.map((month, i) => ({ month, total_check: tcData[i], average_check: apcData[i] }))
-    };
+    });
 
     // 5. Create the dual-axis line chart
     createChart('tc-apc-24-bulan-chart', 'line', {
@@ -12029,9 +12114,10 @@ function generate24MonthTcApcTrend(summaries: any[]) {
  * Draws the 24-month menu trend chart based on the current dropdown selection.
  */
 function draw24MonthMenuTrendChart(summaries: any[]) {
-    if (!menuTrend24MonthSelect) return;
+    const menuSelect = getUIComponent('menuTrend24MonthSelect');
+    if (!menuSelect) return;
 
-    const selectedMenus = menuTrend24MonthSelect.getSelected() as string[];
+    const selectedMenus = menuSelect.getSelected() as string[];
 
     // --- MODIFICATION START ---
     // 1. Get all unique months that have data, sort them chronologically,
@@ -12072,11 +12158,11 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
         };
     });
 
-    chartDataForAI['menuTrend24Month'] = {
+    setChartDataForAIProperty('menuTrend24Month', {
         period: "Last 24 available months",
         selected_menus: selectedMenus,
         trends: datasets.map(ds => ({ menu: ds.label, monthly_quantity: ds.data }))
-    };
+    });
 
     createChart('menu-trend-24-bulan-chart', 'line', {
         labels: chartLabels,
@@ -12088,7 +12174,8 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
  * Sets up the multi-select dropdown for the 24-month menu trend chart.
  */
 function setup24MonthMenuTrendChart(summaries: any[]) {
-    if (menuTrend24MonthSelect) {
+    const existingSelect = getUIComponent('menuTrend24MonthSelect');
+    if (existingSelect) {
         draw24MonthMenuTrendChart(summaries);
         return;
     }
@@ -12121,19 +12208,22 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
     selectEl.innerHTML = sortedItems.map(item => `<option value="${item[0]}">${item[0]}</option>`).join('');
 
     // 4. Initialize Slim Select
-    menuTrend24MonthSelect = new SlimSelect({
+    const newMenuSelect = new SlimSelect({
         select: '#menu-trend-24-bulan-select',
         settings: { placeholderText: 'Select menus...' },
         events: {
             afterChange: () => {
-                draw24MonthMenuTrendChart(allSalesData); // Use global data to ensure it's always up-to-date
+                draw24MonthMenuTrendChart(getAllSalesData()); // Use global data to ensure it's always up-to-date
             }
         }
     });
 
+    // Store in analysis state
+    setUIComponent('menuTrend24MonthSelect', newMenuSelect);
+
     // 5. Set a default selection of the top 5 most popular items
     const top5Items = sortedItems.slice(0, 5).map(item => item[0]);
-    menuTrend24MonthSelect.setSelected(top5Items);
+    newMenuSelect.setSelected(top5Items);
 }
 
 /**
@@ -12173,10 +12263,10 @@ function generate24MonthChannelTrendChart(summaries: any[]) {
         return date.toLocaleString('default', { month: 'short', year: '2-digit' });
     });
 
-    chartDataForAI['channelTrend24Month'] = {
+    setChartDataForAIProperty('channelTrend24Month', {
         period: "Last 24 available months",
         trends: channels.map(ch => ({ channel: ch, monthly_revenue: channelData[ch] }))
-    };
+    });
 
     // 4. Create datasets for the stacked area chart
     const datasets = channels.map((channel, index) => {
@@ -12242,10 +12332,10 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
         return date.toLocaleString('default', { month: 'short', year: '2-digit' });
     });
 
-    chartDataForAI['categoryTrend24Month'] = {
+    setChartDataForAIProperty('categoryTrend24Month', {
         period: "Last 24 available months",
         trends: categories.map(cat => ({ category: cat, monthly_quantity: categoryData[cat] }))
-    };
+    });
 
     // 4. Create datasets for the stacked area chart
     const datasets = categories.map((category, index) => {
@@ -12288,7 +12378,7 @@ async function generateGeneralPenjualanSection() {
         return;
     }
 
-      activeSalesTarget = {}; // Reset before fetching
+      setConfigValue('activeSalesTarget', {}); // Reset before fetching
     if (selectedBranch && selectedBranch !== 'ALL') {
         const period = endDate.toISOString().slice(0, 7); // Get period from the selected end date
         const safeBranchName = selectedBranch.replace(/\s+/g, '_');
@@ -12298,7 +12388,7 @@ async function generateGeneralPenjualanSection() {
             const targetDocRef = doc(db, `users/${currentUser.uid}/monthlySalesTargets`, targetDocId);
             const targetDocSnap = await getDoc(targetDocRef);
             if (targetDocSnap.exists()) {
-                activeSalesTarget = targetDocSnap.data().targets || {};
+                setConfigValue('activeSalesTarget', targetDocSnap.data().targets || {});
             }
         } catch (error) {
             console.error("Could not fetch sales target for the period:", error);
@@ -12306,7 +12396,7 @@ async function generateGeneralPenjualanSection() {
     }
 
     // Filter data based on the new date range selector
-    let currentData = allSalesData.filter(s => s.date >= startDate && s.date <= endDate);
+    let currentData = getAllSalesData().filter(s => s.date >= startDate && s.date <= endDate);
 
     if (selectedBranch !== 'ALL') {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
@@ -12460,7 +12550,7 @@ async function generateWaktuKeuanganSection() {
  * Sets up the period selectors for the "Waktu > Keuangan" section.
  */
 async function setupWaktuKeuanganPeriodSelectors() {
-    if (waktuKeuanganSelectorsInitialized) return;
+    if (getInitFlag('waktuKeuanganSelectorsInitialized')) return;
     const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
@@ -12493,7 +12583,7 @@ async function setupWaktuKeuanganPeriodSelectors() {
     selectB.addEventListener('change', handler);
     branchSelect.addEventListener('change', handler);
 
-    waktuKeuanganSelectorsInitialized = true;
+    setInitFlag('waktuKeuanganSelectorsInitialized', true);
 
     generateWaktuKeuanganSection();
 }
@@ -12531,7 +12621,7 @@ async function updatePeriodSelectorsForBranch(selectedBranch: string) {
         // Clear out any old charts or tables
         if (container) container.innerHTML = '<p class="text-gray-500 p-4 text-center">This branch does not have enough P&L reports to compare.</p>';
         // You might want to clear the charts here as well
-        Object.values(charts).forEach(chart => {
+        Object.values(getCharts()).forEach(chart => {
             if (chart.canvas.id.startsWith('waktu-')) chart.destroy();
         });
         return;
@@ -12561,7 +12651,7 @@ function generateWaktuProdukChannelSection() {
 
     if (!periodA || !periodB || !selectedBranch) return;
 
-    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter(s => s.branches.includes(selectedBranch));
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
@@ -12605,7 +12695,7 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
 
-    const branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const branchData = getAllSalesData().filter(s => s.branches.includes(selectedBranch));
     const periods = [...new Set(branchData.map(s => s.date.toISOString().slice(0, 7)))].toSorted().reverse();
 
     if (periods.length < 2) {
@@ -12625,14 +12715,14 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
 }
 
 async function setupWaktuProdukChannelSelectors() {
-    if (waktuProdukChannelSelectorsInitialized) return;
+    if (getInitFlag('waktuProdukChannelSelectorsInitialized')) return;
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-produk-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-produk-branch-select') as HTMLSelectElement;
 
-    const branches = [...new Set(allSalesData.flatMap(s => s.branches))].toSorted();
+    const branches = [...new Set(getAllSalesData().flatMap(s => s.branches))].toSorted();
 
     if (branches.length === 0) {
         branchSelect.innerHTML = '<option>No branches found</option>';
@@ -12648,7 +12738,7 @@ async function setupWaktuProdukChannelSelectors() {
         await updatePeriodSelectorsForProdukChannel(branchSelect.value);
     });
 
-    waktuProdukChannelSelectorsInitialized = true;
+    setInitFlag('waktuProdukChannelSelectorsInitialized', true);
 
     await updatePeriodSelectorsForProdukChannel(branches[0]);
 }
@@ -12658,28 +12748,34 @@ async function setupWaktuProdukChannelSelectors() {
  * Sets up the interactive menu trend chart for comparing two periods.
  */
 function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
-    if (waktuMenuTrendSelect) {
-        waktuMenuTrendSelect.destroy(); // Destroy old instance to repopulate options
+    const existingSelect = getUIComponent('waktuMenuTrendSelect');
+    if (existingSelect) {
+        existingSelect.destroy(); // Destroy old instance to repopulate options
     }
     const selectEl = document.getElementById('waktu-menu-trend-select') as HTMLSelectElement;
     const combinedData = [...periodAData, ...periodBData];
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    waktuMenuTrendSelect = new SlimSelect({
+    const newWaktuMenuSelect = new SlimSelect({
         select: '#waktu-menu-trend-select',
         events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
     });
-    waktuMenuTrendSelect.setSelected(allMenuItems.slice(0, 3));
+
+    // Store in analysis state
+    setUIComponent('waktuMenuTrendSelect', newWaktuMenuSelect);
+
+    newWaktuMenuSelect.setSelected(allMenuItems.slice(0, 3));
 }
 
 /**
  * Draws the menu trend comparison chart.
  */
 function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
-    if (!waktuMenuTrendSelect) return;
+    const waktuMenuSelect = getUIComponent('waktuMenuTrendSelect');
+    if (!waktuMenuSelect) return;
 
-    const selectedMenus = waktuMenuTrendSelect.getSelected() as string[];
+    const selectedMenus = waktuMenuSelect.getSelected() as string[];
     const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
@@ -13083,9 +13179,9 @@ async function setupGeneralInvestasiSelectors() {
         branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
         // Attach event listener only once
-        if (!generalInvestasiSelectorInitialized) {
+        if (!getInitFlag('generalInvestasiSelectorInitialized')) {
             branchSelect.addEventListener('change', generateGeneralInvestasiSection);
-            generalInvestasiSelectorInitialized = true;
+            setInitFlag('generalInvestasiSelectorInitialized', true);
         }
 
         // Trigger the initial chart generation
@@ -13238,7 +13334,7 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
 }
 
 async function setupCabangInvestasiSelectors() {
-    if (cabangInvestasiSelectorInitialized) return;
+    if (getInitFlag('cabangInvestasiSelectorInitialized')) return;
     if (!currentUser) return;
 
     const startPeriodSelect = document.getElementById('cabang-investasi-start-period') as HTMLSelectElement;
@@ -13287,7 +13383,7 @@ async function setupCabangInvestasiSelectors() {
         branchASelect.addEventListener('change', handler);
         branchBSelect.addEventListener('change', handler);
 
-        cabangInvestasiSelectorInitialized = true;
+        setInitFlag('cabangInvestasiSelectorInitialized', true);
         await generateCabangInvestasiSection();
 
     } catch (error) {
@@ -13549,4 +13645,3 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
         }
     });
 }
-
