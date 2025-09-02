@@ -47,6 +47,7 @@ import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
+import { globalConfigService } from './services/globalConfigService';
 
 // Firebase Config
 const firebaseConfig = {
@@ -371,7 +372,7 @@ onAuthStateChanged(auth, async (user) => {
         });
         if (!adminCredentials) {
             await fetchUserRoleAndSetupUI(user)}
-            
+
     } else {
     if (adminCredentials) {
       signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password)
@@ -421,10 +422,13 @@ async function fetchUserRoleAndSetupUI(user: any): Promise<void> {
     await ensureUserDocument(user.uid, user.email)
     currentUserRole = 'user'
   }
-  document.getElementById('user-management-btn').classList.toggle('hidden', currentUserRole !== 'admin')
+  document.getElementById('user-management-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
+  document.getElementById('konfigurasi-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
   showView('main-menu')
   await populateCompiledDataTable(); // Load the new compiled table
-  loadGeminiConfig()
+  if (currentUserRole === 'admin') {
+    loadGeminiConfig()
+  }
 }
 
 async function uploadAndProcessPnlFile(file: File, expectedPeriod: string | null = null): Promise<string> {
@@ -1774,69 +1778,30 @@ document.getElementById('upload-btn').addEventListener('click', async () => {
 
 // --- AI Analysis & Configuration ---
 /**
- * Load and merge Gemini AI configuration from localStorage with defaults.
+ * Load Gemini configuration for admin users.
  *
  * @description
- * Retrieves saved Gemini configuration from localStorage and intelligently merges
- * it with default prompts from the codebase. Preserves user's API key and custom
- * prompts while ensuring new default prompts are included. Updates the UI input
- * field and saves the merged configuration back to localStorage.
+ * For admin users, loads the global API key from Firestore and populates
+ * the configuration UI. This replaces the old localStorage-based system.
  *
- * @returns This function does not return a value; it updates global config and UI.
- *
- * @example
- * // Load configuration on app startup
- * loadGeminiConfig();
- * // Merges saved config with defaults, updates geminiConfig global object
- * // and populates the API key input field in the UI
+ * @returns This function does not return a value; it updates the UI.
  */
 function loadGeminiConfig(): void {
-  const savedConfigString = localStorage.getItem('geminiConfig')
-  if (savedConfigString) {
-    const savedConfig = JSON.parse(savedConfigString)
-
-    // Start with the default prompts from the code
-    const defaultPrompts = geminiConfig.prompts
-
-    // Take the saved API key if it exists
-    const apiKey = savedConfig.apiKey || ''
-
-    // Take the saved prompts if they exist
-    const savedPrompts = savedConfig.prompts || {}
-
-    // Merge them: saved prompts overwrite defaults, but new defaults from the code are included
-    const mergedPrompts = { ...defaultPrompts, ...savedPrompts }
-
-    // Update the global config object
-    geminiConfig.apiKey = apiKey
-    geminiConfig.prompts = mergedPrompts
+  // Only load config for admin users
+  if (currentUserRole === 'admin') {
+    loadCurrentApiKey()
   }
-
-  // Update the input field with the final API key
-  document.getElementById('gemini-api-key').value = geminiConfig.apiKey
-
-  // Save the potentially merged config back to ensure it's up-to-date for the next session
-  saveGeminiConfig()
 }
 
 /**
- * Save current Gemini AI configuration to localStorage for persistence.
+ * Legacy function kept for backward compatibility.
+ * No longer saves to localStorage since we use Firestore now.
  *
- * @description
- * Serializes the global geminiConfig object (containing API key and custom prompts)
- * to JSON and stores it in localStorage. This ensures user configuration persists
- * across browser sessions and page reloads.
- *
- * @returns This function does not return a value; it saves config to localStorage.
- *
- * @example
- * // Save configuration after user updates API key or prompts
- * geminiConfig.apiKey = 'new-api-key';
- * saveGeminiConfig();
- * // Configuration is now persisted in localStorage as JSON string
+ * @deprecated This function is no longer used in the new Firestore-based system.
  */
 function saveGeminiConfig(): void {
-  localStorage.setItem('geminiConfig', JSON.stringify(geminiConfig))
+  // This function is now a no-op since we save directly to Firestore
+  // in the setupConfigurationTab function
 }
 
 /**
@@ -1858,65 +1823,44 @@ function saveGeminiConfig(): void {
  * // with modification tracking and automatic saving
  */
 function setupConfigurationTab(): void {
-  const container = document.getElementById('prompt-templates-container')
-  container.innerHTML = ''
+  // Update API key input handler for admin users
+  const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
+  if (apiKeyInput) {
+    // Load current API key for admin
+    loadCurrentApiKey()
 
-  function isPromptModified(key) {
-    return geminiConfig.prompts[key] !== defaultGeminiConfig.prompts[key]
-  }
+    // Add event listener for saving
+    apiKeyInput.addEventListener('change', async (e) => {
+      const target = e.target as HTMLInputElement
+      const apiKey = target.value.trim()
 
-  // Ensure we iterate over the keys of the *current* global geminiConfig object
-  for (const key in geminiConfig.prompts) {
-    const markModifiedHidden = isPromptModified(key) ? '' : 'hidden'
+      if (!apiKey) {
+        alert('Please enter a valid API key.')
+        return
+      }
 
-    const title = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())
-    const div = document.createElement('div')
-    div.innerHTML = `
-                    <label for="prompt-${key}" class="block text-sm font-medium text-gray-700">
-                        ${title}
-                        <span id="modified-mark-${key}" class="text-yellow-600 text-xs font-semibold ml-1 ${markModifiedHidden}">(modified)</span>
-                    </label>
-                    <textarea id="prompt-${key}" rows="4" class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" data-prompt-key="${key}">${geminiConfig.prompts[key]}</textarea>
-                    <button id="reset-prompt-${key}" class="mt-2 bg-red-100 text-red-600 font-semibold px-3 py-1 rounded hover:bg-red-200 block ml-auto">
-                        Reset prompt
-                    </button>
-                `
-    container.appendChild(div)
-
-    const buttonReset = document.getElementById(`reset-prompt-${key}`)
-    buttonReset.addEventListener('click', () => {
-      const textarea = document.getElementById(`prompt-${key}`)
-      textarea.value = defaultGeminiConfig.prompts[key]
-      textarea.dispatchEvent(new Event('change', { bubbles: true }))
+      try {
+        await globalConfigService.setGeminiApiKey(apiKey, (currentUser as DocumentData).uid)
+        alert('API Key saved successfully!')
+      } catch (error) {
+        console.error('Error saving API key:', error)
+        alert('Failed to save API key. Please try again.')
+      }
     })
   }
+}
 
-  document.getElementById('gemini-api-key').addEventListener('change', (e) => {
-    geminiConfig.apiKey = e.target.value
-    saveGeminiConfig()
-    alert('API Key saved.')
-  })
-
-  function hideModifiedMark(key, hide) {
-    const modifiedMark = document.getElementById(`modified-mark-${key}`)
-
-    if (hide) {
-      modifiedMark.classList.add('hidden')
-    } else {
-      modifiedMark.classList.remove('hidden')
+// Helper function to load current API key for admin users
+async function loadCurrentApiKey(): Promise<void> {
+  try {
+    const apiKey = await globalConfigService.getGeminiApiKey()
+    const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
+    if (apiKeyInput && apiKey) {
+      apiKeyInput.value = apiKey
     }
+  } catch (error) {
+    console.error('Error loading current API key:', error)
   }
-
-  container.addEventListener('change', (e) => {
-    if (e.target.tagName === 'TEXTAREA') {
-      const key = e.target.dataset.promptKey
-      geminiConfig.prompts[key] = e.target.value
-      saveGeminiConfig()
-
-      const isModified = isPromptModified(key)
-      hideModifiedMark(key, !isModified)
-    }
-  })
 }
 
 /**
@@ -1944,9 +1888,9 @@ function setupConfigurationTab(): void {
  * }
  */
 async function getGeminiAnalysis(prompt: string): Promise<string> {
-  const apiKey = geminiConfig.apiKey
+  const apiKey = await globalConfigService.getGeminiApiKey()
   if (!apiKey) {
-    throw new Error('Gemini API Key is not set. Please add it in the Konfigurasi tab.')
+    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.')
   }
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
@@ -3681,7 +3625,7 @@ function generatePnlOverviewChart(reports: any[]) {
         const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
         const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
         const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
-        
+
         const expense = hpp + opex;
         const netIncome = revenue - expense;
 
@@ -13120,7 +13064,7 @@ async function generateGeneralInvestasiSection() {
         const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
         const q = query(pnlReportsRef, where("branchName", "==", selectedBranch), orderBy("period", "desc"), limit(24));
         const reportsSnap = await getDocs(q);
-        
+
         const recentReports = reportsSnap.docs.map(doc => doc.data()).sort((a, b) => a.period.localeCompare(b.period));
 
         if (recentReports.length === 0) {
@@ -13136,7 +13080,7 @@ async function generateGeneralInvestasiSection() {
             const depreciation = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((s: number, v: number) => s + v, 0);
             const interest = Object.values(pnlData["Bunga"] || {}).reduce((s: number, v: number) => s + v, 0);
             const tax = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((s: number, v: number) => s + v, 0);
-            
+
             const netIncome = revenue - hpp - opex - nonOpex - depreciation - interest - tax;
             return {
                 period: report.period,
@@ -13298,7 +13242,7 @@ async function generateCabangInvestasiSection() {
     const clearChartsAndShowError = (message: string) => {
         const containerA = document.getElementById('cabang-business-yield-chart-container');
         const containerB = document.getElementById('cabang-investor-yield-chart-container');
-        
+
         // --- THIS IS THE FIX ---
         // When showing an error, we now add the <canvas> elements back into the HTML.
         // This ensures they exist for the next time the function runs successfully.
@@ -13321,7 +13265,7 @@ async function generateCabangInvestasiSection() {
             // The P&L report ID is a composite of period and a "safe" branch name
             const pnlId = `${period}_${branchName.replace(/\s+/g, '_')}`;
             const pnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, pnlId);
-            
+
             const [investmentSnap, pnlSnap] = await Promise.all([getDoc(investmentRef), getDoc(pnlRef)]);
 
             if (!investmentSnap.exists()) throw new Error(`Investment data not found for ${branchName}.`);
