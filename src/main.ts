@@ -192,7 +192,7 @@ function setupMonthlyOmzetComparisonChart() {
               }
           }
       }),
-      ($s) => $s.setSelected(availableMonths.slice(0, 2)),
+      ($select) => $select.setSelected(availableMonths.slice(0, 2)),
     );
 
     // Initial drawing of the chart is handled by the afterChange event from setSelected
@@ -2676,9 +2676,9 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
             afterChange: () => drawGeneralMenuTrendChart($store.getAllSalesData(), canvasId)
         }
       }),
-      ($s) => {
-        window.generalMenuTrendSelect = $s;
-        $s.setSelected(sortedMenuItems.slice(0, 3));
+      ($select) => {
+        window.generalMenuTrendSelect = $select;
+        $select.setSelected(sortedMenuItems.slice(0, 3));
       }
     );
 }
@@ -5500,7 +5500,7 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
         select: '#cabang-menu-trend-select',
         events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
       }),
-      ($s) => $s.setSelected(allMenuItems.slice(0, 3)),
+      ($select) => $select.setSelected(allMenuItems.slice(0, 3)),
     );
 }
 
@@ -12164,7 +12164,7 @@ function setup24MonthMenuTrendChart(summaries: any[]) {
             }
         }
       }),
-      ($s) => $s.setSelected(top5Items),
+      ($select) => $select.setSelected(top5Items),
     );
 }
 
@@ -12707,7 +12707,7 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
         select: '#waktu-menu-trend-select',
         events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
       }),
-      ($s) => $s.setSelected(allMenuItems.slice(0, 3)),
+      ($select) => $select.setSelected(allMenuItems.slice(0, 3)),
     );
 }
 
