@@ -203,6 +203,7 @@ export const setupPageSummary = (params: {
             }
 
             if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
+                showInit()
                 tryShowFromCache(state.activeViewData)
             }
         })
