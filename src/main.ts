@@ -3990,7 +3990,28 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   container.innerHTML = calendarHTML;
 }
 
+// In main.ts, replace the existing generateRingkasanFromSummaries function with this one.
+
 function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }) {
+    
+    // --- FIX START: Helper function to dynamically adjust font size ---
+    const adjustFontSize = (elementId: string, text: string) => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+
+        element.textContent = text;
+        
+        // Threshold: If the text is longer than 12 characters (e.g., "Rp10.000.000")
+        if (text.length > 12) {
+            element.classList.remove('text-4xl');
+            element.classList.add('text-2xl'); // Apply smaller font size
+        } else {
+            element.classList.remove('text-2xl');
+            element.classList.add('text-4xl'); // Revert to default large font size
+        }
+    };
+    // --- FIX END ---
+
     const calculateTotals = (summaries: any[]) => summaries.reduce((acc, summary) => {
         acc.omzet += summary.totalOmzet || 0;
         acc.checks += summary.totalTransactions || 0;
@@ -4000,11 +4021,11 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
     const currentTotals = calculateTotals(currentSummaries);
     const currentAvgCheck = currentTotals.checks > 0 ? currentTotals.omzet / currentTotals.checks : 0;
 
-    document.getElementById(ids.omzet).textContent = `Rp${currentTotals.omzet.toLocaleString('id-ID')}`;
-    document.getElementById(ids.check).textContent = currentTotals.checks.toLocaleString('id-ID');
-    document.getElementById(ids.avgCheck).textContent = `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
-
-    // MODIFICATION START: Check if there is comparison data before trying to display it.
+    // --- FIX: Use the new helper function to set the text and adjust size ---
+    adjustFontSize(ids.omzet, `Rp${currentTotals.omzet.toLocaleString('id-ID')}`);
+    adjustFontSize(ids.check, currentTotals.checks.toLocaleString('id-ID'));
+    adjustFontSize(ids.avgCheck, `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`);
+    
     if (lastPeriodSummaries && lastPeriodSummaries.length > 0) {
         const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
         const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
@@ -4013,12 +4034,10 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
         calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
         calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
     } else {
-        // If there is no comparison data, clear the text content of the growth elements.
         document.getElementById(ids.omzetGrowth).textContent = '';
         document.getElementById(ids.checkGrowth).textContent = '';
         document.getElementById(ids.avgCheckGrowth).textContent = '';
     }
-    // MODIFICATION END
 }
 
 
