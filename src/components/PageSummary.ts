@@ -199,7 +199,12 @@ export const setupPageSummary = (params: {
     }
 
     // Register subscriber to check for cache when activeViewData changes
-    store.subscribe((state, prevState) => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+        // Auto-unsubscribe on view data reset
+        if (prevState.activeViewData && !state.activeViewData) {
+            unsubscribe()
+        }
+
         if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
             checkCacheAndUpdateUI(state.activeViewData)
         }
