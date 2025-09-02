@@ -8,7 +8,6 @@ interface ViewData<TData = any, TFilters = {[key: string]: any}> {
 }
 
 export interface AppState {
-  period?: string;
   viewData: {[key: string]: ViewData};
   activeViewData?: ViewData;
 }
@@ -22,7 +21,6 @@ interface AppStore extends AppState {
 }
 
 const store = createStore<AppStore>((set, get) => ({
-  period: undefined,
   viewData: {},
   activeViewData: undefined,
 
