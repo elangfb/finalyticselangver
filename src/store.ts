@@ -1,29 +1,43 @@
+import { produce } from 'immer';
 import { createStore } from 'zustand/vanilla'
+
+interface ViewData<TData = any, TFilters = {[key: string]: any}> {
+  viewId: string;
+  data: TData;
+  filters: TFilters;
+}
 
 export interface AppState {
   period?: string;
-  activeViewData?: {
-    viewId: string;
-    data: any;
-    filters: {[key: string]: any};
-  }
+  viewData: {[key: string]: ViewData};
+  activeViewData?: ViewData;
 }
 
 interface AppStore extends AppState {
   resetActiveViewData: () => void;
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
+  trySetFromExistingViewData: (viewId: string) => void;
   setStore: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
   setStoreObj: (obj: Partial<AppState>) => void;
 }
 
 const store = createStore<AppStore>((set, get) => ({
   period: undefined,
+  viewData: {},
   activeViewData: undefined,
 
   resetActiveViewData: () => set({ activeViewData: undefined }),
 
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) =>
-    set({ activeViewData: { viewId, data, filters } }),
+    set(produce((state: AppState) => {
+      state.viewData[viewId] = { viewId, data, filters };
+      state.activeViewData = { viewId, data, filters };
+    })),
+
+  trySetFromExistingViewData: (viewId: string) => {
+    const existingViewData = get().viewData[viewId];
+    if (existingViewData) set({ activeViewData: existingViewData });
+  },
 
   /**
    * Set individual application store property with type-safe key-value assignment.

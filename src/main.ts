@@ -31,7 +31,7 @@ import {
 } from 'firebase/firestore'
 
 import { setupAnalysis } from './analysis'
-import { getStoreState, setStoreObj, setStore, resetActiveViewData, setActiveViewData, AppState } from './store'
+import * as $store from './store'
 import { prompts } from './prompt'
 import { applyAnalysisTextBindings } from './utils/dom'
 import {
@@ -2959,7 +2959,7 @@ function generateWaktuPenjualanSection() {
     generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
     generateYoYComparisonChart(periodB, selectedBranch);
 
-    setActiveViewData('waktu-penjualan', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
+    $store.setActiveViewData('waktu-penjualan', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
 }
 
 async function setupCabangKeuanganSelectors() {
@@ -3019,7 +3019,7 @@ async function generateCabangKeuanganSection() {
     generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
     generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
 
-    setActiveViewData('cabang-keuangan', { reportA, reportB }, { period, branchA, branchB });
+    $store.setActiveViewData('cabang-keuangan', { reportA, reportB }, { period, branchA, branchB });
 
     hideLoading();
 }
@@ -3042,7 +3042,7 @@ function generateCabangPenjualanSection() {
     generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-apc-comparison-chart', metric: 'apc', title: 'ATC' });
     generateBranchWeeklyTrendComparisonChart(periodData, branchA, branchB, 'cabang-weekly-trend-comparison-chart');
 
-    setActiveViewData('cabang-penjualan', periodData, { period, branchA, branchB });
+    $store.setActiveViewData('cabang-penjualan', periodData, { period, branchA, branchB });
 }
 
 /**
@@ -3357,7 +3357,7 @@ async function generateGeneralKeuanganSection() {
         })
         .sort((a, b) => a.period.localeCompare(b.period));
 
-    setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
+    $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
 
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
@@ -4273,7 +4273,7 @@ const calculateComparison = (current, previous) => {
  */
 function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
   if (!currentData || currentData.length === 0) {
-    setStoreObj({}) // Clear the store if no data
+    $store.setStoreObj({}) // Clear the store if no data
     return
   }
 
@@ -4358,7 +4358,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
 
   // === FINAL UPDATE ===
   // This updates all listening components at once.
-  setStoreObj(stateUpdate)
+  $store.setStoreObj(stateUpdate)
 }
 
 /**
@@ -4393,7 +4393,7 @@ function generateRingkasan(currentData: any[], lastPeriodData: any[]): void {
   const lastPeriodCheck = new Set(lastPeriodData.map((d) => d['Bill Number'])).size
   const lastPeriodAvgCheck = lastPeriodCheck > 0 ? lastPeriodOmzet / lastPeriodCheck : 0
 
-  setStoreObj({
+  $store.setStoreObj({
     currentOmzet,
     currentOmzetFormatted: currentOmzet.toLocaleString('id-ID', { maximumFractionDigits: 2 }),
     currentCheck,
@@ -4488,7 +4488,7 @@ function calculateAndDisplayGrowth(elementId: string, currentValue: number, prev
  */
 function calculateForPdf(key: string, currentValue: number, previousValue: number): void {
   if (previousValue === 0) {
-    setStoreObj({
+    $store.setStoreObj({
       [`${key}UpOrDown`]: undefined,
       [`${key}Percentage`]: undefined,
       [`${key}PlusOrMinus`]: undefined,
@@ -4507,7 +4507,7 @@ function calculateForPdf(key: string, currentValue: number, previousValue: numbe
   const PlusOrMinus = growth === 0 ? '' : growth > 0 ? '+' : '-'
   const Difference = absoluteDiff.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
-  setStoreObj({
+  $store.setStoreObj({
     [`${key}UpOrDown`]: UpOrDown,
     [`${key}Percentage`]: Percentage,
     [`${key}PlusOrMinus`]: PlusOrMinus,
@@ -5384,7 +5384,7 @@ function generateCabangProdukChannelSection() {
     generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart');
     generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart');
 
-    setActiveViewData('cabang-produk-channel', periodData, { period, branchA, branchB });
+    $store.setActiveViewData('cabang-produk-channel', periodData, { period, branchA, branchB });
 }
 
 /**
@@ -5656,7 +5656,7 @@ function generateMultiWeekTrendChart(data: any[], canvasId: string, metric: stri
  */
 function generateWeekendInsights(data: any[]): void {
     if (data.length === 0) return;
-    setStoreObj({
+    $store.setStoreObj({
         mainWeekendInsight: 'Berikan yang terbaik selama weekend untuk meningkatkan omzetmu secara signifikan.',
         tcTrendInsight: 'Data menunjukkan lonjakan traffic yang konsisten terjadi pada hari Sabtu dan Minggu, manfaatkan momentum ini.',
         salesChannelInsight: 'Analisis mendalam menunjukkan bahwa Dine-in mendominasi pada jam sarapan, sementara layanan delivery seperti GrabFood lebih diminati untuk makan siang dan malam.',
@@ -6239,7 +6239,7 @@ async function viewCompiledAnalysis() {
             submenu.classList.remove('hidden'); // Ensure the submenu is visible
             parentToggle.querySelector('.chevron-icon')?.classList.add('rotate-180');
 
-            resetActiveViewData();
+            $store.resetActiveViewData();
             setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
         }
 
@@ -6432,9 +6432,9 @@ async function analyzeChart(chartId: string): Promise<void> {
           }
         })
         Object.entries(stateUpdate).forEach(([key, value]) => {
-          setStore(key as keyof AppState, value)
+          $store.setStore(key as keyof $store.AppState, value)
         })
-        applyAnalysisTextBindings(getStoreState())
+        applyAnalysisTextBindings($store.getStoreState())
       } catch (e) {
         console.error('Failed to parse structured data from AI response:', e)
       }
@@ -6502,9 +6502,9 @@ async function generateGeneralPdfInsights(currentData: any[], lastPeriodData: an
           }
         })
         Object.entries(stateUpdate).forEach(([key, value]) => {
-          setStore(key as keyof AppState, value)
+          $store.setStore(key as keyof $store.AppState, value)
         })
-        applyAnalysisTextBindings(getStoreState())
+        applyAnalysisTextBindings($store.getStoreState())
         console.log('Updated store with general PDF insights:', stateUpdate)
       } catch (e) {
         console.error('Failed to parse structured data from general PDF insights response:', e)
@@ -6618,7 +6618,7 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         const targetSection = document.getElementById(`${targetId}-section`);
         if (targetSection) {
           targetSection.classList.add('active');
-          resetActiveViewData();
+          $store.resetActiveViewData();
           setupPageSummary({ pageId: targetSection.id, analyzeUsingAI: getGeminiAnalysis })
         }
 
@@ -7791,7 +7791,7 @@ function generateAvgPurchaseValueChart(data: any[]): void {
      const maxCheck = peakBillTotals[Math.floor(peakBillTotals.length * 0.75)] || 0;
 
      // 5. Update the store
-     setStoreObj({
+     $store.setStoreObj({
          peakHour1Start: String(peakHourStart).padStart(2, '0') + '.00',
          peakHour1End: String(peakHourEnd).padStart(2, '0') + '.00',
          popularMenu1: popularMenu[0]?.[0] || '',
@@ -8052,7 +8052,7 @@ function generateApcTrendHourChart(data: any[]): void {
      const weekdayBreakfastApc = weekdayBreakfastData.reduce((sum, d) => sum + d.Revenue, 0) / (new Set(weekdayBreakfastData.map(d => d['Bill Number'])).size || 1);
 
      // 4. Update the store
-     setStoreObj({
+     $store.setStoreObj({
          avgCheckPeakDayMin: formatNumber(minCheck, 0),
          avgCheckPeakDayMax: formatNumber(maxCheck, 0),
          peakDaysText: peakDays.map(d => d.name).join(', '),
@@ -9368,7 +9368,7 @@ function generateCustomerSpendingInsights(data: any[]): void {
   const busiestTimeRange = `${String(busiestHour).padStart(2, '0')}.00 - ${String(busiestHour + 2).padStart(2, '0')}.00`;
 
   // 4. Update the central store with all the calculated values
-  setStoreObj({
+  $store.setStoreObj({
     avgSpendLower: formatNumber(avgSpendLower),
     avgSpendUpper: formatNumber(avgSpendUpper),
     highestSingleTransaction: formatNumber(highestSingleTransaction),
@@ -9422,7 +9422,7 @@ function generateWeekendSalesInsights(data: any[]): void {
   const apcIncrease = 5000; // This is a static value from the design for the narrative
   const potentialBonusOmzet = apcIncrease * weekendBills.size;
 
-  setStoreObj({
+  $store.setStoreObj({
     weekendSalesPercentage: formatNumber(weekendSalesPercentage, 0),
     mainSalesInsight: 'Sales kamu terjadi di hari Sabtu dan Minggu',
     apcIncrease: formatNumber(apcIncrease),
@@ -9600,7 +9600,7 @@ function generateHourlyInsights(data: any[]): void {
   const peakHour = hourlyTcs.indexOf(Math.max(...hourlyTcs));
   const peakTimeRange = `${String(peakHour).padStart(2, '0')}.00 - ${String(peakHour + 2).padStart(2, '0')}.00`;
 
-  setStoreObj({
+  $store.setStoreObj({
     hourlyPageTitle: 'Maksimalkan jam sibuk dan merancang program untuk waktu sepi adalah kunci kesuksesan kamu.',
     tcInsightText: `Tren TC menunjukkan bahwa jam ${peakTimeRange} adalah waktu paling ramai.`,
     tcSuggestionText: 'Anda dapat memaksimalkan profit dengan misalnya menambah kapasitas atau meningkatkan service time.',
@@ -9653,7 +9653,7 @@ function generateHourlySalesInsights(data: any[]): void {
   const apcIncreaseAmount = 5000;
   const potentialBonusAmount = apcIncreaseAmount * peakRangeBills.size;
 
-  setStoreObj({
+  $store.setStoreObj({
     peakHoursInsight: 'Puncak penjualan konsisten terjadi pada jam 10.00-14.00 dan jam 17.00 - 19.00.',
     mainHourPercentage: formatNumber(mainHourPercentage, 0),
     mainHourInsight: `Sales kamu terjadi di jam ${peakStartHour}.00 - ${peakEndHour}.00.`,
@@ -9790,7 +9790,7 @@ function generateDineInMonthlyIncreaseChart(data: any[]): void {
 
     const percentageIncrease = prevMonthTc > 0 ? ((currentMonthTc - prevMonthTc) / prevMonthTc) * 100 : 0;
 
-    setStoreObj({ monthlyIncreasePercentage: formatNumber(percentageIncrease, 0) });
+    $store.setStoreObj({ monthlyIncreasePercentage: formatNumber(percentageIncrease, 0) });
 
     const monthNames = ["November", "December"];
 
@@ -9824,7 +9824,7 @@ function generateDineInMonthlyIncreaseChart(data: any[]): void {
  */
 function generateChannelTcInsights(data: any[]): void {
     if (data.length === 0) return;
-    setStoreObj({
+    $store.setStoreObj({
         monthlyIncreaseInsight: 'Terjadi peningkatan TC dine in dibandingkan dengan bulan lalu.',
         hourlyInsight: 'Konsumen pada jam setelah makan siang dikuasai oleh konsumen dari GoFood dan GrabFood.',
         hourlySuggestion: 'Anda dapat memaksimalkan penjualan dengan membuat promosi pada jam tersebut.',
@@ -9854,7 +9854,7 @@ function generateChannelTcInsights(data: any[]): void {
  */
 function generateChannelInsights(data: any[]): void {
     if (data.length === 0) return;
-    setStoreObj({
+    $store.setStoreObj({
         pageTitle: 'Kenali tren penjualan berbagai sales channel dari waktu ke waktu',
         hourlyChannelInsight: 'Sales channel yang paling diminati untuk sarapan adalah Dine-in, sedangkan untuk makan siang dan malam, GrabFood lebih diminati.',
         mainChannelInsight: 'Dine-in masih merupakan sales channel utama pada restoran anda.',
@@ -9882,7 +9882,7 @@ function generateChannelInsights(data: any[]): void {
  */
 function generateGoFoodInsights(data: any[]): void {
     if (data.length === 0) return;
-    setStoreObj({
+    $store.setStoreObj({
         mainGoFoodInsight: 'Rata-rata ada 3 – 5 pesanan GoFood setiap jamnya pada restoran anda.',
         hourlyAPCInsightDinner: 'Rata-rata nilai pembelian meningkat pesat pada jam makan malam baik pada GoFood, dan GrabFood.',
         hourlyAPCInsightDineIn: 'Sedangkan pada Dine in, tidak terjadi perubahan yang signifikan dari jam ke jam.',
@@ -9964,7 +9964,7 @@ function generateChannelComparisonInsights(data: any[]): void {
 
     // 1. Top Growth Channels
     const topGrowth = [...comparison].sort((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         growthChan1Name: topGrowth[0]?.name || '',
         growthChan1TC: formatNumber(topGrowth[0]?.currentTC),
         growthChan1APC: formatNumber(topGrowth[0]?.currentAPC),
@@ -9977,7 +9977,7 @@ function generateChannelComparisonInsights(data: any[]): void {
 
     // 2. Top Sales Channels
     const topSales = [...comparison].sort((a, b) => b.currentSales - a.currentSales).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         topSalesChan1Name: topSales[0]?.name || '',
         topSalesChan1Nominal: formatNumber(topSales[0]?.currentSales),
         topSalesChan2Name: topSales[1]?.name || '',
@@ -9986,7 +9986,7 @@ function generateChannelComparisonInsights(data: any[]): void {
 
     // 3. Top Monthly Increase Channels
     const topIncrease = [...comparison].sort((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         monthlyIncreaseChan1Name: topIncrease[0]?.name || '',
         monthlyIncreaseChan1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
         monthlyIncreaseChan1Nominal: formatNumber(topIncrease[0]?.salesIncreaseNominal),
@@ -10080,7 +10080,7 @@ function generateFoodAnalysisInsights(data: any[]): void {
     };
 
     // Update the store with all calculated values
-    setStoreObj({
+    $store.setStoreObj({
         favoriteFoods: `Konsumen kamu paling suka makan ${podiumNames.join(', ')}.`,
         podium1: podiumNames[0] || '',
         podium2: podiumNames[1] || '',
@@ -10182,7 +10182,7 @@ function generateDrinkAnalysisInsights(data: any[]): void {
     };
 
     // Update the store with all calculated values
-    setStoreObj({
+    $store.setStoreObj({
         favoriteDrinks: `Konsumen kamu paling suka minum ${podiumNames.join(', ')}.`,
         podium1_drink: podiumNames[0] || '',
         podium2_drink: podiumNames[1] || '',
@@ -10319,7 +10319,7 @@ function generateOutletComparisonInsights(data: any[]): void {
 
     // 1. Top Growth Outlets
     const topGrowth = [...comparison].sort((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         outletGrowth1Name: topGrowth[0]?.name || '',
         outletGrowth1TC: formatNumber(topGrowth[0]?.currentTC),
         outletGrowth1APC: formatNumber(topGrowth[0]?.currentAPC),
@@ -10332,7 +10332,7 @@ function generateOutletComparisonInsights(data: any[]): void {
 
     // 2. Top Sales Outlets
     const topSales = [...comparison].sort((a, b) => b.currentSales - a.currentSales).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         topOutlet1Name: topSales[0]?.name || '',
         topOutlet1Nominal: formatNumber(topSales[0]?.currentSales),
         topOutlet2Name: topSales[1]?.name || '',
@@ -10341,7 +10341,7 @@ function generateOutletComparisonInsights(data: any[]): void {
 
     // 3. Top Monthly Increase Outlets
     const topIncrease = [...comparison].sort((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
-    setStoreObj({
+    $store.setStoreObj({
         monthlyOutletIncrease1Name: topIncrease[0]?.name || '',
         monthlyOutletIncrease1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
         monthlyOutletIncrease1Nominal: formatNumber(topIncrease[0]?.salesIncreaseNominal),
@@ -10416,7 +10416,7 @@ function generateHppAnalysis(currentData: any[], lastPeriodData: any[]): void {
     const sortedDates = Object.keys(dailyHpp).sort();
 
     // 4. Update the store with all calculated values
-    setStoreObj({
+    $store.setStoreObj({
         pageTitle: 'Tinjauan Penggunaan Bahan Baku',
         pageSubtitle: 'Memahami detil komponen penggunaan bahan baku adalah yang sebenarnya membuat kamu benar-benar cuan.',
         totalHPP: formatNumber(currentTotalHpp),
@@ -10544,7 +10544,7 @@ function generateFoodCostAnalysis(data: any[]): void {
         listUpdate[`varianceOutlet${i+1}Value`] = `${formatNumber(item.variance, 1)}%`;
     });
 
-    setStoreObj({
+    $store.setStoreObj({
         foodCostTip: 'Pencatatan penggunaan bahan baku yang detil dapat membantu anda menurunkan Food Cost anda !',
         foodCostAlertPercentage: formatNumber(alertPercentage, 0),
         ...listUpdate,
@@ -10645,7 +10645,7 @@ function generateCustomerAnalysisInsights(currentData: any[], allData: any[], pe
     });
 
     // 4. Update the store
-    setStoreObj({
+    $store.setStoreObj({
         topCustomerNames: topCustomers.map(p => p.name).join(', '),
         newCustomerCount: formatNumber(newCustomers.length),
         newCustomerAvgSpend: formatNumber(calculateAvgSpend(newCustomers)),
@@ -10757,7 +10757,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     const lowestTraffic = [...dailyTraffic].sort((a,b) => a.traffic - b.traffic)[0];
 
     // 7. Update Store
-    setStoreObj({
+    $store.setStoreObj({
         branchName: topBranchName,
         totalOmzetFormatted: formatNumber(currentStats.revenue),
         omzetUpOrDown: omzetComparison.upOrDown,
@@ -10888,7 +10888,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     });
 
     // 5. Update Store
-    setStoreObj({
+    $store.setStoreObj({
         branchName: topBranchName,
         salesCurrent: formatNumber(currentPeriodStats.sales),
         sales30Day: formatNumber(thirtyDayStats.sales),
@@ -10980,7 +10980,7 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     const postLunchData = data.filter(d => d['Sales Date In'].getHours() >= 14 && d['Sales Date In'].getHours() < 17);
 
     // 4. Update the store
-    setStoreObj({
+    $store.setStoreObj({
         peakHour2Start: String(peakHour2Start).padStart(2, '0') + '.00',
         peakHour2End: String(peakHour2End).padStart(2, '0') + '.00',
         popularMenuDinner1: popularDinnerMenu[0] || '',
@@ -11035,7 +11035,7 @@ function generatePeakDayAnalysis(data: any[]): void {
     const apcIncrease = 5000;
     const bonusOmzet = apcIncrease * weekendBills.size;
 
-    setStoreObj({
+    $store.setStoreObj({
         // Note: The mainHourPercentage and mainHourInsight values are reused from the
         // generateHourlySalesInsights function, which is already being called.
         apcIncreaseAmount: formatNumber(apcIncrease),
@@ -11068,7 +11068,7 @@ function generateWeeklySummaryInsights(data: any[]): void {
 
     // Most data for this page is generated by other functions.
     // We just need to set the final tipToolName.
-    setStoreObj({
+    $store.setStoreObj({
         tipToolName3: 'Analiso',
     });
 }
@@ -11159,7 +11159,7 @@ function generateSalesChannelSummaryInsights(data: any[], lastPeriodData: any[])
     const shopeeFoodTopMenu = getTopMenuForChannel(data, 'ShopeeFood');
     const dineInTopMenu = getTopMenuForChannel(data, 'Dine In');
 
-    setStoreObj({
+    $store.setStoreObj({
         goFoodPopularFood: goFoodTopMenu,
         grabFoodPopularFood: grabFoodTopMenu,
         shopeeFoodPopularFood: shopeeFoodTopMenu,
@@ -11297,7 +11297,7 @@ function generateTopBranchApcAnalysis(data: any[]): void {
     generateGoFoodInsights(topBranchData);
 
     // Update the main title to include the top branch name
-    setStore('branchName', topBranchName);
+    $store.setStore('branchName', topBranchName);
 }
 
 // In main.ts, ADD this new function
@@ -11321,7 +11321,7 @@ function generateTopBranchApcAnalysis(data: any[]): void {
  */
 function generateContactInfo(data: any[]): void {
     if (data.length === 0) return;
-    setStoreObj({
+    $store.setStoreObj({
         whatsappNumber: '+62 851-7157-8866',
     });
 }
@@ -12275,7 +12275,7 @@ async function generateGeneralPenjualanSection() {
         avgCheckGrowth: 'general-avg-check-growth'
     });
 
-    setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
+    $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
 
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
@@ -12362,7 +12362,7 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
     generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
 
-    setActiveViewData('general-produk-channel', filteredSummaries, { selectedBranch });
+    $store.setActiveViewData('general-produk-channel', filteredSummaries, { selectedBranch });
 }
 
 
@@ -12403,7 +12403,7 @@ async function generateWaktuKeuanganSection() {
     generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
     generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
 
-    setActiveViewData('waktu-keuangan', { reportA, reportB }, { periodA, periodB, selectedBranch });
+    $store.setActiveViewData('waktu-keuangan', { reportA, reportB }, { periodA, periodB, selectedBranch });
 
     hideLoading();
 }
@@ -12521,7 +12521,7 @@ function generateWaktuProdukChannelSection() {
     generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
 
-    setActiveViewData('waktu-produk-channel', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
+    $store.setActiveViewData('waktu-produk-channel', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
 }
 
 

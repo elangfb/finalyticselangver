@@ -7,7 +7,7 @@ import { findLiveCache, deactivateHistoricalCache, createLiveCache } from "@/ser
 
 const BasePageSummaryCard = (props: { children: string }) => (
     html`
-        <div class="bg-white rounded-lg shadow-md p-6 flex flex-col gap-3" data-el="analyze-page-summary">
+        <div class="bg-white rounded-lg shadow-md p-6 flex flex-col gap-3" data-el="analyze-page-summary" data-initialized="true">
             ${props.children}
         </div>
     `
@@ -115,6 +115,7 @@ export const setupPageSummary = (params: {
 
         return div
     }
+    const isInitialized = () => placeholder().getAttribute('data-initialized') === 'true'
 
     const promptKey = (params.promptKey || params.pageId.replace('-section', '')) as keyof typeof viewPromptCreators
     const promptCreator = viewPromptCreators[promptKey]
@@ -124,7 +125,7 @@ export const setupPageSummary = (params: {
         return
     }
 
-    const checkCacheAndUpdateUI = async (viewData: AppState['activeViewData']) => {
+    const tryShowFromCache = async (viewData: AppState['activeViewData']) => {
         if (!viewData) return
 
         const { data, filters } = viewData
@@ -187,28 +188,42 @@ export const setupPageSummary = (params: {
         }
     }
 
-    // Always show init state initially
-    placeholder().outerHTML = PageSummaryInit({ pageId: params.pageId })
-    placeholder().querySelector('button')?.addEventListener('click', onAnalyze)
-
-    // Check if activeViewData exists during setup
-    const currentViewData = getStore('activeViewData')
-    if (currentViewData) {
-        // Data exists during setup - check for cache
-        checkCacheAndUpdateUI(currentViewData)
+    const showInit = () => {
+        // Always show init state initially
+        placeholder().outerHTML = PageSummaryInit({ pageId: params.pageId })
+        placeholder().querySelector('button')?.addEventListener('click', onAnalyze)
     }
 
-    // Register subscriber to check for cache when activeViewData changes
-    const unsubscribe = store.subscribe((state, prevState) => {
-        // Auto-unsubscribe on view data reset
-        if (prevState.activeViewData && !state.activeViewData) {
-            unsubscribe()
+    const registerSubscriber = () => {
+        // Register subscriber to check for cache when activeViewData changes
+        const unsubscribe = store.subscribe((state, prevState) => {
+            // Auto-unsubscribe on view data reset
+            if (prevState.activeViewData && !state.activeViewData) {
+                unsubscribe()
+            }
+
+            if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
+                tryShowFromCache(state.activeViewData)
+            }
+        })
+    }
+
+    store.getState().trySetFromExistingViewData(promptKey);
+
+    if (!isInitialized()) {
+        showInit()
+
+        // Check if activeViewData exists during setup
+        const currentViewData = getStore('activeViewData')
+        if (currentViewData) {
+            // Data exists during setup - check for cache
+            tryShowFromCache(currentViewData)
         }
 
-        if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
-            checkCacheAndUpdateUI(state.activeViewData)
-        }
-    })
+        console.debug('Success init setup page summary for page:', params.pageId)
+    }
+
+    registerSubscriber()
 
     console.debug('Success setup page summary for page:', params.pageId)
 }
