@@ -3637,69 +3637,79 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
  */
 function generatePnlOverviewChart(reports: any[]) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    const revenueData = [];
-    const expenseData = [];
-    const profitData = [];
+    const revenueData: number[] = [];
+    const expenseData: number[] = [];
+    const profitData: number[] = [];
 
     reports.forEach(r => {
         const pnlData = r.pnlData;
-        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
-        const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s: number, v: number) => s + v, 0);
-        const opex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((s: number, v: number) => s + v, 0);
+        const allMetrics = calculateAllPnlMetrics(pnlData);
 
-        const expense = hpp + opex;
-        const netIncome = revenue - expense;
+        const revenue = allMetrics["Pendapatan (Revenue)"] || 0;
+        const profit = allMetrics["Pendapatan Bersih (Net Income)"] || 0;
+        
+        // FIX: Expense is now correctly calculated as everything that is not Net Profit.
+        // This includes COGS, OPEX, Tax, etc.
+        const expense = revenue - profit;
 
         revenueData.push(revenue);
         expenseData.push(expense);
-        profitData.push(netIncome);
+        profitData.push(profit);
     });
 
     createChart('general-pnl-overview-chart', 'bar', {
         labels,
+        // FIX: The datasets now only include the components of the bar (Profit and Expense).
+        // "Omset" is no longer a dataset because it's the total height of the stack.
         datasets: [
-            // The order in this array defines the stacking order from bottom to top.
             {
-                type: 'bar',
                 label: 'Profit',
                 data: profitData,
                 backgroundColor: '#10B981' // Green
             },
             {
-                type: 'bar',
                 label: 'Expense',
                 data: expenseData,
                 backgroundColor: '#EF4444' // Red
-            },
-            {
-                type: 'bar',
-                label: 'Omset',
-                data: revenueData,
-                backgroundColor: '#3B82F6' // Blue
-            },
+            }
         ]
     }, {
         plugins: {
             tooltip: {
                 callbacks: {
-                    // Custom tooltip to clarify the total height of the bar
+                    label: function(context) {
+                        const label = context.dataset.label || '';
+                        const value = context.raw as number;
+                        const formattedValue = `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+                        // The total revenue for this bar is still available from our revenueData array.
+                        const totalRevenue = revenueData[context.dataIndex];
+                        
+                        if (totalRevenue > 0) {
+                            const percentage = (value / totalRevenue) * 100;
+                            return `${label}: ${formattedValue} (${percentage.toFixed(1)}%)`;
+                        }
+                        
+                        return `${label}: ${formattedValue}`;
+                    },
+                    // FIX: The footer now correctly calculates the total by summing the stacks.
                     footer: function(tooltipItems) {
                         let sum = 0;
                         tooltipItems.forEach(function(tooltipItem) {
                             sum += tooltipItem.parsed.y;
                         });
                         const formattedSum = `Rp${Math.round(sum).toLocaleString('id-ID')}`;
-                        return 'Total Stack Value: ' + formattedSum;
+                        return 'Total Stack (Omset): ' + formattedSum;
                     }
                 }
             }
         },
         scales: {
             x: {
-                stacked: true, // Enable stacking on the x-axis
+                stacked: true,
             },
             y: {
-                stacked: true, // Enable stacking on the y-axis
+                stacked: true,
                 ticks: {
                     callback: shortenCurrency
                 }
@@ -3707,6 +3717,8 @@ function generatePnlOverviewChart(reports: any[]) {
         }
     });
 }
+
+
 
 /**
  * Reusable function to generate dual-axis financial ratio charts.
@@ -3854,7 +3866,6 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
 
     const sortedWeeks = Object.keys(weeklyOmzet).toSorted();
 
-    // --- FIX START: The chartLabels constant has been removed ---
     const datasets = [{
         label: 'Total Omzet Mingguan',
         data: sortedWeeks.map((week) => weeklyOmzet[week]),
@@ -3877,12 +3888,11 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         });
     }
 
-    createChart(canvasId, type, {
-        // Use the raw sortedWeeks array for the labels. The chart's tick callback will format them.
+    // FIX: The chart type is now explicitly set to 'bar' in this call.
+    createChart(canvasId, 'bar', {
         labels: sortedWeeks,
         datasets: datasets,
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
-    // --- FIX END ---
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -4071,40 +4081,58 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
-    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
-    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
-    const data = sortedSummaries.map(s => s.totalOmzet);
+    // This uses .toSorted() which is great because it doesn't mutate the original array.
+    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
+    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    const data = sortedSummaries.map(s => s.totalOmzet);
 
-    // --- FIX START: Create the datasets array and add the target line if it exists ---
-    const datasets = [{
-        label: 'Total Omzet Harian',
-        data: data,
-        borderColor: '#3B82F6',
-        tension: 0.1,
-        type: 'line' // Specify type for clarity
-    }];
+    // --- START: New code to calculate the average ---
+    const totalOmzet = data.reduce((sum, value) => sum + value, 0);
+    const averageOmzet = sortedSummaries.length > 0 ? totalOmzet / sortedSummaries.length : 0;
+    // --- END: New code to calculate the average ---
 
-    // Check if the "Omzet Harian" target was loaded
-    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
-    if (salesTarget && salesTarget['Omzet Harian']) {
+    const datasets = [{
+        label: 'Total Omzet Harian',
+        data: data,
+        borderColor: '#3B82F6',
+        tension: 0.1,
+        type: 'line'
+    }];
+
+    // This part for the Target line remains unchanged.
+    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Harian']) {
+        datasets.push({
+            label: 'Target Omzet Harian',
+            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
+            borderColor: '#FFDE21',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+            type: 'line'
+        });
+    }
+    
+    // --- START: New code to add the average line to the chart ---
+    if (averageOmzet > 0) {
         datasets.push({
-            label: 'Target Omzet Harian',
-            // Create an array filled with the target value, one for each day
-            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
-            borderColor: '#EF4444', // Red color for the target line
-            borderDash: [5, 5], // Make the line dashed
+            label: 'Average Omzet',
+            data: Array(labels.length).fill(averageOmzet),
+            borderColor: '#10B981', // Green for the average line
+            borderDash: [5, 5],
             borderWidth: 2,
-            pointRadius: 0, // No dots on the target line
+            pointRadius: 0,
             tension: 0,
             type: 'line'
         });
     }
-    // --- FIX END ---
+    // --- END: New code to add the average line ---
 
-    createChart(canvasId, 'line', {
-        labels: labels,
-        datasets: datasets, // Use the new datasets array
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    createChart(canvasId, 'line', {
+        labels: labels,
+        datasets: datasets, // This now contains all three datasets
+    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
 
@@ -11705,6 +11733,8 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
  * Displays a modal comparing P&L targets to actual performance for a specific period,
  * with a conditional "Achievement" column.
  */
+// In main.ts, replace the existing showPnlTargetModal function with this one.
+
 async function showPnlTargetModal(targetData: any, reportId: string) {
     const modal = document.getElementById('pnl-target-modal');
     const titleEl = document.getElementById('pnl-target-modal-title');
@@ -11728,45 +11758,17 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
         const pnlDocSnap = await getDoc(pnlDocRef);
 
         let actualValues = {
-            'Pendapatan (Revenue)': 0,
-            'Harga Pokok Produksi': 0,
-            'Beban Operasional (OPEX)': 0,
-            'Beban Non Operasional': 0,
-            'Depresiasi/ Amortisasi': 0,
-            'Bunga': 0,
-            'Pajak (PB1)': 0,
-            'Laba Kotor (Gross Profit)': 0,
-            'Pendapatan Bersih Operasional (Net Operating Income)': 0,
+            'Pendapatan (Revenue)': 0, 'Harga Pokok Produksi': 0, 'Beban Operasional (OPEX)': 0,
+            'Beban Non Operasional': 0, 'Depresiasi/ Amortisasi': 0, 'Bunga': 0, 'Pajak (PB1)': 0,
+            'Laba Kotor (Gross Profit)': 0, 'Pendapatan Bersih Operasional (Net Operating Income)': 0,
             'Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)': 0,
             'Pendapatan Bersih (Net Income)': 0
         };
 
         if (pnlDocSnap.exists()) {
             const pnlData = pnlDocSnap.data().pnlData || {};
-
-            const totalRevenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalHPP = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalOpex = Object.values(pnlData["Beban Operasional (OPEX)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalNonOpex = Object.values(pnlData["Beban Non Operasional"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalDepresiasi = Object.values(pnlData["Depresiasi/ Amortisasi"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalBunga = Object.values(pnlData["Bunga"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const totalPajak = Object.values(pnlData["Pajak (PB1)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            const grossProfit = totalRevenue - totalHPP;
-            const netOperatingIncome = grossProfit - totalOpex;
-            const ebitda = netOperatingIncome - totalNonOpex;
-            const netIncome = ebitda - totalDepresiasi - totalBunga - totalPajak;
-
-            actualValues['Pendapatan (Revenue)'] = totalRevenue;
-            actualValues['Harga Pokok Produksi'] = totalHPP;
-            actualValues['Beban Operasional (OPEX)'] = totalOpex;
-            actualValues['Beban Non Operasional'] = totalNonOpex;
-            actualValues['Depresiasi/ Amortisasi'] = totalDepresiasi;
-            actualValues['Bunga'] = totalBunga;
-            actualValues['Pajak (PB1)'] = totalPajak;
-            actualValues['Laba Kotor (Gross Profit)'] = grossProfit;
-            actualValues['Pendapatan Bersih Operasional (Net Operating Income)'] = netOperatingIncome;
-            actualValues['Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)'] = ebitda;
-            actualValues['Pendapatan Bersih (Net Income)'] = netIncome;
+            const pnlMetrics = calculateAllPnlMetrics(pnlData);
+            actualValues = { ...actualValues, ...pnlMetrics };
         }
 
         const targets = targetData.targets || {};
@@ -11780,7 +11782,8 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Achievement</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Change (%)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden">Achievement</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">`;
@@ -11790,14 +11793,6 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)",
             "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
-        ];
-
-        const achievementMetrics = [
-            "Pendapatan (Revenue)",
-            "Laba Kotor (Gross Profit)",
-            "Pendapatan Bersih Operasional (Net Operating Income)",
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
-            "Pendapatan Bersih (Net Income)"
         ];
 
         metricOrder.forEach(metric => {
@@ -11814,24 +11809,38 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
 
             const actualValue = actualValues[metric] || 0;
             const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
+            const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok');
+            
+            const change = actualValue - targetValue;
+            let percentageChangeText = 'N/A';
+            if (targetValue !== 0) {
+                const percentage = (change / targetValue) * 100;
+                percentageChangeText = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%`;
+            } else if (change !== 0) {
+                percentageChangeText = 'New';
+            }
+
+            let changeColor = 'text-gray-500';
+            if (change > 0) changeColor = isCost ? 'text-red-600' : 'text-green-600';
+            if (change < 0) changeColor = isCost ? 'text-green-600' : 'text-red-600';
 
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(targetValue)}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500">`;
-
-            if (achievementMetrics.includes(metric)) {
-                tableHtml += `
-                        <div class="flex items-center">
+                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${percentageChangeText}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        
+                        <div class="flex items-center hidden">
                             <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
                             </div>
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
-                        </div>`;
-            }
-            tableHtml += `</td></tr>`;
+                        </div>
+
+                    </td>
+                </tr>`;
         });
 
         tableHtml += `</tbody></table></div>`;
