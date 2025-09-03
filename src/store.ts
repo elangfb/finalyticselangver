@@ -178,8 +178,9 @@ const store = createStore<AppStore>((set, get) => ({
 
   setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) =>
     set(produce((state: AppState) => {
-      state.viewData[viewId] = { viewId, data, filters };
-      state.activeViewData = { viewId, data, filters };
+      const filtersWithId = { viewId, ...filters }
+      state.viewData[viewId] = { viewId, data, filters: filtersWithId };
+      state.activeViewData = { viewId, data, filters: filtersWithId };
     })),
 
   trySetFromExistingViewData: (viewId: string) => {
