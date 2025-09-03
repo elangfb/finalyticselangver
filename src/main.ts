@@ -2720,6 +2720,62 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
         chartYTicks(shortenNumber),
         chartXTicks(shortenDateTickCallback)
     ));
+
+    // Add insights for general-produk-channel section
+    if (selectedMenus.length > 0 && datasets.length > 0) {
+        const dates = summaries.map(s => s.date).sort((a, b) => a.getTime() - b.getTime());
+        const firstDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
+        const lastDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
+
+        // Calculate trend and performance for each selected menu item
+        const menuPerformance = selectedMenus.map(menuName => {
+            const dataset = datasets.find(d => d.label === menuName);
+            if (!dataset || !dataset.data) return null;
+
+            const dataPoints = dataset.data as number[];
+            const nonZeroData = dataPoints.filter(val => val > 0);
+            const totalQuantity = dataPoints.reduce((sum, val) => sum + val, 0);
+            const avgQuantity = nonZeroData.length > 0 ? totalQuantity / nonZeroData.length : 0;
+
+            // Calculate trend (compare first and last periods)
+            const firstValue = dataPoints[0] || 0;
+            const lastValue = dataPoints[dataPoints.length - 1] || 0;
+            let trend = 'stable';
+            if (Math.abs(lastValue - firstValue) > 1) {
+                trend = lastValue > firstValue ? 'increasing' : 'decreasing';
+            }
+
+            // Find peak
+            const maxQuantity = Math.max(...dataPoints);
+            const peakIndex = dataPoints.indexOf(maxQuantity);
+            const peakDate = labels[peakIndex] || 'N/A';
+
+            return {
+                name: menuName,
+                averageQuantity: Math.round(avgQuantity),
+                totalQuantity: totalQuantity,
+                trend: trend,
+                peakDate: peakDate,
+                peakQuantity: maxQuantity
+            };
+        }).filter(Boolean);
+
+        const menuTrendInsights = {
+            chartType: 'menu_item_trend',
+            description: 'Selected menu items quantity trends over time',
+            selectedItems: selectedMenus,
+            timeRange: {
+                start: firstDate,
+                end: lastDate,
+                periodsCount: labels.length
+            },
+            performance: menuPerformance
+        };
+
+        $store.setActiveViewData('general-produk-channel', {
+            menuTrendInsights: menuTrendInsights
+        });
+    }
 }
 
 function generateYoYAnalysisFromSummaries(summaries: any[]) {
@@ -3969,6 +4025,41 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
             backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4444', '#F59E0B'],
         }],
     });
+
+    // Add insights for general-produk-channel section
+    if (Object.keys(channelSales).length > 0) {
+        const totalRevenue = Object.values(channelSales).reduce((sum: number, val: number) => sum + val, 0);
+        const sortedChannels = Object.entries(channelSales).sort((a, b) => (b[1] as number) - (a[1] as number));
+        const topChannel = sortedChannels[0];
+
+        // Determine distribution concentration
+        const topChannelPercentage = totalRevenue > 0 ? (topChannel[1] as number) / totalRevenue * 100 : 0;
+        let distribution: string;
+        if (topChannelPercentage > 60) distribution = 'concentrated';
+        else if (topChannelPercentage < 35) distribution = 'dispersed';
+        else distribution = 'balanced';
+
+        const channelInsights = {
+            chartType: 'sales_channel_distribution',
+            description: 'Revenue distribution by sales channel/visit purpose',
+            channels: sortedChannels.map(([channel, revenue]) => ({
+                name: channel,
+                revenue: formatCurrencyUtil(revenue as number),
+                percentage: `${((revenue as number) / totalRevenue * 100).toFixed(1)}%`
+            })),
+            summary: {
+                totalRevenue: formatCurrencyUtil(totalRevenue),
+                channelCount: Object.keys(channelSales).length,
+                dominantChannel: topChannel[0],
+                dominantChannelPercentage: `${topChannelPercentage.toFixed(1)}%`,
+                distribution: distribution
+            }
+        };
+
+        $store.setActiveViewData('general-produk-channel', {
+            channelRevenueInsights: channelInsights
+        });
+    }
 }
 
 function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string) {
@@ -12925,6 +13016,35 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
         labels: Object.keys(byMenuCategory),
         datasets: [{ data: Object.values(byMenuCategory), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6'] }],
     });
+
+    // Add insights for general-produk-channel section
+    if (Object.keys(byMenuCategory).length > 0) {
+        const totalQuantity = Object.values(byMenuCategory).reduce((sum: number, val: unknown) => sum + (val as number), 0);
+        const sortedCategories = Object.entries(byMenuCategory).sort((a, b) => (b[1] as number) - (a[1] as number));
+        const topCategory = sortedCategories.length > 0 ? sortedCategories[0] : null;
+
+        if (topCategory) {
+            const categoryInsights = {
+                chartType: 'menu_category_distribution',
+                description: 'Order quantity distribution by menu category',
+                categories: sortedCategories.map(([category, quantity]) => ({
+                    name: category,
+                    quantity: quantity as number,
+                    percentage: `${((quantity as number) / totalQuantity * 100).toFixed(1)}%`
+                })),
+                summary: {
+                    totalOrders: totalQuantity,
+                    categoryCount: Object.keys(byMenuCategory).length,
+                    topCategory: topCategory[0],
+                    topCategoryPercentage: `${((topCategory[1] as number) / totalQuantity * 100).toFixed(1)}%`
+                }
+            };
+
+            $store.setActiveViewData('general-produk-channel', {
+                categoryOrdersInsights: categoryInsights
+            });
+        }
+    }
 }
 
 /**
@@ -12960,6 +13080,37 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
         labels,
         datasets: [{ data, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
     });
+
+    // Add insights for general-produk-channel section
+    if (sortedItems.length > 0) {
+        const totalQuantity = Object.values(allItems).reduce((sum: number, val: unknown) => sum + (val as number), 0);
+        const top5Total = top5.reduce((sum, item) => sum + (item[1] as number), 0);
+        const allItemsCount = sortedItems.length;
+
+        const topItemsInsights = {
+            chartType: 'top_items_breakdown',
+            categoryName: categoryName,
+            description: `Top 5 ${categoryName.toLowerCase()} items by quantity`,
+            topItems: top5.map(([name, quantity]) => ({
+                name: name,
+                quantity: quantity as number,
+                percentage: `${((quantity as number) / totalQuantity * 100).toFixed(1)}%`
+            })),
+            summary: {
+                totalItems: allItemsCount,
+                totalQuantity: totalQuantity,
+                top5Percentage: `${(top5Total / totalQuantity * 100).toFixed(1)}%`,
+                othersQuantity: othersCount,
+                othersPercentage: othersCount > 0 ? `${(othersCount / totalQuantity * 100).toFixed(1)}%` : '0%'
+            }
+        };
+
+        // Use different keys for MAKANAN vs MINUMAN
+        const insightKey = categoryName === 'MAKANAN' ? 'topFoodItemsInsights' : 'topBeverageItemsInsights';
+        $store.setActiveViewData('general-produk-channel', {
+            [insightKey]: topItemsInsights
+        });
+    }
 }
 
 /**
@@ -12976,14 +13127,53 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
         filteredSummaries = summaries.filter(s => s.branches.includes(selectedBranch));
     }
 
+    // Get date range and counts for view context
+    const dates = filteredSummaries.map(s => s.date).sort((a, b) => a.getTime() - b.getTime());
+    const minDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
+    const maxDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
+
+    // Count unique items, channels, and categories
+    const uniqueMenuItems = new Set<string>();
+    const uniqueChannels = new Set<string>();
+    const uniqueCategories = new Set<string>();
+
+    filteredSummaries.forEach(s => {
+        if (s.menuItemQuantities) {
+            for (const category in s.menuItemQuantities) {
+                uniqueCategories.add(category);
+                for (const menuName in s.menuItemQuantities[category]) {
+                    if (!menuName.includes('(PACKAGE)')) {
+                        uniqueMenuItems.add(menuName);
+                    }
+                }
+            }
+        }
+        if (s.revenueByVisitPurpose) {
+            for (const channel in s.revenueByVisitPurpose) {
+                uniqueChannels.add(channel);
+            }
+        }
+    });
+
+    // Store minimal view context instead of raw data
+    $store.setActiveViewData('general-produk-channel', {
+        viewContext: {
+            selectedBranch: selectedBranch || "All Branches",
+            periodsAnalyzed: filteredSummaries.length,
+            periodRange: filteredSummaries.length > 0 ? `${minDate} to ${maxDate}` : 'No data',
+            totalMenuItems: uniqueMenuItems.size,
+            totalChannels: uniqueChannels.size,
+            totalCategories: uniqueCategories.size,
+            dataSource: "Daily sales summaries with menu items, channels, and categories"
+        }
+    }, { selectedBranch });
+
     // Now, generate all charts using the correctly filtered data
     setupGeneralMenuTrendChart(filteredSummaries, 'general-menu-trend-select', 'general-menu-trend-chart');
     generatePenjualanChannelChartFromSummaries(filteredSummaries, 'general-channel-donut-chart', 'doughnut');
     generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
-
-    $store.setActiveViewData('general-produk-channel', filteredSummaries, { selectedBranch });
 }
 
 
