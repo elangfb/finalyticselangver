@@ -3392,6 +3392,8 @@ async function generateGeneralKeuanganSection() {
         })
         .sort((a, b) => a.period.localeCompare(b.period));
 
+    showLoading({ message: 'Generating tables and charts...', value: 50 });
+
     // Store minimal view context instead of raw data
     $store.setActiveViewData('general-keuangan', {
         viewContext: {
@@ -3403,8 +3405,6 @@ async function generateGeneralKeuanganSection() {
                 'No data'
         }
     }, { selectedBranch, selectedPeriod });
-
-    showLoading({ message: 'Generating tables and charts...', value: 50 });
 
     await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container');
     generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
@@ -4927,6 +4927,25 @@ const calculateComparison = (current, previous) => {
     plusOrMinus: growth > 0 ? '+' : '-',
     difference: formatNumber(Math.abs(diff), 0),
   }
+}
+
+/**
+ * Determines profit trend classification for investment analysis.
+ *
+ * @param {number} firstValue - First period profit value.
+ * @param {number} lastValue - Last period profit value.
+ * @param {number} threshold - Percentage threshold for trend classification (default: 5).
+ * @returns {string} Trend classification: 'growing', 'declining', or 'stable'.
+ *
+ * @description
+ * Analyzes profit growth between first and last periods to determine overall trend.
+ * Used for investment performance insights.
+ */
+function getProfitTrend(firstValue: number, lastValue: number, threshold = 5): string {
+    if (firstValue === 0) return 'stable';
+    const changePercent = ((lastValue - firstValue) / Math.abs(firstValue)) * 100;
+    if (Math.abs(changePercent) <= threshold) return 'stable';
+    return changePercent > 0 ? 'growing' : 'declining';
 }
 
 // --- Main Update Function ---
@@ -12963,17 +12982,6 @@ async function generateGeneralPenjualanSection() {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
 
-    // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
-    // This will still display the main KPI values but will not show any growth percentages.
-    generateRingkasanFromSummaries(currentData, [], {
-        omzet: 'general-total-omzet',
-        check: 'general-total-check',
-        avgCheck: 'general-avg-check',
-        omzetGrowth: 'general-omzet-growth',
-        checkGrowth: 'general-check-growth',
-        avgCheckGrowth: 'general-avg-check-growth'
-    });
-
     // PHASE 1: Replace raw data storage with minimal view context
     $store.setActiveViewData('general-penjualan', {
         viewContext: {
@@ -12988,6 +12996,17 @@ async function generateGeneralPenjualanSection() {
                 : "No sales targets configured for this period"
         }
     }, { selectedBranch, startDate, endDate });
+
+    // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
+    // This will still display the main KPI values but will not show any growth percentages.
+    generateRingkasanFromSummaries(currentData, [], {
+        omzet: 'general-total-omzet',
+        check: 'general-total-check',
+        avgCheck: 'general-avg-check',
+        omzetGrowth: 'general-omzet-growth',
+        checkGrowth: 'general-check-growth',
+        avgCheckGrowth: 'general-avg-check-growth'
+    });
 
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
@@ -13840,6 +13859,39 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
             }
         }
     });
+
+    // NEW: Add cumulative investor share insights
+    if (monthlyProfits.length > 0) {
+        let cumulativeShare = 0;
+        const monthlyShares = monthlyProfits.map(p => {
+            const monthlyShare = p.profit * (investorSharePercentage / 100);
+            cumulativeShare += monthlyShare;
+            return { period: p.period, monthlyShare, cumulativeShare };
+        });
+
+        const latestCumulative = cumulativeShare;
+        const avgMonthlyShare = monthlyShares.reduce((sum, s) => sum + s.monthlyShare, 0) / monthlyShares.length;
+        const maxMonthlyShare = Math.max(...monthlyShares.map(s => s.monthlyShare));
+
+        const cumulativeShareInsights = {
+            chartType: 'cumulative_investor_share',
+            description: 'Accumulated investor profit sharing over time',
+            investorShareConfig: {
+                sharePercentage: `${investorSharePercentage}%`,
+                periodsTracked: monthlyProfits.length
+            },
+            cumulativeAnalysis: {
+                totalAccumulated: formatCurrencyUtil(latestCumulative),
+                averageMonthlyShare: formatCurrencyUtil(avgMonthlyShare),
+                highestMonthlyShare: formatCurrencyUtil(maxMonthlyShare),
+                projectedAnnual: formatCurrencyUtil(avgMonthlyShare * 12)
+            }
+        };
+
+        $store.setActiveViewData('general-investasi', {
+            cumulativeShareInsights: cumulativeShareInsights
+        });
+    }
 }
 
 
@@ -13932,11 +13984,22 @@ async function generateGeneralInvestasiSection() {
             };
         });
 
+        $store.setActiveViewData('general-investasi', {
+            viewContext: {
+                selectedBranch,
+                periodsAnalyzed: monthlyProfits.length,
+                periodRange: monthlyProfits.length > 0 ?
+                    `${monthlyProfits[0].period} to ${monthlyProfits[monthlyProfits.length - 1].period}` :
+                    'No data',
+                totalInvestment: investmentData.investmentAmount,
+                investmentSlots: investmentData.investmentSlots,
+                investorSharePercentage: investmentData.investorSharePercentage
+            }
+        }, { selectedBranch });
+
         generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
         generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
         generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage);
-
-        $store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch });
 
     } catch (error) {
         console.error("Error generating investment analysis:", error);
@@ -13982,6 +14045,43 @@ function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: numb
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
         }
     });
+
+    // NEW: Add business yield insights
+    if (monthlyProfits.length > 0) {
+        const avgProfit = monthlyProfits.reduce((sum, p) => sum + p.profit, 0) / monthlyProfits.length;
+        const maxProfit = Math.max(...monthlyProfits.map(p => p.profit));
+        const minProfit = Math.min(...monthlyProfits.map(p => p.profit));
+        const avgYield = totalInvestment > 0 ? (avgProfit / totalInvestment * 100) : 0;
+        const maxYield = totalInvestment > 0 ? (maxProfit / totalInvestment * 100) : 0;
+        const latestProfit = monthlyProfits[monthlyProfits.length - 1].profit;
+        const firstProfit = monthlyProfits[0].profit;
+        const profitTrend = getProfitTrend(firstProfit, latestProfit);
+
+        const businessYieldInsights = {
+            chartType: 'business_yield_analysis',
+            description: 'Monthly business profit vs ROI yield percentage',
+            profitAnalysis: {
+                averageProfit: formatCurrencyUtil(avgProfit),
+                highestProfit: formatCurrencyUtil(maxProfit),
+                lowestProfit: formatCurrencyUtil(minProfit),
+                latestProfit: formatCurrencyUtil(latestProfit),
+                profitTrend: profitTrend
+            },
+            yieldAnalysis: {
+                averageYield: `${avgYield.toFixed(2)}%`,
+                peakYield: `${maxYield.toFixed(2)}%`,
+                annualizedAverage: `${(avgYield * 12).toFixed(1)}%`
+            },
+            investmentPerformance: {
+                totalInvestment: formatCurrencyUtil(totalInvestment),
+                periodsTracked: monthlyProfits.length
+            }
+        };
+
+        $store.setActiveViewData('general-investasi', {
+            businessYieldInsights: businessYieldInsights
+        });
+    }
 }
 
 /**
@@ -14020,6 +14120,35 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
         }
     });
+
+    // NEW: Add investor yield insights
+    if (monthlyProfits.length > 0 && slots > 0) {
+        const investmentPerSlot = totalInvestment / slots;
+        const avgProfitPerSlot = monthlyProfits.reduce((sum, p) => sum + p.profit, 0) / monthlyProfits.length / slots;
+        const avgYieldPerSlot = investmentPerSlot > 0 ? (avgProfitPerSlot / investmentPerSlot * 100) : 0;
+        const totalReturn = monthlyProfits.reduce((sum, p) => sum + p.profit, 0);
+        const totalReturnPerSlot = totalReturn / slots;
+
+        const investorYieldInsights = {
+            chartType: 'investor_yield_analysis',
+            description: 'Monthly profit and yield analysis per investment slot',
+            slotAnalysis: {
+                totalSlots: slots,
+                investmentPerSlot: formatCurrencyUtil(investmentPerSlot),
+                averageMonthlyProfitPerSlot: formatCurrencyUtil(avgProfitPerSlot),
+                averageMonthlyYieldPerSlot: `${avgYieldPerSlot.toFixed(2)}%`
+            },
+            returnAnalysis: {
+                totalReturnAllPeriods: formatCurrencyUtil(totalReturn),
+                totalReturnPerSlot: formatCurrencyUtil(totalReturnPerSlot),
+                annualizedYieldPerSlot: `${(avgYieldPerSlot * 12).toFixed(1)}%`
+            }
+        };
+
+        $store.setActiveViewData('general-investasi', {
+            investorYieldInsights: investorYieldInsights
+        });
+    }
 }
 
 async function setupCabangInvestasiSelectors() {
