@@ -1,10 +1,13 @@
 import { produce } from 'immer';
 import { createStore } from 'zustand/vanilla'
+import { deepmergeCustom } from 'deepmerge-ts';
+import { generateSHA256 } from './utils/hash';
 
 export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   viewId: string;
   data: TData;
   filters: TFilters;
+  filterHash?: string; // Add hash to detect filter changes
 }
 
 /**
@@ -83,7 +86,9 @@ export interface AppState {
 
 export interface AppActions {
   resetActiveViewData: () => void;
-  setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) => void;
+  setActiveViewData: (viewId: string, data: any, filters?: {[key: string]: any}) => void;
+  clearAllViewData: () => void;
+  clearViewData: (viewId: string) => void;
   trySetFromExistingViewData: (viewId: string) => void;
 }
 
@@ -176,12 +181,75 @@ const store = createStore<AppStore>((set, get) => ({
 
   resetActiveViewData: () => set({ activeViewData: undefined }),
 
-  setActiveViewData: (viewId: string, data: any, filters: {[key: string]: any}) =>
-    set(produce((state: AppState) => {
-      const filtersWithId = { viewId, ...filters }
-      state.viewData[viewId] = { viewId, data, filters: filtersWithId };
-      state.activeViewData = { viewId, data, filters: filtersWithId };
-    })),
+  // Clear all cached view data (useful for memory management)
+  clearAllViewData: () => set(produce((state: AppState) => {
+    state.viewData = {};
+    state.activeViewData = undefined;
+  })),
+
+  // Clear specific view data when filters change significantly
+  clearViewData: (viewId: string) => set(produce((state: AppState) => {
+    delete state.viewData[viewId];
+    if (state.activeViewData?.viewId === viewId) {
+      state.activeViewData = undefined;
+    }
+  })),
+
+  setActiveViewData: (viewId: string, data: any, filters?: {[key: string]: any}) => {
+    // Helper function to merge data using deepmerge-ts
+    const mergeData = deepmergeCustom({ mergeArrays: false, mergeSets: false });
+
+    // Helper function to update view data
+    const updateViewData = (viewData: ViewData, mergedData: any) => {
+      const updated = { ...viewData, data: mergedData };
+      return { viewData: updated, activeViewData: updated };
+    };
+
+    // If no filters provided, assume this is a chart-function level call - just merge data
+    if (!filters) {
+      set(produce((state: AppState) => {
+        const existingViewData = state.viewData[viewId];
+        if (existingViewData) {
+          // Merge with existing data
+          const mergedData = mergeData(existingViewData.data, data);
+          const result = updateViewData(existingViewData, mergedData);
+          state.viewData[viewId] = result.viewData;
+          state.activeViewData = result.activeViewData;
+        } else {
+          // Create new entry without filters
+          const newViewData = { viewId, data, filters: { viewId } };
+          state.viewData[viewId] = newViewData;
+          state.activeViewData = newViewData;
+        }
+      }));
+      return;
+    }
+
+    const filtersWithId = { viewId, ...filters }
+
+    // Filters provided - use async filter change detection logic
+    generateSHA256(filtersWithId).then(filtersHash => {
+      set(produce((state: AppState) => {
+        const existingViewData = state.viewData[viewId];
+
+        // Check if we need to reset data due to filter changes
+        const shouldResetData = !existingViewData || existingViewData.filterHash !== filtersHash;
+
+        if (shouldResetData) {
+          // Filters changed or first time - store new data
+          const newViewData = { viewId, data, filters: filtersWithId, filterHash: filtersHash };
+          state.viewData[viewId] = newViewData;
+          state.activeViewData = newViewData;
+        } else {
+          // Same filters - merge with existing data
+          const mergedData = mergeData(existingViewData.data, data);
+          const result = updateViewData(existingViewData, mergedData);
+          state.viewData[viewId] = result.viewData;
+          state.activeViewData = result.activeViewData;
+        }
+      }));
+    });
+  },
 
   trySetFromExistingViewData: (viewId: string) => {
     const existingViewData = get().viewData[viewId];
@@ -332,8 +400,16 @@ export function resetActiveViewData(): void {
   store.getState().resetActiveViewData();
 }
 
-export function setActiveViewData(viewId: string, data: any, filters: {[key: string]: any}): void {
+export function setActiveViewData(viewId: string, data: any, filters?: {[key: string]: any}): void {
   store.getState().setActiveViewData(viewId, data, filters);
+}
+
+export function clearAllViewData(): void {
+  store.getState().clearAllViewData();
+}
+
+export function clearViewData(viewId: string): void {
+  store.getState().clearViewData(viewId);
 }
 
 /**
