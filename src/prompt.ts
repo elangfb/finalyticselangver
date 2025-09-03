@@ -77,7 +77,7 @@ export const viewPromptCreators = Object.freeze({
     data
   }),
   'general-penjualan': (data: unknown) => formatPromptForPage({
-    shortDescription: 'Data Visit Purpose, Data Payment Method, Data Top 5 Makanan & Minuman, Total Omzet (Total Nett Sales). Untuk "Total Omzet" hitung semua Total Nett Sales per Hari nya.',
+    shortDescription: 'Data Visit Purpose, Data Payment Method, Data Top 5 Makanan & Minuman, Total Omzet (Total Nett Sales). Untuk "Total Omzet" hitung semua Total Nett Sales per Hari nya. Tolong pastikan Total Omzet itu adalah akumulasi Nett Sales Setiap Hari!',
     data
   }),
   'general-produk-channel': (data: unknown) => formatPromptForPage({
