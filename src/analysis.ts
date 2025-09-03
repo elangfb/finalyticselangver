@@ -1,4 +1,4 @@
-import { setStore } from './store'
+import { setStoreKV } from './store'
 import { formatCurrency, formatNumber } from './utils/string'
 
 /**
@@ -35,25 +35,25 @@ export function setupAnalysis(currentData: any[], lastPeriodData: any[]) {
   const lastPeriodCheck = new Set(lastPeriodData.map((d) => d['Bill Number'])).size
   const lastPeriodAvgCheck = lastPeriodCheck > 0 ? lastPeriodOmzet / lastPeriodCheck : 0
 
-  setStore('currentOmzet', currentOmzet)
-  setStore('currentOmzetFormatted', formatCurrency(currentOmzet))
-  setStore('currentCheck', currentCheck)
-  setStore('currentCheckFormatted', formatNumber(currentCheck))
-  setStore('currentAvgCheck', currentAvgCheck)
-  setStore('currentAvgCheckFormatted', formatCurrency(currentAvgCheck))
+  setStoreKV('currentOmzet', currentOmzet)
+  setStoreKV('currentOmzetFormatted', formatCurrency(currentOmzet))
+  setStoreKV('currentCheck', currentCheck)
+  setStoreKV('currentCheckFormatted', formatNumber(currentCheck))
+  setStoreKV('currentAvgCheck', currentAvgCheck)
+  setStoreKV('currentAvgCheckFormatted', formatCurrency(currentAvgCheck))
 
-  setStore('lastPeriodOmzet', lastPeriodOmzet)
-  setStore('lastPeriodCheck', lastPeriodCheck)
-  setStore('lastPeriodAvgCheck', lastPeriodAvgCheck)
+  setStoreKV('lastPeriodOmzet', lastPeriodOmzet)
+  setStoreKV('lastPeriodCheck', lastPeriodCheck)
+  setStoreKV('lastPeriodAvgCheck', lastPeriodAvgCheck)
 
   const omzetComparison = calculateComparison(currentOmzet, lastPeriodOmzet)
-  setStore('lastPeriodOmzetComparison', omzetComparison)
+  setStoreKV('lastPeriodOmzetComparison', omzetComparison)
 
   const checkComparison = calculateComparison(currentCheck, lastPeriodCheck)
-  setStore('lastPeriodCheckComparison', checkComparison)
+  setStoreKV('lastPeriodCheckComparison', checkComparison)
 
   const avgCheckComparison = calculateComparison(currentAvgCheck, lastPeriodAvgCheck)
-  setStore('lastPeriodAvgCheckComparison', avgCheckComparison)
+  setStoreKV('lastPeriodAvgCheckComparison', avgCheckComparison)
 }
 
 /**
