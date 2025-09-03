@@ -103,6 +103,8 @@ export const setupPageSummary = (params: {
     pageId: string,
     promptKey?: keyof typeof viewPromptCreators,
     analyzeUsingAI: (prompt: string) => Promise<string>,
+    promptDataFormatter?: (data: any[]) => object
+
 }) => {
     const page = document.getElementById(params.pageId)
     const placeholder = () => {
@@ -173,8 +175,13 @@ export const setupPageSummary = (params: {
             // Cache miss: deactivate previous live docs for this filtersHash
             await deactivateHistoricalCache(filtersHash)
 
-            const prompt = promptCreator({ data, filters })
-            const summary = await params.analyzeUsingAI(prompt)
+
+            const dataForPrompt = params.promptDataFormatter 
+                ? params.promptDataFormatter(data) 
+                : data;
+
+            const prompt = promptCreator({ data: dataForPrompt, filters });
+            const summary = await params.analyzeUsingAI(prompt);
 
             // Create a new live cache document (no expireAt)
             await createLiveCache({ filtersHash, dataHash, summary, filters })

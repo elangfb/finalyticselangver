@@ -6763,6 +6763,12 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             }
             if (targetId === 'general-penjualan') {
                 await setupGeneralPenjualanSelectors();
+                setupPageSummary({
+                pageId: 'general-penjualan-section',
+                analyzeUsingAI: getGeminiAnalysis,
+                // FIX: Add this line to use your new daily breakdown function for this specific view
+                promptDataFormatter: (data) => createGeneralSalesDailyBreakdown(data)
+            });
             }
             if (targetId === 'waktu-keuangan') {
                 await setupWaktuKeuanganPeriodSelectors();
@@ -13659,4 +13665,67 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
             }
         }
     });
+}
+
+
+/**
+ * Creates a detailed, day-by-day breakdown from an array of daily summary objects,
+ * formatted specifically for AI analysis of the General Sales view.
+ * @param {any[]} dailySummaries - The array of daily summary data for the selected period.
+ * @returns {object} An object where each key is a date string, containing the detailed summary for that day.
+ */
+function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
+    if (!dailySummaries || dailySummaries.length === 0) {
+        return { message: "No data available for this period." };
+    }
+
+    const breakdown = {};
+    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+
+    // Ensure summaries are in chronological order
+    const sortedSummaries = [...dailySummaries].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    sortedSummaries.forEach(s => {
+        const dateStr = s.date.toISOString().split('T')[0];
+
+        const getTop5 = (categoryName: string) => {
+            if (!s.menuItemQuantities || !s.menuItemQuantities[categoryName]) return {};
+            return Object.entries(s.menuItemQuantities[categoryName])
+                .filter(([name]) => !name.includes('(PACKAGE)'))
+                .sort((a, b) => (b[1] as number) - (a[1] as number))
+                .slice(0, 5)
+                .reduce((acc, [name, qty]) => {
+                    acc[`${name} (Qty)`] = qty;
+                    return acc;
+                }, {});
+        };
+
+        breakdown[dateStr] = {
+            "Visit Purpose": s.visitPurposes || {},
+            "Payment Method": Object.entries(s.paymentMethods || {}).reduce((acc, [name, rev]) => {
+                acc[name] = formatCurrency(rev);
+                return acc;
+            }, {}),
+            "Traffic per Hour": (s.trafficByHour || [])
+                .map((count, hour) => ({ hour, count }))
+                .filter(item => item.count > 0)
+                .reduce((acc, item) => {
+                    acc[`${String(item.hour).padStart(2, '0')}:00`] = `${item.count} bills`;
+                    return acc;
+                }, {}),
+            "Menu Category Summary": Object.entries(s.menuCategories || {}).reduce((acc, [name, data]) => {
+                acc[name] = `${formatCurrency((data as any).revenue)} (${(data as any).quantity} items)`;
+                return acc;
+            }, {}),
+            "Top 5 Makanan": getTop5('MAKANAN'),
+            "Top 5 Minuman": getTop5('MINUMAN'),
+            "Financial Summary": {
+                "Subtotal": formatCurrency(s.subtotal || 0),
+                "Total Discount": formatCurrency(s.totalDiscount || 0),
+                "Total Nett Sales": formatCurrency(s.totalOmzet || 0),
+            }
+        };
+    });
+
+    return breakdown;
 }
