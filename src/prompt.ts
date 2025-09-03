@@ -1,5 +1,31 @@
 import { trimMultiline } from './utils/string'
 
+// Shared components that are common across all views
+const SHARED_OUTPUT_FORMAT = `
+### **Format dan Batasan Output (WAJIB DIIKUTI):**
+
+Gunakan format DUA bagian yang ketat di bawah ini.
+
+1.  **Paragraf Ringkasan (1 Paragraf Tunggal):**
+    Tulis **satu paragraf naratif** yang ringkas (sekitar 4-6 kalimat). Paragraf ini harus secara padat merangkum performa keseluruhan, menyebutkan metrik utama, pendorong keberhasilan, dan tantangan paling signifikan yang ditemukan dalam data.
+
+2.  **Poin-Poin Kunci (Key Points):**
+    Tepat di bawah paragraf, sediakan daftar **3-4 *bullet points***. Setiap poin harus sangat singkat dan hanya menyoroti **temuan data paling krusial**. **Wajib** awali bagian ini dengan header yang ditulis tebal persis seperti ini: \`**Key Points:**\`
+
+<!-- end list -->
+
+  * **Penggunaan Format Tebal (Bold):** **Gunakan format tebal (\`**kata**\`) secara bebas** untuk menyoroti angka-angka penting, nama produk, tren signifikan (seperti **pertumbuhan kuat** atau **penurunan**), dan fakta kunci lainnya.
+  * **Gaya Bahasa:** Profesional, faktual, objektif, dan deskriptif.
+  * **Larangan Keras:** **JANGAN PERNAH** menyertakan, menyiratkan, atau menyarankan **rekomendasi, saran, atau langkah tindak lanjut** dalam bentuk apa pun. Output harus **100% berfokus pada analisis deskriptif** tentang apa yang ada di dalam data.
+  * **Panjang Total:** Keseluruhan output (paragraf + poin kunci) idealnya **tidak lebih dari 150 kata**.
+`
+
+const SHARED_BRAND_OWNER_CONTEXT = `
+**Konteks:**
+Ringkasan ini bertujuan untuk memberikan gambaran performa yang paling krusial berdasarkan data historis.
+Audiensnya adalah pemilik brand yang membutuhkan pemahaman mendalam tentang **apa yang telah terjadi**, tanpa ada saran tentang apa yang harus dilakukan selanjutnya.
+`
+
 function formatPromptForPage(params: { shortDescription: string, data: unknown }): string {
   return trimMultiline(`
     **Peran dan Tujuan:**
@@ -7,9 +33,7 @@ function formatPromptForPage(params: { shortDescription: string, data: unknown }
     Tugas utama Anda adalah menganalisis data dalam format JSON yang diberikan dan menyusun ringkasan faktual yang menyoroti performa dan temuan kunci.
     **Fokus Anda murni pada apa yang dikatakan oleh data.**
 
-    **Konteks:**
-    Ringkasan ini bertujuan untuk memberikan gambaran performa yang paling krusial berdasarkan data historis.
-    Audiensnya adalah para pengambil keputusan yang membutuhkan pemahaman mendalam tentang **apa yang telah terjadi**, tanpa ada saran tentang apa yang harus dilakukan selanjutnya.
+    ${SHARED_BRAND_OWNER_CONTEXT}
 
     **Data Input:**
     Data akan diberikan dalam format JSON di bawah ini.
@@ -23,27 +47,58 @@ function formatPromptForPage(params: { shortDescription: string, data: unknown }
 
     -----
 
-    ### **Format dan Batasan Output (WAJIB DIIKUTI):**
-
-    Gunakan format DUA bagian yang ketat di bawah ini.
-
-    1.  **Paragraf Ringkasan (1 Paragraf Tunggal):**
-        Tulis **satu paragraf naratif** yang ringkas (sekitar 4-6 kalimat). Paragraf ini harus secara padat merangkum performa keseluruhan, menyebutkan metrik utama, pendorong keberhasilan, dan tantangan paling signifikan yang ditemukan dalam data.
-
-    2.  **Poin-Poin Kunci (Key Points):**
-        Tepat di bawah paragraf, sediakan daftar **3-4 *bullet points***. Setiap poin harus sangat singkat dan hanya menyoroti **temuan data paling krusial**. **Wajib** awali bagian ini dengan header yang ditulis tebal persis seperti ini: \`**Key Points:**\`
-
-    <!-- end list -->
-
-      * **Penggunaan Format Tebal (Bold):** **Gunakan format tebal (\`**kata**\`) secara bebas** untuk menyoroti angka-angka penting, nama produk, tren signifikan (seperti **pertumbuhan kuat** atau **penurunan**), dan fakta kunci lainnya.
-      * **Gaya Bahasa:** Profesional, faktual, objektif, dan deskriptif.
-      * **Larangan Keras:** **JANGAN PERNAH** menyertakan, menyiratkan, atau menyarankan **rekomendasi, saran, atau langkah tindak lanjut** dalam bentuk apa pun. Output harus **100% berfokus pada analisis deskriptif** tentang apa yang ada di dalam data.
-      * **Panjang Total:** Keseluruhan output (paragraf + poin kunci) idealnya **tidak lebih dari 150 kata**.
+    ${SHARED_OUTPUT_FORMAT}
 
     -----
 
     \`\`\`json
     ${JSON.stringify(params.data, null, 2)}
+    \`\`\`
+  `)
+}
+
+// Tailored prompt for general-keuangan view
+function createGeneralKeuanganPrompt(data: unknown): string {
+  return trimMultiline(`
+    **Peran dan Tujuan:**
+    Anda adalah seorang **analis keuangan bisnis** yang mengkhususkan diri dalam analisis performa finansial restoran/F&B.
+    Tugas utama Anda adalah menganalisis data keuangan dalam format JSON dan menyusun ringkasan faktual yang menyoroti **kesehatan finansial dan profitabilitas** perusahaan.
+    **Fokus Anda murni pada aspek keuangan yang dikatakan oleh data.**
+
+    ${SHARED_BRAND_OWNER_CONTEXT}
+
+    **Data Input:**
+    Data akan diberikan dalam format JSON di bawah ini.
+    Data ini berisi **perbandingan target vs aktual Laba & Rugi, historis P&L, grafik revenue/costs/profit, serta key financial ratios** (COGS, GPM, NPM).
+
+    **Instruksi Utama (Proses Analisis Internal):**
+
+    1.  **Identifikasi Metrik Finansial Kunci:** Prioritaskan analisis pada:
+        - **Target vs Aktual Achievement** (persentase pencapaian vs target)
+        - **Profitability Ratios** (Gross Profit Margin, Net Profit Margin)
+        - **Cost Structure** (COGS sebagai persentase revenue)
+        - **Revenue Trends** (pertumbuhan/penurunan omzet)
+        - **Cost Control** (tren beban operasional)
+
+    2.  **Analisis Kesehatan Finansial:** Evaluasi:
+        - Efisiensi operasional berdasarkan ratio analysis
+        - Tren profitabilitas dari data historis
+        - Cost structure dan kontrol biaya
+        - Performance vs target dan gap analysis
+
+    3.  **Sintesis Finansial:** Tentukan:
+        - 1-2 **financial strengths** terbesar (dari ratio/trends)
+        - 1 **financial concern** atau area yang perlu perhatian
+        - Overall **financial health status** berdasarkan key metrics
+
+    -----
+
+    ${SHARED_OUTPUT_FORMAT}
+
+    -----
+
+    \`\`\`json
+    ${JSON.stringify(data, null, 2)}
     \`\`\`
   `)
 }
@@ -72,10 +127,7 @@ export const chartPrompts = Object.freeze({
 })
 
 export const viewPromptCreators = Object.freeze({
-  'general-keuangan': (data: unknown) => formatPromptForPage({
-    shortDescription: 'Data perbandingan target dan aktual Laba & Rugi, tabel historis Laba & Rugi, grafik Omzet, Beban, dan Laba, serta rasio-rasio keuangan (COGS, GPM, NPM)',
-    data
-  }),
+  'general-keuangan': (data: unknown) => createGeneralKeuanganPrompt(data),
   'general-penjualan': (data: unknown) => formatPromptForPage({
     shortDescription: 'Data Visit Purpose, Data Payment Method, Data Top 5 Makanan & Minuman, Total Omzet (Total Nett Sales). Untuk "Total Omzet" hitung semua Total Nett Sales per Hari nya. Tolong pastikan Total Omzet itu adalah akumulasi Nett Sales Setiap Hari!',
     data
