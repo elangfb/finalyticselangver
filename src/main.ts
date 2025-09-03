@@ -6743,8 +6743,14 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
         // We wrap the setup calls in a setTimeout to prevent a race condition.
         setTimeout(async () => {
             if (targetId === 'general-keuangan') {
-                await setupGeneralKeuanganPeriodSelector();
-            }
+    await setupGeneralKeuanganPeriodSelector();
+    // Add the promptDataFormatter to enable the new summarization logic
+    setupPageSummary({
+        pageId: 'general-keuangan-section',
+        analyzeUsingAI: getGeminiAnalysis,
+        promptDataFormatter: (viewData) => createGeneralFinanceBreakdown(viewData)
+    });
+}
             if (targetId === 'general-penjualan') {
                 await setupGeneralPenjualanSelectors();
                 setupPageSummary({
@@ -6781,6 +6787,7 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             if (targetId === 'cabang-investasi') {
                 await setupCabangInvestasiSelectors();
             }
+            
             if (targetId === 'waktu-pnl') generateAllTimePnlTable();
             if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
         }, 0); // A 0ms delay is enough to push it to the next browser tick.
@@ -13693,4 +13700,73 @@ function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
     });
 
     return breakdown;
+}
+
+async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
+    const { data: historicalReports, filters } = viewData;
+    const { selectedBranch, selectedPeriod } = filters;
+
+    if (!historicalReports || historicalReports.length === 0) {
+        return { message: "No P&L data available for this branch and period." };
+    }
+
+    // --- 1. Performance vs Target for the Selected Period ---
+    const currentReport = historicalReports.find(r => r.period === selectedPeriod);
+    let performanceVsTarget = {};
+
+    if (currentReport) {
+        const targetId = `${selectedPeriod}_${selectedBranch.replace(/\s+/g, '_')}`;
+        const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetId);
+        const targetSnap = await getDoc(targetRef);
+        
+        const actualMetrics = calculateAllPnlMetrics(currentReport.pnlData);
+        const actualRevenue = actualMetrics['Pendapatan (Revenue)'] || 0;
+        
+        performanceVsTarget['Actual'] = {
+            'Pendapatan (Revenue)': `Rp${Math.round(actualRevenue).toLocaleString('id-ID')}`,
+            'Laba Kotor (Gross Profit)': `Rp${Math.round(actualMetrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,
+            'Pendapatan Bersih (Net Income)': `Rp${Math.round(actualMetrics['Pendapatan Bersih (Net Income)'] || 0).toLocaleString('id-ID')}`
+        };
+
+        if (targetSnap.exists()) {
+            const targets = targetSnap.data().targets || {};
+            const targetRevenue = targets['Pendapatan (Revenue)'] || 0;
+            performanceVsTarget['Target'] = {
+                'Pendapatan (Revenue)': `Rp${Math.round(targetRevenue).toLocaleString('id-ID')}`,
+                'Laba Kotor (Gross Profit)': `${((targets['Laba Kotor (Gross Profit)'] || 0) * 100).toFixed(1)}%`,
+                'Pendapatan Bersih (Net Income)': `${((targets['Pendapatan Bersih (Net Income)'] || 0) * 100).toFixed(1)}%`
+            };
+        } else {
+            performanceVsTarget['Target'] = "No target set for this period.";
+        }
+    }
+
+    // --- 2. Historical Performance & Key Ratios (Last 12-24 Months) ---
+    const historicalPerformance = {};
+    const keyFinancialRatios = {};
+
+    historicalReports.forEach(report => {
+        const metrics = calculateAllPnlMetrics(report.pnlData);
+        const revenue = metrics['Pendapatan (Revenue)'] || 0;
+        
+        historicalPerformance[report.period] = {
+            'Pendapatan (Revenue)': `Rp${Math.round(revenue).toLocaleString('id-ID')}`,
+            'Laba Kotor (Gross Profit)': `Rp${Math.round(metrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,
+            'Pendapatan Bersih (Net Income)': `Rp${Math.round(metrics['Pendapatan Bersih (Net Income)'] || 0).toLocaleString('id-ID')}`
+        };
+
+        keyFinancialRatios[report.period] = {
+            'COGS %': revenue > 0 ? `${((metrics['Harga Pokok Produksi'] / revenue) * 100).toFixed(1)}%` : '0.0%',
+            'Gross Profit Margin %': revenue > 0 ? `${((metrics['Laba Kotor (Gross Profit)'] / revenue) * 100).toFixed(1)}%` : '0.0%',
+            'Net Profit Margin %': revenue > 0 ? `${((metrics['Pendapatan Bersih (Net Income)'] / revenue) * 100).toFixed(1)}%` : '0.0%'
+        };
+    });
+
+    return {
+        selectedPeriod,
+        selectedBranch,
+        performanceVsTarget,
+        historicalPerformance,
+        keyFinancialRatios
+    };
 }
