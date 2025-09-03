@@ -3647,7 +3647,7 @@ function generatePnlOverviewChart(reports: any[]) {
 
         const revenue = allMetrics["Pendapatan (Revenue)"] || 0;
         const profit = allMetrics["Pendapatan Bersih (Net Income)"] || 0;
-        
+
         // FIX: Expense is now correctly calculated as everything that is not Net Profit.
         // This includes COGS, OPEX, Tax, etc.
         const expense = revenue - profit;
@@ -3684,12 +3684,12 @@ function generatePnlOverviewChart(reports: any[]) {
 
                         // The total revenue for this bar is still available from our revenueData array.
                         const totalRevenue = revenueData[context.dataIndex];
-                        
+
                         if (totalRevenue > 0) {
                             const percentage = (value / totalRevenue) * 100;
                             return `${label}: ${formattedValue} (${percentage.toFixed(1)}%)`;
                         }
-                        
+
                         return `${label}: ${formattedValue}`;
                     },
                     // FIX: The footer now correctly calculates the total by summing the stacks.
@@ -3731,9 +3731,9 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
     reports.forEach(r => {
         // FIX: Use the robust helper function to get all calculated metrics at once.
         const allMetrics = calculateAllPnlMetrics(r.pnlData);
-        
+
         const revenue = allMetrics["Pendapatan (Revenue)"] || 0;
-        
+
         // FIX: Directly get the correct metric value (e.g., Net Income) from the results.
         const absoluteValue = allMetrics[config.metric] || 0;
 
@@ -3758,7 +3758,7 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
 function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
     const results: { [key: string]: number } = {};
     const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    
+
     // Calculate totals for primary categories
     categoryOrder.forEach(cat => {
         results[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: any) => sum + val, 0);
@@ -11810,7 +11810,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             const actualValue = actualValues[metric] || 0;
             const achievement = targetValue > 0 ? (actualValue / targetValue) * 100 : 0;
             const isCost = metric.toLowerCase().includes('beban') || metric.toLowerCase().includes('harga pokok');
-            
+
             const change = actualValue - targetValue;
             let percentageChangeText = 'N/A';
             if (targetValue !== 0) {
@@ -11831,7 +11831,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
                     <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${percentageChangeText}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">
-                        
+
                         <div class="flex items-center hidden">
                             <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
