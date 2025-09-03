@@ -7,7 +7,7 @@
   },
   "scripts": {
     "clean": "pnpm exec rimraf .parcel-cache dist",
-    "dev": "pnpm run clean && pnpm install && pnpm exec parcel",
+    "dev": "pnpm install && pnpm run clean && pnpm exec parcel",
     "build": "pnpm exec parcel build",
     "lint": "pnpm exec eslint ./index.html --fix"
   },
