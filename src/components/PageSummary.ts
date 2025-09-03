@@ -20,8 +20,8 @@ export const PageSummaryInit = (props: { pageId: string }) => (
                 <h3 class="text-xl font-semibold text-gray-700">Summary</h3>
                 <div class="flex items-center gap-2">
                     <button
-                        class="bg-gray-200 text-gray-700 text-sm font-bold py-2 px-3 rounded-lg hover:bg-gray-300 transition"
-                        data-el="download-summary-data-btn"
+                        class="bg-gray-200 text-gray-700 text-sm font-bold py-2 px-3 rounded-lg hover:bg-gray-300 transition hidden"
+                        data-el="download-summary-data-btn hidden"
                     >
                         Download Summary Data
                     </button>
@@ -65,13 +65,7 @@ export const PageSummaryFinished = (props: { pageId: string, summary: string }) 
         <div data-state="finished">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-semibold text-gray-700">Summary</h3>
-                <div class="flex items-center gap-2">
-                    <button
-                        class="bg-gray-200 text-gray-700 text-sm font-bold py-2 px-3 rounded-lg hover:bg-gray-300 transition"
-                        data-el="download-summary-data-btn"
-                    >
-                        Download Summary Data
-                    </button>
+                <div class="flex items-center gap-2 hidden">
                     <button
                         class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition"
                         data-el="analyze-page-summary"

@@ -3713,20 +3713,17 @@ function generatePnlOverviewChart(reports: any[]) {
  */
 function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    const barData = [], lineData = [];
+    const barData = []; // This will hold the absolute value (Rp)
+    const lineData = []; // This will hold the percentage of Revenue
 
     reports.forEach(r => {
-        const pnlData = r.pnlData;
-        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s, v) => s + v, 0);
-
-        // Simplified calculation logic for demonstration
-        let absoluteValue = 0;
-        if (config.metric.includes('Profit') || config.metric.includes('Income')) {
-            const hpp = Object.values(pnlData["Harga Pokok Produksi"] || {}).reduce((s, v) => s + v, 0);
-            absoluteValue = revenue - hpp; // Simplified Gross Profit
-        } else {
-            absoluteValue = Object.values(pnlData[config.metric] || {}).reduce((s, v) => s + v, 0);
-        }
+        // FIX: Use the robust helper function to get all calculated metrics at once.
+        const allMetrics = calculateAllPnlMetrics(r.pnlData);
+        
+        const revenue = allMetrics["Pendapatan (Revenue)"] || 0;
+        
+        // FIX: Directly get the correct metric value (e.g., Net Income) from the results.
+        const absoluteValue = allMetrics[config.metric] || 0;
 
         barData.push(absoluteValue);
         lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
@@ -3741,9 +3738,27 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
     }, {
         scales: {
             'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${v.toFixed(1)}%` } }
+            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
         }
     });
+}
+
+function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
+    const results: { [key: string]: number } = {};
+    const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
+    
+    // Calculate totals for primary categories
+    categoryOrder.forEach(cat => {
+        results[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: any) => sum + val, 0);
+    });
+
+    // Calculate derived metrics (subtotals)
+    results["Laba Kotor (Gross Profit)"] = (results["Pendapatan (Revenue)"] || 0) - (results["Harga Pokok Produksi"] || 0);
+    results["Pendapatan Bersih Operasional (Net Operating Income)"] = results["Laba Kotor (Gross Profit)"] - (results["Beban Operasional (OPEX)"] || 0);
+    results["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"] = results["Pendapatan Bersih Operasional (Net Operating Income)"] - (results["Beban Non Operasional"] || 0);
+    results["Pendapatan Bersih (Net Income)"] = results["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"] - (results["Depresiasi/ Amortisasi"] || 0) - (results["Bunga"] || 0) - (results["Pajak (PB1)"] || 0);
+
+    return results;
 }
 
 function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: string, type: 'doughnut' | 'pie' = 'doughnut') {
