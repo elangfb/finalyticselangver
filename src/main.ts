@@ -13682,7 +13682,7 @@ function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
     const breakdown = {};
     const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
 
-    // Ensure summaries are in chronological order
+    // Create a mutable copy and sort summaries by date to ensure chronological order
     const sortedSummaries = [...dailySummaries].sort((a, b) => a.date.getTime() - b.date.getTime());
 
     sortedSummaries.forEach(s => {
@@ -13720,10 +13720,8 @@ function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
             "Top 5 Makanan": getTop5('MAKANAN'),
             "Top 5 Minuman": getTop5('MINUMAN'),
             "Financial Summary": {
-                "Subtotal": formatCurrency(s.subtotal || 0),
-                "Total Discount": formatCurrency(s.totalDiscount || 0),
-                "Total Nett Sales": formatCurrency(s.totalOmzet || 0),
-            }
+        "Total Nett Sales": formatCurrency(s.totalOmzet || 0),
+    }
         };
     });
 

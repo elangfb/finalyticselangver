@@ -13,7 +13,7 @@ function formatPromptForPage(params: { shortDescription: string, data: unknown }
 
     **Data Input:**
     Data akan diberikan dalam format JSON di bawah ini.
-    Data ini berisi ${params.shortDescription}.
+    Ini adalah data dan instruksi yang akan kamu analisis: ${params.shortDescription}.
 
     **Instruksi Utama (Proses Analisis Internal):**
 
@@ -77,7 +77,7 @@ export const viewPromptCreators = Object.freeze({
     data
   }),
   'general-penjualan': (data: unknown) => formatPromptForPage({
-    shortDescription: 'Data ringkasan penjualan (total omzet, total transaksi, rata-rata belanja), grafik omzet harian dan mingguan, grafik tren transaksi harian (TC & APC), serta heatmap penjualan per hari dan per jam',
+    shortDescription: 'Data Visit Purpose, Data Payment Method, Data Top 5 Makanan & Minuman, Total Omzet (Total Nett Sales). Untuk "Total Omzet" hitung semua Total Nett Sales per Hari nya.',
     data
   }),
   'general-produk-channel': (data: unknown) => formatPromptForPage({
