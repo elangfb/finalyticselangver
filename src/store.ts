@@ -272,9 +272,9 @@ const store = createStore<AppStore>((set, get) => ({
    *
    * @example
    * // Set individual store properties with type safety
-   * setStore('pageTitle', 'Monthly Sales Report');
-   * setStore('currentOmzetFormatted', 'Rp 5,000,000');
-   * setStore('isLoading', false);
+   * setStoreKV('pageTitle', 'Monthly Sales Report');
+   * setStoreKV('currentOmzetFormatted', 'Rp 5,000,000');
+   * setStoreKV('isLoading', false);
    * // TypeScript ensures value types match property expectations
    */
   setStoreKV: <K extends keyof AppState>(key: K, value: AppState[K]) =>
@@ -295,7 +295,7 @@ const store = createStore<AppStore>((set, get) => ({
    *
    * @example
    * // Batch update multiple store properties
-   * setStoreObj({
+   * setStorePartial({
    *   pageTitle: "Sales Analysis",
    *   currentOmzetFormatted: "Rp 5,000,000",
    *   currentCheckFormatted: "150"
@@ -428,9 +428,9 @@ export function clearViewData(viewId: string): void {
  *
  * @example
  * // Set individual store properties with type safety
- * setStore('pageTitle', 'Monthly Sales Report');
- * setStore('currentOmzetFormatted', 'Rp 5,000,000');
- * setStore('isLoading', false);
+ * setStoreKV('pageTitle', 'Monthly Sales Report');
+ * setStoreKV('currentOmzetFormatted', 'Rp 5,000,000');
+ * setStoreKV('isLoading', false);
  * // TypeScript ensures value types match property expectations
  */
 export function setStoreKV<K extends keyof AppState>(key: K, value: AppState[K]): void {
@@ -452,7 +452,7 @@ export function setStoreKV<K extends keyof AppState>(key: K, value: AppState[K])
  *
  * @example
  * // Batch update multiple store properties
- * setStoreObj({
+ * setStorePartial({
  *   pageTitle: "Sales Analysis",
  *   currentOmzetFormatted: "Rp 5,000,000",
  *   currentCheckFormatted: "150"
