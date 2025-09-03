@@ -8,7 +8,7 @@ This guide provides a detailed analysis of the current token reduction implement
 
 ### 🔴 Critical Issues Found
 
-#### 1. **Completely Disabled AI Analysis**
+#### 1. ~~**Completely Disabled AI Analysis**~~ [SKIP AS PER USER REQUEST]
 **Location**: `src/components/PageSummary.ts:171`
 ```typescript
 console.debug('Data sent to AI:', { data, filters })
@@ -229,7 +229,7 @@ const extractFinancialData = (reports) => {
 };
 ```
 
-### 3. **Re-enable AI Analysis**
+### 3. ~~**Re-enable AI Analysis**~~ [SKIP AS PER USER REQUEST]
 
 #### Critical Fix Required:
 ```typescript
@@ -325,7 +325,7 @@ const logTokenUsage = (sectionName, data) => {
 ## Implementation Priority
 
 ### 🚨 **Immediate (Critical)**:
-1. Re-enable AI analysis (remove `return;` statement)
+1. ~~Re-enable AI analysis (remove `return;` statement)~~ [SKIP AS PER USER REQUEST]
 2. Fix TypeScript errors preventing data extraction
 3. Implement General Keuangan with actual P&L data
 
