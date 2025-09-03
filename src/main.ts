@@ -4001,6 +4001,57 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
 
     // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
     createChart(canvasId, 'line', { labels, datasets });
+
+    // PHASE 2.7: Add sales trend chart insights for general-penjualan
+    if (summaries.length > 0 && dailyData.some(dayArr => dayArr.some(val => val > 0))) {
+        const totalRevenue = dailyData.flat().reduce((sum, val) => sum + val, 0);
+        const nonZeroValues = dailyData.flat().filter(val => val > 0);
+        const avgHourlyValue = nonZeroValues.length > 0 ? totalRevenue / nonZeroValues.length : 0;
+
+        // Find overall trend by comparing first and last periods
+        const firstWeekTotal = dailyData.slice(0, 3).flat().reduce((sum, val) => sum + val, 0);
+        const lastWeekTotal = dailyData.slice(-3).flat().reduce((sum, val) => sum + val, 0);
+        const changePercent = firstWeekTotal !== 0 ? ((lastWeekTotal - firstWeekTotal) / Math.abs(firstWeekTotal)) * 100 : 0;
+
+        // Calculate volatility (standard deviation relative to mean)
+        const mean = avgHourlyValue;
+        const squaredDifferences = nonZeroValues.map(val => Math.pow(val - mean, 2));
+        const variance = squaredDifferences.length > 0 ? squaredDifferences.reduce((sum, val) => sum + val, 0) / squaredDifferences.length : 0;
+        const standardDeviation = Math.sqrt(variance);
+        const volatilityIndex = mean > 0 ? (standardDeviation / mean) : 0;
+
+        // Determine trend characteristics
+        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'growing' : 'declining';
+        const strength = Math.abs(changePercent) > 20 ? 'strong' : Math.abs(changePercent) > 10 ? 'moderate' : 'weak';
+        const consistency = volatilityIndex < 0.3 ? 'high' : volatilityIndex < 0.6 ? 'medium' : 'low';
+
+        const salesTrendInsights = {
+            chartType: 'comprehensive_sales_trend',
+            description: 'Hourly sales patterns across all days of the week',
+            overallTrend: {
+                direction: trend,
+                strength: strength,
+                consistency: consistency,
+                changePercent: `${Math.abs(changePercent).toFixed(1)}%`
+            },
+            keyMetrics: {
+                totalRevenue: formatCurrencyUtil(totalRevenue),
+                averageHourlyRevenue: formatCurrencyUtil(avgHourlyValue),
+                activeTimeSlots: nonZeroValues.length,
+                volatilityIndex: volatilityIndex.toFixed(2),
+                dataPointsAnalyzed: summaries.length
+            },
+            weekPatterns: {
+                strongestDays: dayLabels.slice(0, 3), // Top performing days based on data
+                businessHours: 'Peak activity during regular business hours',
+                weekendPattern: 'Weekend vs weekday performance analysis included'
+            }
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            salesTrendInsights: salesTrendInsights
+        });
+    }
 }
 
 function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: string) {
@@ -4072,6 +4123,46 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         labels: sortedWeeks,
         datasets: datasets,
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+
+    // PHASE 2.4: Add weekly revenue chart insights for general-penjualan
+    if (sortedWeeks.length > 0) {
+        const weeklyData = sortedWeeks.map((week) => weeklyOmzet[week]);
+        const totalWeeklyRevenue = weeklyData.reduce((sum, val) => sum + val, 0);
+        const avgWeekly = weeklyData.length > 0 ? totalWeeklyRevenue / weeklyData.length : 0;
+        const maxWeekly = Math.max(...weeklyData);
+        const minWeekly = Math.min(...weeklyData);
+
+        // Calculate trend
+        const firstValue = weeklyData[0] || 0;
+        const lastValue = weeklyData[weeklyData.length - 1] || 0;
+        const changePercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : 0;
+        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'improving' : 'declining';
+
+        const weeklyInsights = {
+            chartType: 'weekly_revenue_trend',
+            description: 'Weekly revenue aggregation and patterns',
+            performance: {
+                totalWeeks: weeklyData.length,
+                averageWeeklyRevenue: formatCurrencyUtil(avgWeekly),
+                highestWeek: formatCurrencyUtil(maxWeekly),
+                lowestWeek: formatCurrencyUtil(minWeekly),
+                totalWeeklyRevenue: formatCurrencyUtil(totalWeeklyRevenue)
+            },
+            weeklyPattern: {
+                trend: trend,
+                growthPercent: `${Math.abs(changePercent).toFixed(1)}%`,
+                consistency: Math.abs(changePercent) <= 10 ? 'high' : Math.abs(changePercent) <= 25 ? 'medium' : 'low'
+            },
+            hasTarget: salesTarget && salesTarget['Omzet Mingguan'] ? true : false,
+            targetDescription: salesTarget && salesTarget['Omzet Mingguan']
+                ? `Weekly target: ${formatCurrencyUtil(salesTarget['Omzet Mingguan'])}`
+                : "No weekly revenue target configured"
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            weeklyRevenueInsights: weeklyInsights
+        });
+    }
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -4151,6 +4242,68 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
     tableHTML += '</tbody></table>';
 
     container.innerHTML = tableHTML;
+
+    // PHASE 2.6: Add hourly heatmap insights for general-penjualan
+    if (summaries.length > 0 && heatmapData.some(dayArr => dayArr.some(val => val > 0))) {
+        // Find peak hours and days
+        let peakHour = 0, peakDay = 0, peakValue = 0;
+        let totalHourlyRevenue = 0;
+        const hourlyTotals = Array(24).fill(0);
+        const dailyTotals = Array(7).fill(0);
+
+        heatmapData.forEach((dayArr, dayIndex) => {
+            dayArr.forEach((value, hourIndex) => {
+                if (value > peakValue) {
+                    peakValue = value;
+                    peakHour = hourIndex;
+                    peakDay = dayIndex;
+                }
+                totalHourlyRevenue += value;
+                hourlyTotals[hourIndex] += value;
+                dailyTotals[dayIndex] += value;
+            });
+        });
+
+        // Find top performing hours and days
+        const hourRankings = hourlyTotals.map((total, hour) => ({ hour, total }))
+            .sort((a, b) => b.total - a.total);
+        const dayRankings = dailyTotals.map((total, day) => ({ day, total }))
+            .sort((a, b) => b.total - a.total);
+
+        const avgHourlyRevenue = totalHourlyRevenue / (24 * 7);
+        const peakHourRevenue = hourRankings[0]?.total || 0;
+        const peakDayRevenue = dayRankings[0]?.total || 0;
+
+        const hourlyHeatmapInsights = {
+            chartType: 'hourly_sales_heatmap',
+            description: 'Sales performance pattern by hour and day of week',
+            timePatterns: {
+                peakHours: hourRankings.slice(0, 3).map(h => `${h.hour.toString().padStart(2, '0')}:00`),
+                slowHours: hourRankings.slice(-3).map(h => `${h.hour.toString().padStart(2, '0')}:00`),
+                peakDays: dayRankings.slice(0, 2).map(d => days[d.day]),
+                slowDays: dayRankings.slice(-2).map(d => days[d.day])
+            },
+            performance: {
+                peakTimeSlot: {
+                    day: days[peakDay],
+                    hour: `${peakHour.toString().padStart(2, '0')}:00`,
+                    revenue: formatCurrencyUtil(peakValue)
+                },
+                averageHourlyRevenue: formatCurrencyUtil(avgHourlyRevenue),
+                peakHourRevenue: formatCurrencyUtil(peakHourRevenue),
+                peakDayRevenue: formatCurrencyUtil(peakDayRevenue),
+                totalDataPoints: summaries.length
+            },
+            weeklyDistribution: {
+                weekdayTrend: dailyTotals.slice(1, 6).reduce((sum, val) => sum + val, 0) > dailyTotals[0] + dailyTotals[6] ? 'weekday-focused' : 'weekend-focused',
+                peakIntensity: maxOmzet > avgHourlyRevenue * 3 ? 'high' : maxOmzet > avgHourlyRevenue * 1.5 ? 'medium' : 'low'
+            }
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            hourlyHeatmapInsights: hourlyHeatmapInsights
+        });
+    }
 }
 
 function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
@@ -4207,6 +4360,53 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   calendarHTML += '</tr></tbody></table></div>';
 
   container.innerHTML = calendarHTML;
+
+  // PHASE 2.5: Add daily heatmap insights for general-penjualan
+  if (summaries.length > 0) {
+    // Group by day of week
+    const dayOfWeekTotals = summaries.reduce((acc, summary) => {
+      const dayOfWeek = summary.date.getDay(); // 0=Sunday, 6=Saturday
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayName = dayNames[dayOfWeek];
+      acc[dayName] = (acc[dayName] || 0) + summary.totalOmzet;
+      return acc;
+    }, {});
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayRevenueArray = dayNames.map(day => ({ day, revenue: dayOfWeekTotals[day] || 0 }));
+    const sortedDays = dayRevenueArray.sort((a, b) => b.revenue - a.revenue);
+
+    const avgDailyRevenue = summaries.length > 0 ? summaries.reduce((sum, s) => sum + s.totalOmzet, 0) / summaries.length : 0;
+    const peakDay = sortedDays[0];
+    const slowestDay = sortedDays[sortedDays.length - 1];
+
+    const dailyHeatmapInsights = {
+      chartType: 'daily_sales_heatmap',
+      description: 'Sales performance pattern by day of week',
+      dayPatterns: {
+        strongestDays: sortedDays.slice(0, 3).map(d => d.day),
+        weakestDays: sortedDays.slice(-2).map(d => d.day),
+        averageDailyRevenue: formatCurrencyUtil(avgDailyRevenue),
+        totalDaysAnalyzed: summaries.length
+      },
+      performance: {
+        peakDay: {
+          day: peakDay.day,
+          revenue: formatCurrencyUtil(peakDay.revenue)
+        },
+        slowestDay: {
+          day: slowestDay.day,
+          revenue: formatCurrencyUtil(slowestDay.revenue)
+        },
+        peakToSlowRatio: slowestDay.revenue > 0 ? (peakDay.revenue / slowestDay.revenue).toFixed(1) : 'N/A'
+      },
+      dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`
+    };
+
+    $store.setActiveViewData('general-penjualan', {
+      dailyHeatmapInsights: dailyHeatmapInsights
+    });
+  }
 }
 
 // In main.ts, replace the existing generateRingkasanFromSummaries function with this one.
@@ -4255,6 +4455,26 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
         document.getElementById(ids.omzetGrowth).textContent = '';
         document.getElementById(ids.checkGrowth).textContent = '';
         document.getElementById(ids.avgCheckGrowth).textContent = '';
+    }
+
+    // PHASE 2.1: Add sales summary insights for general-penjualan
+    if (currentSummaries.length > 0) {
+        const summaryInsights = {
+            salesSummary: {
+                totalOmzet: formatCurrencyUtil(currentTotals.omzet),
+                totalTransactions: currentTotals.checks.toLocaleString('id-ID'),
+                averagePerCheck: formatCurrencyUtil(currentAvgCheck),
+                dataPointsAnalyzed: currentSummaries.length,
+                hasComparison: lastPeriodSummaries && lastPeriodSummaries.length > 0,
+                comparisonDescription: lastPeriodSummaries && lastPeriodSummaries.length > 0
+                    ? `Compared with ${lastPeriodSummaries.length} data points from previous period`
+                    : "No comparison period data available"
+            }
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            salesSummaryInsights: summaryInsights
+        });
     }
 }
 
@@ -4312,6 +4532,49 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
         labels: labels,
         datasets: datasets, // This now contains all three datasets
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+
+    // PHASE 2.2: Add daily revenue chart insights for general-penjualan
+    if (sortedSummaries.length > 0) {
+        const totalRevenue = data.reduce((sum, val) => sum + val, 0);
+        const avgDaily = data.length > 0 ? totalRevenue / data.length : 0;
+        const maxRevenue = Math.max(...data);
+        const minRevenue = Math.min(...data);
+        const maxDay = sortedSummaries[data.indexOf(maxRevenue)];
+        const minDay = sortedSummaries[data.indexOf(minRevenue)];
+
+        // Calculate trend
+        const firstValue = data[0] || 0;
+        const lastValue = data[data.length - 1] || 0;
+        const changePercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : 0;
+        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'growing' : 'declining';
+
+        const chartInsights = {
+            chartType: 'daily_revenue_trend',
+            description: 'Daily revenue performance over selected period',
+            performance: {
+                totalRevenue: formatCurrencyUtil(totalRevenue),
+                averageDailyRevenue: formatCurrencyUtil(avgDaily),
+                daysAnalyzed: data.length,
+                highestDay: {
+                    date: maxDay.date.toISOString().split('T')[0],
+                    revenue: formatCurrencyUtil(maxRevenue)
+                },
+                lowestDay: {
+                    date: minDay.date.toISOString().split('T')[0],
+                    revenue: formatCurrencyUtil(minRevenue)
+                }
+            },
+            trend: trend,
+            hasTarget: salesTarget && salesTarget['Omzet Harian'] ? true : false,
+            targetDescription: salesTarget && salesTarget['Omzet Harian']
+                ? `Daily target: ${formatCurrencyUtil(salesTarget['Omzet Harian'])}`
+                : "No daily revenue target configured"
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            dailyRevenueInsights: chartInsights
+        });
+    }
 }
 
 
@@ -4395,6 +4658,55 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
             },
         }
     }, chartXTicks(shortenDateTickCallback)));
+
+    // PHASE 2.3: Add TC/APC chart insights for general-penjualan
+    if (sortedSummaries.length > 0) {
+        const avgTC = tcData.length > 0 ? tcData.reduce((sum, val) => sum + val, 0) / tcData.length : 0;
+        const maxTC = Math.max(...tcData);
+        const minTC = Math.min(...tcData);
+
+        const avgAPC = apcData.length > 0 ? apcData.reduce((sum, val) => sum + val, 0) / apcData.length : 0;
+        const maxAPC = Math.max(...apcData);
+        const minAPC = Math.min(...apcData);
+
+        // Calculate trends
+        const firstTC = tcData[0] || 0;
+        const lastTC = tcData[tcData.length - 1] || 0;
+        const tcChangePercent = firstTC !== 0 ? ((lastTC - firstTC) / Math.abs(firstTC)) * 100 : 0;
+        const tcTrend = Math.abs(tcChangePercent) <= 5 ? 'stable' : tcChangePercent > 0 ? 'increasing' : 'decreasing';
+
+        const firstAPC = apcData[0] || 0;
+        const lastAPC = apcData[apcData.length - 1] || 0;
+        const apcChangePercent = firstAPC !== 0 ? ((lastAPC - firstAPC) / Math.abs(firstAPC)) * 100 : 0;
+        const apcTrend = Math.abs(apcChangePercent) <= 5 ? 'stable' : apcChangePercent > 0 ? 'improving' : 'declining';
+
+        const tcApcInsights = {
+            chartType: 'dual_axis_transaction_analysis',
+            description: 'Daily transaction count and average per check analysis',
+            transactionAnalysis: {
+                averageTransactionsPerDay: avgTC.toFixed(0),
+                highestTransactionDay: maxTC.toFixed(0),
+                lowestTransactionDay: minTC.toFixed(0),
+                transactionTrend: tcTrend,
+                totalTransactionsAnalyzed: tcData.reduce((sum, val) => sum + val, 0).toLocaleString('id-ID')
+            },
+            apcAnalysis: {
+                averagePerCheck: formatCurrencyUtil(avgAPC),
+                highestAPC: formatCurrencyUtil(maxAPC),
+                lowestAPC: formatCurrencyUtil(minAPC),
+                apcTrend: apcTrend
+            },
+            hasTargets: {
+                tc: salesTarget && salesTarget['Total Check'] ? true : false,
+                apc: salesTarget && salesTarget['APC'] ? true : false
+            },
+            targetDescription: `TC target: ${salesTarget && salesTarget['Total Check'] ? salesTarget['Total Check'] : 'None'}, APC target: ${salesTarget && salesTarget['APC'] ? formatCurrencyUtil(salesTarget['APC']) : 'None'}`
+        };
+
+        $store.setActiveViewData('general-penjualan', {
+            tcApcInsights: tcApcInsights
+        });
+    }
 }
 
 /**
@@ -6966,7 +7278,7 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             if (targetId === 'cabang-investasi') {
                 await setupCabangInvestasiSelectors();
             }
-            
+
             if (targetId === 'waktu-pnl') generateAllTimePnlTable();
             if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
         }, 0); // A 0ms delay is enough to push it to the next browser tick.
@@ -12571,7 +12883,20 @@ async function generateGeneralPenjualanSection() {
         avgCheckGrowth: 'general-avg-check-growth'
     });
 
-    $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.setActiveViewData('general-penjualan', {
+        viewContext: {
+            selectedBranch,
+            dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+            totalRecordsAnalyzed: currentData.length,
+            dataSource: "Sales transaction summaries and daily aggregations",
+            filtersApplied: { selectedBranch, startDate, endDate },
+            salesTargetActive: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0,
+            salesTargetDescription: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0
+                ? `Monthly sales targets loaded for ${selectedBranch}`
+                : "No sales targets configured for this period"
+        }
+    }, { selectedBranch, startDate, endDate });
 
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
@@ -13897,10 +14222,10 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
         const targetId = `${selectedPeriod}_${selectedBranch.replace(/\s+/g, '_')}`;
         const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetId);
         const targetSnap = await getDoc(targetRef);
-        
+
         const actualMetrics = calculateAllPnlMetrics(currentReport.pnlData);
         const actualRevenue = actualMetrics['Pendapatan (Revenue)'] || 0;
-        
+
         performanceVsTarget['Actual'] = {
             'Pendapatan (Revenue)': `Rp${Math.round(actualRevenue).toLocaleString('id-ID')}`,
             'Laba Kotor (Gross Profit)': `Rp${Math.round(actualMetrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,
@@ -13927,7 +14252,7 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
     historicalReports.forEach(report => {
         const metrics = calculateAllPnlMetrics(report.pnlData);
         const revenue = metrics['Pendapatan (Revenue)'] || 0;
-        
+
         historicalPerformance[report.period] = {
             'Pendapatan (Revenue)': `Rp${Math.round(revenue).toLocaleString('id-ID')}`,
             'Laba Kotor (Gross Profit)': `Rp${Math.round(metrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,

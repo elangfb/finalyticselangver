@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { createStore } from 'zustand/vanilla'
 import { deepmergeCustom } from 'deepmerge-ts';
-import { generateSHA256 } from './utils/hash';
+import { generateSHA256Sync } from './utils/hash';
 
 export interface ViewData<TData = any, TFilters = {[key: string]: any}> {
   viewId: string;
@@ -226,29 +226,27 @@ const store = createStore<AppStore>((set, get) => ({
     }
 
     const filtersWithId = { viewId, ...filters }
+    const filtersHash = generateSHA256Sync(filtersWithId)
 
-    // Filters provided - use async filter change detection logic
-    generateSHA256(filtersWithId).then(filtersHash => {
-      set(produce((state: AppState) => {
-        const existingViewData = state.viewData[viewId];
+    set(produce((state: AppState) => {
+      const existingViewData = state.viewData[viewId];
 
-        // Check if we need to reset data due to filter changes
-        const shouldResetData = !existingViewData || existingViewData.filterHash !== filtersHash;
+      // Check if we need to reset data due to filter changes
+      const shouldResetData = !existingViewData || existingViewData.filterHash !== filtersHash;
 
-        if (shouldResetData) {
-          // Filters changed or first time - store new data
-          const newViewData = { viewId, data, filters: filtersWithId, filterHash: filtersHash };
-          state.viewData[viewId] = newViewData;
-          state.activeViewData = newViewData;
-        } else {
-          // Same filters - merge with existing data
-          const mergedData = mergeData(existingViewData.data, data);
-          const result = updateViewData(existingViewData, mergedData);
-          state.viewData[viewId] = result.viewData;
-          state.activeViewData = result.activeViewData;
-        }
-      }));
-    });
+      if (shouldResetData) {
+        // Filters changed or first time - store new data
+        const newViewData = { viewId, data, filters: filtersWithId, filterHash: filtersHash };
+        state.viewData[viewId] = newViewData;
+        state.activeViewData = newViewData;
+      } else {
+        // Same filters - merge with existing data
+        const mergedData = mergeData(existingViewData.data, data);
+        const result = updateViewData(existingViewData, mergedData);
+        state.viewData[viewId] = result.viewData;
+        state.activeViewData = result.activeViewData;
+      }
+    }));
   },
 
   trySetFromExistingViewData: (viewId: string) => {
