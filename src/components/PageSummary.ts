@@ -205,7 +205,6 @@ export const setupPageSummary = (params: {
             return;
         }
         const { data, filters } = viewData;
-        console.debug(`View data for ${viewData.viewId}:`, viewData); return;
         ifPlaceholder(($p) => $p.outerHTML = PageSummaryLoading({ pageId: params.pageId }));
 
         try {
