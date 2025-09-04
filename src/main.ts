@@ -1872,54 +1872,38 @@ async function loadCurrentApiKey(): Promise<void> {
 
 /**
  * Generate AI-powered business insights using Google Gemini API.
- *
- * @description
- * Sends structured prompts to Google Gemini 2.5 Flash model to obtain
- * Indonesian-language business insights and analysis. Validates API key
- * configuration, handles HTTP requests with proper error handling, and
- * processes AI responses with fallback messaging. Used throughout the
- * application to generate contextual business recommendations and insights.
+ * Now returns both the summary text and the token usage metadata.
  *
  * @param prompt - Text prompt containing business data and context for AI analysis.
- * @returns Promise that resolves to AI-generated analysis text in Indonesian language.
- * @throws Error when API key is not configured or API request fails.
- *
- * @example
- * // Generate AI insights for sales data
- * const prompt = "Analisis data penjualan: Revenue Rp 5,000,000, TC 100 transaksi";
- * try {
- *   const insights = await getGeminiAnalysis(prompt);
- *   console.log(insights); // AI-generated business recommendations
- * } catch (error) {
- *   console.error("AI analysis failed:", error.message);
- * }
+ * @returns Promise that resolves to an object with the AI-generated text and usage metadata.
  */
-async function getGeminiAnalysis(prompt: string): Promise<string> {
-  const apiKey = await globalConfigService.getGeminiApiKey()
+async function getGeminiAnalysis(prompt: string): Promise<{ summaryText: string, usageMetadata: any }> {
+  const apiKey = await globalConfigService.getGeminiApiKey();
   if (!apiKey) {
-    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.')
+    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.');
   }
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-  const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] }
+  const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
 
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  })
+  });
 
   if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.error.message || `Request failed with status ${response.status}`)
+    const errorData = await response.json();
+    throw new Error(errorData.error.message || `Request failed with status ${response.status}`);
   }
 
-  const result = await response.json()
-  if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
-    return result.candidates[0].content.parts[0].text
-  } else {
-    return 'No analysis could be generated. The response from the AI was empty.'
-  }
+  const result = await response.json();
+  
+  const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis could be generated. The response from the AI was empty.';
+  const usageMetadata = result.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 };
+
+  // Return an object containing both the text and the usage data
+  return { summaryText, usageMetadata };
 }
 
 // --- Analysis View Setup ---

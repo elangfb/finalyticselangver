@@ -20,12 +20,6 @@ export const PageSummaryInit = (props: { pageId: string }) => (
                 <h3 class="text-xl font-semibold text-gray-700">Summary</h3>
                 <div class="flex items-center gap-2">
                     <button
-                        class="bg-gray-200 text-gray-700 text-sm font-bold py-2 px-3 rounded-lg hover:bg-gray-300 transition hidden"
-                        data-el="download-summary-data-btn hidden"
-                    >
-                        Download Summary Data
-                    </button>
-                    <button
                         class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition"
                         data-el="analyze-page-summary"
                         data-target="${props.pageId}"
@@ -60,18 +54,19 @@ export const PageSummaryLoading = (props: { pageId: string }) => (
     `})
 )
 
-export const PageSummaryFinished = (props: { pageId: string, summary: string }) => (
+export const PageSummaryFinished = (props: { pageId: string, summary: string, usageMetadata?: any }) => (
+    // This was the line with the typo. It's now corrected.
     BasePageSummaryCard({ children: html`
         <div data-state="finished">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-semibold text-gray-700">Summary</h3>
-                <div class="flex items-center gap-2 hidden">
+                <div class="flex items-center gap-2">
                     <button
-                        class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition"
-                        data-el="analyze-page-summary"
+                        class="bg-gray-200 text-gray-700 text-sm font-bold py-2 px-3 rounded-lg hover:bg-gray-300 transition"
+                        data-el="reset-summary-btn"
                         data-target="${props.pageId}"
                     >
-                        Analyze Again
+                        Reset
                     </button>
                 </div>
             </div>
@@ -83,9 +78,18 @@ export const PageSummaryFinished = (props: { pageId: string, summary: string }) 
             >
                 ${marked.parse(props.summary)}
             </div>
+            
+            ${props.usageMetadata ? html`
+                <div class="border-t pt-2 mt-3 text-xs text-gray-400 text-right">
+                    <span>Prompt: <strong>${props.usageMetadata.promptTokenCount}</strong></span> |
+                    <span>Completion: <strong>${props.usageMetadata.candidatesTokenCount}</strong></span> |
+                    <span>Total: <strong>${props.usageMetadata.totalTokenCount}</strong> tokens</span>
+                </div>
+            ` : ''}
         </div>
     `})
 );
+
 
 
 export const PageSummaryError = (props: { pageId: string, message?: string }) => (
@@ -114,8 +118,8 @@ type PlaceholderElement = HTMLDivElement
 export const setupPageSummary = (params: {
     pageId: string,
     promptKey?: keyof typeof viewPromptCreators,
-    analyzeUsingAI: (prompt: string) => Promise<string>,
-    promptDataFormatter?: (data: any[]) => object
+    analyzeUsingAI: (prompt: string) => Promise<{ summaryText: string, usageMetadata: any }>, // Updated signature
+    promptDataFormatter?: (data: any) => object | Promise<object>
 }) => {
     const page = document.getElementById(params.pageId);
     const placeholder = () => page?.querySelector<HTMLDivElement>('div[data-el="analyze-page-summary"]');
@@ -134,39 +138,58 @@ export const setupPageSummary = (params: {
         return;
     }
 
-    const downloadData = () => {
+    const downloadData = async () => {
         const viewData = getStore('activeViewData');
         if (!viewData?.data) {
             alert("No active data to download.");
             return;
         }
-        const summaryObject = createGeneralSalesDailyBreakdown(viewData.data);
+        const summaryObject = params.promptDataFormatter ? await params.promptDataFormatter(viewData) : viewData.data;
         const jsonString = JSON.stringify(summaryObject, null, 2);
         const blob = new Blob([jsonString], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "ai_daily_breakdown.json";
+        link.download = `finalytics_summary_data_${promptKey}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
 
+    const showInit = () => {
+        ifPlaceholder(
+            ($p) => $p.outerHTML = PageSummaryInit({ pageId: params.pageId }),
+            ($p) => $p.querySelector('button[data-el="analyze-page-summary"]')?.addEventListener('click', onAnalyze),
+            ($p) => {
+                const downloadBtn = $p.querySelector('button[data-el="download-summary-data-btn"]');
+                if (downloadBtn) {
+                    downloadBtn.addEventListener('click', downloadData);
+                    if (params.promptDataFormatter) {
+                        downloadBtn.classList.remove('hidden');
+                    }
+                }
+            }
+        );
+    };
+
     const attachListenersToFinishedState = ($p: HTMLElement) => {
-        $p.querySelector('button[data-el="analyze-page-summary"]')?.addEventListener('click', onAnalyze);
-        $p.querySelector('button[data-el="download-summary-data-btn"]')?.addEventListener('click', downloadData);
+        $p.querySelector('button[data-el="reset-summary-btn"]')?.addEventListener('click', () => {
+            showInit();
+        });
     };
 
     const tryShowFromCache = async (viewData: AppState['activeViewData']) => {
         if (!viewData?.data || !viewData.filters) return;
         try {
+            const dataForPrompt = params.promptDataFormatter ? await params.promptDataFormatter(viewData) : viewData.data;
             const filtersHash = await generateSHA256(viewData.filters);
-            const dataHash = await generateSHA256(viewData.data);
+            const dataHash = await generateSHA256(dataForPrompt);
             const cached = await findLiveCache(filtersHash, dataHash);
             if (cached) {
+                // Pass cached summary and usageMetadata to the component
                 ifPlaceholder(
-                    ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary }),
+                    ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary, usageMetadata: cached.usageMetadata }),
                     attachListenersToFinishedState
                 );
             }
@@ -174,76 +197,62 @@ export const setupPageSummary = (params: {
             console.warn('Error checking cache:', err);
         }
     };
-
+    
     const onAnalyze = async () => {
-    const viewData = getStore('activeViewData');
-
-    if (!viewData) {
-        console.warn('No active view data found');
-        return;
-    }
-
-    const { data, filters } = viewData;
-
-    ifPlaceholder(($p) => $p.outerHTML = PageSummaryLoading({ pageId: params.pageId }));
-
-    try {
-        // --- FIX START: Generate the formatted data FIRST ---
-        // This ensures both the cache and the AI use the same data format.
-        const dataForPrompt = params.promptDataFormatter
-            ? params.promptDataFormatter(data)
-            : data;
-        // --- FIX END ---
-
-        // Now, create hashes from the formatted data, not the raw data
-        const filtersHash = await generateSHA256(filters || {});
-        const dataHash = await generateSHA256(dataForPrompt || []); // Use the formatted data for the hash
-
-        const cached = await findLiveCache(filtersHash, dataHash);
-        if (cached) {
-            // Cache hit is now accurate
-            ifPlaceholder(($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary }));
+        const viewData = getStore('activeViewData');
+        if (!viewData) {
+            console.warn('No active view data found');
             return;
         }
+        const { data, filters } = viewData;
+        ifPlaceholder(($p) => $p.outerHTML = PageSummaryLoading({ pageId: params.pageId }));
 
-        await deactivateHistoricalCache(filtersHash);
+        try {
+            const dataForPrompt = params.promptDataFormatter ? await params.promptDataFormatter(viewData) : data;
+            const filtersHash = await generateSHA256(filters || {});
+            const dataHash = await generateSHA256(dataForPrompt || []);
+            const cached = await findLiveCache(filtersHash, dataHash);
 
-        // The data is already formatted, so we just pass it to the prompt creator
-        const prompt = promptCreator({ data: dataForPrompt, filters });
-        const summary = await params.analyzeUsingAI(prompt);
+            if (cached) {
+                ifPlaceholder(
+                    ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary, usageMetadata: cached.usageMetadata }), 
+                    attachListenersToFinishedState
+                );
+                return;
+            }
 
-        await createLiveCache({ filtersHash, dataHash, summary, filters });
+            await deactivateHistoricalCache(filtersHash);
+            const prompt = promptCreator({ data: dataForPrompt, filters });
+            // Destructure the response from the AI call
+            const { summaryText, usageMetadata } = await params.analyzeUsingAI(prompt);
+            
+            // Save the summary AND the usage metadata to the cache
+            await createLiveCache({ filtersHash, dataHash, summary: summaryText, usageMetadata, filters });
+            
+            // Pass both pieces of data to the finished component
+            ifPlaceholder(
+                ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: summaryText, usageMetadata }), 
+                attachListenersToFinishedState
+            );
 
-        ifPlaceholder(($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary }));
-    } catch (err) {
-        console.error('Error analyzing page:', err);
-        const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
-        ifPlaceholder(($p) => $p.outerHTML = PageSummaryError({ pageId: params.pageId, message }));
-    }
-};
-
-
-    const showInit = () => {
-        ifPlaceholder(
-            ($p) => $p.outerHTML = PageSummaryInit({ pageId: params.pageId }),
-            ($p) => $p.querySelector('button[data-el="analyze-page-summary"]')?.addEventListener('click', onAnalyze),
-            ($p) => $p.querySelector('button[data-el="download-summary-data-btn"]')?.addEventListener('click', downloadData)
-        );
+        } catch (err) {
+            console.error('Error analyzing page:', err);
+            const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+            ifPlaceholder(($p) => $p.outerHTML = PageSummaryError({ pageId: params.pageId, message }));
+        }
     };
 
     const registerSubscriber = () => {
-        const unsubscribe = store.subscribe((state, prevState) => {
+        const unsubscribe = store.subscribe(async (state, prevState) => {
             if (prevState.activeViewData && !state.activeViewData) {
                 unsubscribe();
             }
             if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
                 showInit();
-                tryShowFromCache(state.activeViewData);
+                await tryShowFromCache(state.activeViewData);
             }
         });
     };
-
-    store.getState().trySetFromExistingViewData(promptKey);
 
     if (!isInitialized()) {
         showInit();
