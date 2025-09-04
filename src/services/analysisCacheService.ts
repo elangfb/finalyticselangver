@@ -35,7 +35,7 @@ export async function deactivateHistoricalCache(filtersHash: string): Promise<vo
     await Promise.all(updates)
 }
 
-export async function createLiveCache(data: { filtersHash: string, dataHash: string, summary: string, filters: any }): Promise<void> {
+export async function createLiveCache(data: { filtersHash: string, dataHash: string, summary: string, filters: any, usageMetadata?: any }): Promise<void> {
     const db = getFirestore()
     const colRef = collection(db, COLLECTION)
     const payload = {
@@ -43,7 +43,8 @@ export async function createLiveCache(data: { filtersHash: string, dataHash: str
         dataHash: data.dataHash,
         summary: data.summary,
         filters: data.filters,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        ...(data.usageMetadata && { usageMetadata: data.usageMetadata })
         // NOTE: Intentionally omit expireAt for live documents
     }
     await addDoc(colRef, payload)
