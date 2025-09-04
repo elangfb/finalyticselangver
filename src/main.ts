@@ -51,7 +51,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask 
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
 import { globalConfigService } from './services/globalConfigService';
-import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn, maybeAlsoStore } from './utils/also-store';
+import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from './utils/also-store';
 
 // Firebase Config
 const firebaseConfig = {
@@ -3351,33 +3351,38 @@ async function generateGeneralKeuanganSection() {
         }
     }, { selectedBranch, selectedPeriod });
 
-    await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container');
-    generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
-    generatePnlOverviewChart(historicalReports);
+    const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
 
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
+    await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container', { alsoStore });
+    generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody', { alsoStore });
+    generatePnlOverviewChart(historicalReports, { alsoStore });
+
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS', alsoStore });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin', alsoStore });
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-hr-chart',
         mainCategory: 'Beban Operasional (OPEX)',
         subCategory: 'Wages',
-        title: 'Wages'
+        title: 'Wages',
+        alsoStore,
     });
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-rent-chart',
         mainCategory: 'Beban Operasional (OPEX)',
         subCategory: 'Rent',
-        title: 'Rent'
+        title: 'Rent',
+        alsoStore,
     });
     // --- FIX: Main Category for Advertising is now Beban Non Operasional ---
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-advertising-chart',
         mainCategory: 'Beban Non Operasional', // Corrected Main Category
         subCategory: 'Advertising',
-        title: 'Advertising'
+        title: 'Advertising',
+        alsoStore,
     });
     // --- END OF FIX ---
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin', alsoStore });
 
     hideLoading();
 }
