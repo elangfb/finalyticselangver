@@ -13233,18 +13233,6 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config
     const combinedData = [...periodAData, ...periodBData];
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
-    // Store menu items data for AI analysis
-    maybeAlsoStore(
-        config?.alsoStore,
-        allMenuItems,
-        (v) => ({
-            availableMenuItems: {
-                totalCount: v.length,
-                items: v.slice(0, 10) // Store first 10 items as sample
-            }
-        })
-    );
-
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
     // Store waktuMenuTrendSelect instance for cleanup on view reset
@@ -13252,7 +13240,7 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config
       'waktuMenuTrendSelect',
       new SlimSelect({
         select: '#waktu-menu-trend-select',
-        events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData) }
+        events: { afterChange: () => drawWaktuMenuTrendChart(periodAData, periodBData, config) }
       }),
       ($select) => $select.setSelected(allMenuItems.slice(0, 3)),
     );
@@ -13261,7 +13249,7 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config
 /**
  * Draws the menu trend comparison chart.
  */
-function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
+function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?: { alsoStore?: AlsoStoreFn }) {
     const waktuMenuSelect = $store.getUIComponent('waktuMenuTrendSelect');
     if (!waktuMenuSelect) return;
 
@@ -13294,10 +13282,14 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
     // Create a pair of datasets (Period A and Period B) for each selected menu
     const datasets = selectedMenus.flatMap((menuName, index) => {
         const color = colors[index % colors.length];
+
+        const periodAMenuValue = getDailyMenuData(periodAData, menuName);
+        const periodBMenuValue = getDailyMenuData(periodBData, menuName);
+
         return [
             {
                 label: `${menuName} (Period A)`,
-                data: getDailyMenuData(periodAData, menuName),
+                data: periodAMenuValue,
                 borderColor: color,
                 borderDash: [5, 5], // Dashed line for Period A
                 tension: 0.1,
@@ -13306,13 +13298,33 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
             },
             {
                 label: `${menuName} (Period B)`,
-                data: getDailyMenuData(periodBData, menuName),
+                data: periodBMenuValue,
                 borderColor: color,
                 borderDash: [], // Solid line for Period B
                 tension: 0.1,
                 spanGaps: true
             }
         ];
+    });
+
+    config?.alsoStore?.(datasets, (v) => {
+        const periodADatasets = v.filter(d => d.label.includes('(Period A)'));
+        const periodBDatasets = v.filter(d => d.label.includes('(Period B)'));
+
+        return {
+            menuTrend: {
+                periodA: deepmerge(...periodADatasets.map(d => ({
+                    [d.label.replace(' (Period A)', '')]: deepmerge(...d.data.map((value, index) => ({
+                        [`Day ${index + 1}`]: formatNumber(value),
+                    }))),
+                }))),
+                periodB: deepmerge(...periodBDatasets.map(d => ({
+                    [d.label.replace(' (Period B)', '')]: deepmerge(...d.data.map((value, index) => ({
+                        [`Day ${index + 1}`]: formatNumber(value),
+                    }))),
+                })))
+            }
+        };
     });
 
     createChart('waktu-menu-trend-chart', 'line', {
