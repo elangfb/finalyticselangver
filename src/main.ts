@@ -5822,7 +5822,6 @@ function generateCabangProdukChannelSection() {
             branchA,
             branchB,
             comparisonType: 'Branch Product & Channel Analysis',
-            dataRecords: periodData.length
         }
     }, { period, branchA, branchB });
 
@@ -5880,20 +5879,6 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
     const combinedData = [...branchAData, ...branchBData];
 
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
-
-    // Store menu analysis data for AI
-    maybeAlsoStore(
-        config?.alsoStore,
-        allMenuItems,
-        (items) => ({
-            menuAnalysis: {
-                totalMenuItems: items.length,
-                availableMenus: items.slice(0, 10), // Top 10 menu items for analysis
-                branchComparison: `${branchA} vs ${branchB}`,
-                dataPoints: combinedData.length
-            }
-        })
-    );
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
@@ -5963,29 +5948,27 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
     });
 
     // Store menu trend comparison data for AI
-    maybeAlsoStore(
-        config?.alsoStore,
-        { selectedMenus, datasets },
-        (data) => ({
-            menuTrendComparison: {
-                selectedMenuItems: data.selectedMenus,
-                branchComparison: `${branchA} vs ${branchB}`,
-                totalDatasets: data.datasets.length,
-                trendsAnalyzed: data.selectedMenus.map(menu => {
-                    const branchAData = data.datasets.find(d => d.label.includes(`${menu} (${branchA})`))?.data || [];
-                    const branchBData = data.datasets.find(d => d.label.includes(`${menu} (${branchB})`))?.data || [];
-                    const branchATotal = branchAData.reduce((sum, val) => sum + (val || 0), 0);
-                    const branchBTotal = branchBData.reduce((sum, val) => sum + (val || 0), 0);
-                    return {
-                        menuItem: menu,
-                        [branchA]: formatNumber(branchATotal),
-                        [branchB]: formatNumber(branchBTotal),
-                        performance: branchATotal > branchBTotal ? `${branchA} leads` : branchBTotal > branchATotal ? `${branchB} leads` : 'Equal'
-                    };
-                })
+    config?.alsoStore?.(datasets, (v) => {
+        const branchADatasets = v.filter(d => d.label.includes(`(${branchA})`));
+        const branchBDatasets = v.filter(d => d.label.includes(`(${branchB})`));
+
+        return {
+            menuTrend: {
+                branches: {
+                    [branchA]: deepmerge(...branchADatasets.map(d => ({
+                        [d.label.replace(` (${branchA})`, '')]: deepmerge(...d.data.map((value, index) => ({
+                            [`Day ${index + 1}`]: formatNumber(value),
+                        }))),
+                    }))),
+                    [branchB]: deepmerge(...branchBDatasets.map(d => ({
+                        [d.label.replace(` (${branchB})`, '')]: deepmerge(...d.data.map((value, index) => ({
+                            [`Day ${index + 1}`]: formatNumber(value),
+                        }))),
+                    })))
+                }
             }
-        })
-    );
+        };
+    });
 
     createChart('cabang-menu-trend-chart', 'line', {
         labels,
@@ -6027,14 +6010,15 @@ function generateBranchCategoryComparisonChart(periodData: any[], branchA: strin
                 branchPerformance: deepmerge(
                     ...data.allCategories.map((category, index) => ({
                         [category]: {
-                            [branchA]: formatNumber(data.branchAValues[index]),
-                            [branchB]: formatNumber(data.branchBValues[index]),
+                            branches: {
+                                [branchA]: formatNumber(data.branchAValues[index]),
+                                [branchB]: formatNumber(data.branchBValues[index]),
+                            },
                             leader: data.branchAValues[index] > data.branchBValues[index] ? branchA :
                                    data.branchBValues[index] > data.branchAValues[index] ? branchB : 'Equal'
                         }
                     }))
                 ),
-                totalCategories: data.allCategories.length
             }
         })
     );
@@ -6071,14 +6055,15 @@ function generateBranchChannelComparisonChart(periodData: any[], branchA: string
                 revenuePerformance: deepmerge(
                     ...data.allChannels.map((channel, index) => ({
                         [channel]: {
-                            [branchA]: formatCurrencyUtil(data.branchAValues[index]),
-                            [branchB]: formatCurrencyUtil(data.branchBValues[index]),
+                            branches: {
+                                [branchA]: formatCurrencyUtil(data.branchAValues[index]),
+                                [branchB]: formatCurrencyUtil(data.branchBValues[index]),
+                            },
                             leader: data.branchAValues[index] > data.branchBValues[index] ? branchA :
                                    data.branchBValues[index] > data.branchAValues[index] ? branchB : 'Equal'
                         }
                     }))
                 ),
-                totalChannels: data.allChannels.length
             }
         })
     );
