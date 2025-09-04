@@ -43,12 +43,15 @@ import {
 import {
   shortenNumber,
   shortenCurrency,
+  formatCurrency as formatCurrencyUtil,
+  formatPercent,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
 import { globalConfigService } from './services/globalConfigService';
+import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from './utils/also-store';
 
 // Firebase Config
 const firebaseConfig = {
@@ -3335,37 +3338,51 @@ async function generateGeneralKeuanganSection() {
         })
         .sort((a, b) => a.period.localeCompare(b.period));
 
-    $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
-
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
-    await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container');
-    generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody');
-    generatePnlOverviewChart(historicalReports);
+    // Initialize view storage with context; further insights will be merged
+    $store.setActiveViewData('general-keuangan', {
+        viewContext: {
+            selectedBranch,
+            selectedPeriod,
+            periodRange: historicalReports.length > 0 ?
+                `${historicalReports[0].period} to ${historicalReports[historicalReports.length - 1].period}` :
+                'No data'
+        }
+    }, { selectedBranch, selectedPeriod });
 
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin' });
+    const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
+
+    await generatePnlTargetComparisonTable(selectedPeriod, selectedBranch, 'general-pnl-target-container', { alsoStore });
+    generateHistoricalPnlTable(historicalReports, 'general-pnl-history-thead', 'general-pnl-history-tbody', { alsoStore });
+    generatePnlOverviewChart(historicalReports, { alsoStore });
+
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS', alsoStore });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit Margin', alsoStore });
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-hr-chart',
         mainCategory: 'Beban Operasional (OPEX)',
         subCategory: 'Wages',
-        title: 'Wages'
+        title: 'Wages',
+        alsoStore,
     });
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-rent-chart',
         mainCategory: 'Beban Operasional (OPEX)',
         subCategory: 'Rent',
-        title: 'Rent'
+        title: 'Rent',
+        alsoStore,
     });
     // --- FIX: Main Category for Advertising is now Beban Non Operasional ---
     generateSpecificSubCategoryRatioChart(historicalReports, {
         canvasId: 'general-advertising-chart',
         mainCategory: 'Beban Non Operasional', // Corrected Main Category
         subCategory: 'Advertising',
-        title: 'Advertising'
+        title: 'Advertising',
+        alsoStore,
     });
     // --- END OF FIX ---
-    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin' });
+    generateFinancialRatioChart(historicalReports, { canvasId: 'general-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Profit Margin', alsoStore });
 
     hideLoading();
 }
@@ -3377,7 +3394,8 @@ function generateSpecificSubCategoryRatioChart(
         canvasId: string,
         mainCategory: string,
         subCategory: string,
-        title: string
+        title: string,
+        alsoStore?: AlsoStoreFn,
     }
 ) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
@@ -3394,6 +3412,9 @@ function generateSpecificSubCategoryRatioChart(
         barData.push(subCategoryValue);
         lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
     });
+
+    config.alsoStore?.(barData, (v) => ({ [`${config.title} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
+    config.alsoStore?.(lineData, (v) => ({ [`${config.title} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -3549,7 +3570,7 @@ async function setupGeneralProdukChannelSelectors() {
  * Generates a P&L Target vs Actual comparison table for a single period.
  * If no target is found, it displays an upload button.
  */
-async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string) {
+async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const container = document.getElementById(containerId);
     container.innerHTML = '<p class="text-gray-500">Loading P&L comparison...</p>';
 
@@ -3560,7 +3581,7 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
     const targetSnap = await getDoc(targetRef);
 
     if (targetSnap.exists()) {
-        await showPnlTargetModal(targetSnap.data(), reportId);
+        await showPnlTargetModal(targetSnap.data(), reportId, config);
         const modalHTML = document.getElementById('pnl-target-modal-body').innerHTML;
         container.innerHTML = modalHTML;
         document.getElementById('pnl-target-modal').classList.add('hidden');
@@ -3579,7 +3600,7 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
 /**
  * Generates a historical P&L table showing data for multiple months.
  */
-function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string) {
+function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const thead = document.getElementById(theadId);
     const tbody = document.getElementById(tbodyId);
 
@@ -3604,6 +3625,8 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
     const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
 
+    const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
+
     allMetrics.forEach(metricName => {
         const isSubtotal = !!subtotals[metricName];
         const tr = document.createElement('tr');
@@ -3624,6 +3647,10 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             } else {
                 value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
             }
+            alsoStore(value, (value) => {
+              const reportDate = new Date(report.period + '-02').toDateString();
+              return { historicalPnl: { [reportDate]: { [metricName]: formatCurrencyUtil(value) } } };
+            })
             rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
 
@@ -3635,7 +3662,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 /**
  * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
  */
-function generatePnlOverviewChart(reports: any[]) {
+function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoStoreFn }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const revenueData: number[] = [];
     const expenseData: number[] = [];
@@ -3657,6 +3684,8 @@ function generatePnlOverviewChart(reports: any[]) {
         profitData.push(profit);
     });
 
+    const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
+
     createChart('general-pnl-overview-chart', 'bar', {
         labels,
         // FIX: The datasets now only include the components of the bar (Profit and Expense).
@@ -3664,12 +3693,12 @@ function generatePnlOverviewChart(reports: any[]) {
         datasets: [
             {
                 label: 'Profit',
-                data: profitData,
+                data: alsoStore(profitData, (v) => ({ pnlOverviewChart: { profits: v } })),
                 backgroundColor: '#10B981' // Green
             },
             {
                 label: 'Expense',
-                data: expenseData,
+                data: alsoStore(expenseData, (v) => ({ pnlOverviewChart: { expenses: v } })),
                 backgroundColor: '#EF4444' // Red
             }
         ]
@@ -3723,7 +3752,7 @@ function generatePnlOverviewChart(reports: any[]) {
 /**
  * Reusable function to generate dual-axis financial ratio charts.
  */
-function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string }) {
+function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const barData = []; // This will hold the absolute value (Rp)
     const lineData = []; // This will hold the percentage of Revenue
@@ -3740,6 +3769,9 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
         barData.push(absoluteValue);
         lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
     });
+
+    config.alsoStore?.(barData, (v) => ({ [`${config.metric} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
+    config.alsoStore?.(lineData, (v) => ({ [`${config.metric} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -4082,38 +4114,38 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
     // This uses .toSorted() which is great because it doesn't mutate the original array.
-    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
-    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
-    const data = sortedSummaries.map(s => s.totalOmzet);
+    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
+    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    const data = sortedSummaries.map(s => s.totalOmzet);
 
     // --- START: New code to calculate the average ---
     const totalOmzet = data.reduce((sum, value) => sum + value, 0);
     const averageOmzet = sortedSummaries.length > 0 ? totalOmzet / sortedSummaries.length : 0;
     // --- END: New code to calculate the average ---
 
-    const datasets = [{
-        label: 'Total Omzet Harian',
-        data: data,
-        borderColor: '#3B82F6',
-        tension: 0.1,
-        type: 'line'
-    }];
+    const datasets = [{
+        label: 'Total Omzet Harian',
+        data: data,
+        borderColor: '#3B82F6',
+        tension: 0.1,
+        type: 'line'
+    }];
 
     // This part for the Target line remains unchanged.
-    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
-    if (salesTarget && salesTarget['Omzet Harian']) {
-        datasets.push({
-            label: 'Target Omzet Harian',
-            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
-            borderColor: '#FFDE21',
-            borderDash: [5, 5],
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0,
-            type: 'line'
-        });
-    }
-    
+    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Harian']) {
+        datasets.push({
+            label: 'Target Omzet Harian',
+            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
+            borderColor: '#FFDE21',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+            type: 'line'
+        });
+    }
+
     // --- START: New code to add the average line to the chart ---
     if (averageOmzet > 0) {
         datasets.push({
@@ -4129,10 +4161,10 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     }
     // --- END: New code to add the average line ---
 
-    createChart(canvasId, 'line', {
-        labels: labels,
-        datasets: datasets, // This now contains all three datasets
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    createChart(canvasId, 'line', {
+        labels: labels,
+        datasets: datasets, // This now contains all three datasets
+    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
 
@@ -4345,6 +4377,25 @@ const calculateComparison = (current, previous) => {
     plusOrMinus: growth > 0 ? '+' : '-',
     difference: formatNumber(Math.abs(diff), 0),
   }
+}
+
+/**
+ * Determines profit trend classification for investment analysis.
+ *
+ * @param {number} firstValue - First period profit value.
+ * @param {number} lastValue - Last period profit value.
+ * @param {number} threshold - Percentage threshold for trend classification (default: 5).
+ * @returns {string} Trend classification: 'growing', 'declining', or 'stable'.
+ *
+ * @description
+ * Analyzes profit growth between first and last periods to determine overall trend.
+ * Used for investment performance insights.
+ */
+function getProfitTrend(firstValue: number, lastValue: number, threshold = 5): string {
+    if (firstValue === 0) return 'stable';
+    const changePercent = ((lastValue - firstValue) / Math.abs(firstValue)) * 100;
+    if (Math.abs(changePercent) <= threshold) return 'stable';
+    return changePercent > 0 ? 'growing' : 'declining';
 }
 
 // --- Main Update Function ---
@@ -6787,7 +6838,7 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
             if (targetId === 'cabang-investasi') {
                 await setupCabangInvestasiSelectors();
             }
-            
+
             if (targetId === 'waktu-pnl') generateAllTimePnlTable();
             if (targetId === 'analisa-pnl') setupPnlPeriodSelector();
         }, 0); // A 0ms delay is enough to push it to the next browser tick.
@@ -11742,7 +11793,7 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
  */
 // In main.ts, replace the existing showPnlTargetModal function with this one.
 
-async function showPnlTargetModal(targetData: any, reportId: string) {
+async function showPnlTargetModal(targetData: any, reportId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const modal = document.getElementById('pnl-target-modal');
     const titleEl = document.getElementById('pnl-target-modal-title');
     const bodyEl = document.getElementById('pnl-target-modal-body');
@@ -11802,6 +11853,8 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
         ];
 
+        const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
+
         metricOrder.forEach(metric => {
             const targetRevenue = targets['Pendapatan (Revenue)'];
             let targetValue = 0;
@@ -11834,16 +11887,16 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(targetValue)}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
-                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${percentageChangeText}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(targetValue), (v) => ({ pnlTargets: { [metric]: v } }))}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(actualValue), (v) => ({ pnlActuals: { [metric]: v } }))}</td>
+                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${alsoStore(percentageChangeText, (v) => ({ pnlChanges: { [metric]: v } }))}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">
 
                         <div class="flex items-center hidden">
                             <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
                             </div>
-                            <span class="font-semibold">${achievement.toFixed(1)}%</span>
+                            <span class="font-semibold">${alsoStore(achievement.toFixed(1), (v) => ({ pnlAchievements: { [metric]: `${v}%` } }))}%</span>
                         </div>
 
                     </td>
@@ -12381,6 +12434,20 @@ async function generateGeneralPenjualanSection() {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
 
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.setActiveViewData('general-penjualan', {
+        viewContext: {
+            selectedBranch,
+            dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+            dataSource: "Sales transaction summaries and daily aggregations",
+            filtersApplied: { selectedBranch, startDate, endDate },
+            salesTargetActive: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0,
+            salesTargetDescription: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0
+                ? `Monthly sales targets loaded for ${selectedBranch}`
+                : "No sales targets configured for this period"
+        }
+    }, { selectedBranch, startDate, endDate });
+
     // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
     // This will still display the main KPI values but will not show any growth percentages.
     generateRingkasanFromSummaries(currentData, [], {
@@ -12391,8 +12458,6 @@ async function generateGeneralPenjualanSection() {
         checkGrowth: 'general-check-growth',
         avgCheckGrowth: 'general-avg-check-growth'
     });
-
-    $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
 
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
@@ -12472,14 +12537,26 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
         filteredSummaries = summaries.filter(s => s.branches.includes(selectedBranch));
     }
 
+    // Get date range and counts for view context
+    const dates = filteredSummaries.map(s => s.date).sort((a, b) => a.getTime() - b.getTime());
+    const minDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
+    const maxDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
+
+    // Store minimal view context instead of raw data
+    $store.setActiveViewData('general-produk-channel', {
+        viewContext: {
+            selectedBranch: selectedBranch || "All Branches",
+            periodRange: filteredSummaries.length > 0 ? `${minDate} to ${maxDate}` : 'No data',
+            dataSource: "Daily sales summaries with menu items, channels, and categories"
+        }
+    }, { selectedBranch });
+
     // Now, generate all charts using the correctly filtered data
     setupGeneralMenuTrendChart(filteredSummaries, 'general-menu-trend-select', 'general-menu-trend-chart');
     generatePenjualanChannelChartFromSummaries(filteredSummaries, 'general-channel-donut-chart', 'doughnut');
     generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
     generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
-
-    $store.setActiveViewData('general-produk-channel', filteredSummaries, { selectedBranch });
 }
 
 
@@ -13238,11 +13315,21 @@ async function generateGeneralInvestasiSection() {
             };
         });
 
+        $store.setActiveViewData('general-investasi', {
+            viewContext: {
+                selectedBranch,
+                periodRange: monthlyProfits.length > 0 ?
+                    `${monthlyProfits[0].period} to ${monthlyProfits[monthlyProfits.length - 1].period}` :
+                    'No data',
+                totalInvestment: investmentData.investmentAmount,
+                investmentSlots: investmentData.investmentSlots,
+                investorSharePercentage: investmentData.investorSharePercentage
+            }
+        }, { selectedBranch });
+
         generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
         generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
         generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage);
-
-        $store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch });
 
     } catch (error) {
         console.error("Error generating investment analysis:", error);
@@ -13718,10 +13805,10 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
         const targetId = `${selectedPeriod}_${selectedBranch.replace(/\s+/g, '_')}`;
         const targetRef = doc(db, `users/${currentUser.uid}/monthlyPnlTargets`, targetId);
         const targetSnap = await getDoc(targetRef);
-        
+
         const actualMetrics = calculateAllPnlMetrics(currentReport.pnlData);
         const actualRevenue = actualMetrics['Pendapatan (Revenue)'] || 0;
-        
+
         performanceVsTarget['Actual'] = {
             'Pendapatan (Revenue)': `Rp${Math.round(actualRevenue).toLocaleString('id-ID')}`,
             'Laba Kotor (Gross Profit)': `Rp${Math.round(actualMetrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,
@@ -13748,7 +13835,7 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
     historicalReports.forEach(report => {
         const metrics = calculateAllPnlMetrics(report.pnlData);
         const revenue = metrics['Pendapatan (Revenue)'] || 0;
-        
+
         historicalPerformance[report.period] = {
             'Pendapatan (Revenue)': `Rp${Math.round(revenue).toLocaleString('id-ID')}`,
             'Laba Kotor (Gross Profit)': `Rp${Math.round(metrics['Laba Kotor (Gross Profit)'] || 0).toLocaleString('id-ID')}`,

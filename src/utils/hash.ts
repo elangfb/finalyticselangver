@@ -1,3 +1,5 @@
+import { sha256 } from 'js-sha256';
+
 // Stable JSON stringify + SHA-256 hashing utility
 export async function generateSHA256(data: any): Promise<string> {
     const stableString = stableStringify(data)
@@ -5,6 +7,11 @@ export async function generateSHA256(data: any): Promise<string> {
     const buf = enc.encode(stableString)
     const hashBuffer = await (window.crypto.subtle.digest('SHA-256', buf))
     return bufferToHex(hashBuffer)
+}
+
+export function generateSHA256Sync(data: any): string {
+    const stableString = stableStringify(data)
+    return sha256(stableString)
 }
 
 function bufferToHex(buffer: ArrayBuffer) {
