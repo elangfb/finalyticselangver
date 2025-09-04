@@ -2721,62 +2721,6 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
         chartYTicks(shortenNumber),
         chartXTicks(shortenDateTickCallback)
     ));
-
-    // Add insights for general-produk-channel section
-    if (selectedMenus.length > 0 && datasets.length > 0) {
-        const dates = summaries.map(s => s.date).sort((a, b) => a.getTime() - b.getTime());
-        const firstDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
-        const lastDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
-
-        // Calculate trend and performance for each selected menu item
-        const menuPerformance = selectedMenus.map(menuName => {
-            const dataset = datasets.find(d => d.label === menuName);
-            if (!dataset || !dataset.data) return null;
-
-            const dataPoints = dataset.data as number[];
-            const nonZeroData = dataPoints.filter(val => val > 0);
-            const totalQuantity = dataPoints.reduce((sum, val) => sum + val, 0);
-            const avgQuantity = nonZeroData.length > 0 ? totalQuantity / nonZeroData.length : 0;
-
-            // Calculate trend (compare first and last periods)
-            const firstValue = dataPoints[0] || 0;
-            const lastValue = dataPoints[dataPoints.length - 1] || 0;
-            let trend = 'stable';
-            if (Math.abs(lastValue - firstValue) > 1) {
-                trend = lastValue > firstValue ? 'increasing' : 'decreasing';
-            }
-
-            // Find peak
-            const maxQuantity = Math.max(...dataPoints);
-            const peakIndex = dataPoints.indexOf(maxQuantity);
-            const peakDate = labels[peakIndex] || 'N/A';
-
-            return {
-                name: menuName,
-                averageQuantity: Math.round(avgQuantity),
-                totalQuantity: totalQuantity,
-                trend: trend,
-                peakDate: peakDate,
-                peakQuantity: maxQuantity
-            };
-        }).filter(Boolean);
-
-        const menuTrendInsights = {
-            chartType: 'menu_item_trend',
-            description: 'Selected menu items quantity trends over time',
-            selectedItems: selectedMenus,
-            timeRange: {
-                start: firstDate,
-                end: lastDate,
-                periodsCount: labels.length
-            },
-            performance: menuPerformance
-        };
-
-        $store.setActiveViewData('general-produk-channel', {
-            menuTrendInsights: menuTrendInsights
-        });
-    }
 }
 
 function generateYoYAnalysisFromSummaries(summaries: any[]) {
@@ -3865,41 +3809,6 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
             backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4444', '#F59E0B'],
         }],
     });
-
-    // Add insights for general-produk-channel section
-    if (Object.keys(channelSales).length > 0) {
-        const totalRevenue = Object.values(channelSales).reduce((sum: number, val: number) => sum + val, 0);
-        const sortedChannels = Object.entries(channelSales).sort((a, b) => (b[1] as number) - (a[1] as number));
-        const topChannel = sortedChannels[0];
-
-        // Determine distribution concentration
-        const topChannelPercentage = totalRevenue > 0 ? (topChannel[1] as number) / totalRevenue * 100 : 0;
-        let distribution: string;
-        if (topChannelPercentage > 60) distribution = 'concentrated';
-        else if (topChannelPercentage < 35) distribution = 'dispersed';
-        else distribution = 'balanced';
-
-        const channelInsights = {
-            chartType: 'sales_channel_distribution',
-            description: 'Revenue distribution by sales channel/visit purpose',
-            channels: sortedChannels.map(([channel, revenue]) => ({
-                name: channel,
-                revenue: formatCurrencyUtil(revenue as number),
-                percentage: `${((revenue as number) / totalRevenue * 100).toFixed(1)}%`
-            })),
-            summary: {
-                totalRevenue: formatCurrencyUtil(totalRevenue),
-                channelCount: Object.keys(channelSales).length,
-                dominantChannel: topChannel[0],
-                dominantChannelPercentage: `${topChannelPercentage.toFixed(1)}%`,
-                distribution: distribution
-            }
-        };
-
-        $store.setActiveViewData('general-produk-channel', {
-            channelRevenueInsights: channelInsights
-        });
-    }
 }
 
 function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string) {
@@ -3932,57 +3841,6 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
 
     // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
     createChart(canvasId, 'line', { labels, datasets });
-
-    // PHASE 2.7: Add sales trend chart insights for general-penjualan
-    if (summaries.length > 0 && dailyData.some(dayArr => dayArr.some(val => val > 0))) {
-        const totalRevenue = dailyData.flat().reduce((sum, val) => sum + val, 0);
-        const nonZeroValues = dailyData.flat().filter(val => val > 0);
-        const avgHourlyValue = nonZeroValues.length > 0 ? totalRevenue / nonZeroValues.length : 0;
-
-        // Find overall trend by comparing first and last periods
-        const firstWeekTotal = dailyData.slice(0, 3).flat().reduce((sum, val) => sum + val, 0);
-        const lastWeekTotal = dailyData.slice(-3).flat().reduce((sum, val) => sum + val, 0);
-        const changePercent = firstWeekTotal !== 0 ? ((lastWeekTotal - firstWeekTotal) / Math.abs(firstWeekTotal)) * 100 : 0;
-
-        // Calculate volatility (standard deviation relative to mean)
-        const mean = avgHourlyValue;
-        const squaredDifferences = nonZeroValues.map(val => Math.pow(val - mean, 2));
-        const variance = squaredDifferences.length > 0 ? squaredDifferences.reduce((sum, val) => sum + val, 0) / squaredDifferences.length : 0;
-        const standardDeviation = Math.sqrt(variance);
-        const volatilityIndex = mean > 0 ? (standardDeviation / mean) : 0;
-
-        // Determine trend characteristics
-        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'growing' : 'declining';
-        const strength = Math.abs(changePercent) > 20 ? 'strong' : Math.abs(changePercent) > 10 ? 'moderate' : 'weak';
-        const consistency = volatilityIndex < 0.3 ? 'high' : volatilityIndex < 0.6 ? 'medium' : 'low';
-
-        const salesTrendInsights = {
-            chartType: 'comprehensive_sales_trend',
-            description: 'Hourly sales patterns across all days of the week',
-            overallTrend: {
-                direction: trend,
-                strength: strength,
-                consistency: consistency,
-                changePercent: `${Math.abs(changePercent).toFixed(1)}%`
-            },
-            keyMetrics: {
-                totalRevenue: formatCurrencyUtil(totalRevenue),
-                averageHourlyRevenue: formatCurrencyUtil(avgHourlyValue),
-                activeTimeSlots: nonZeroValues.length,
-                volatilityIndex: volatilityIndex.toFixed(2),
-                dataPointsAnalyzed: summaries.length
-            },
-            weekPatterns: {
-                strongestDays: dayLabels.slice(0, 3), // Top performing days based on data
-                businessHours: 'Peak activity during regular business hours',
-                weekendPattern: 'Weekend vs weekday performance analysis included'
-            }
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            salesTrendInsights: salesTrendInsights
-        });
-    }
 }
 
 function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: string) {
@@ -4054,46 +3912,6 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         labels: sortedWeeks,
         datasets: datasets,
     }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
-
-    // PHASE 2.4: Add weekly revenue chart insights for general-penjualan
-    if (sortedWeeks.length > 0) {
-        const weeklyData = sortedWeeks.map((week) => weeklyOmzet[week]);
-        const totalWeeklyRevenue = weeklyData.reduce((sum, val) => sum + val, 0);
-        const avgWeekly = weeklyData.length > 0 ? totalWeeklyRevenue / weeklyData.length : 0;
-        const maxWeekly = Math.max(...weeklyData);
-        const minWeekly = Math.min(...weeklyData);
-
-        // Calculate trend
-        const firstValue = weeklyData[0] || 0;
-        const lastValue = weeklyData[weeklyData.length - 1] || 0;
-        const changePercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : 0;
-        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'improving' : 'declining';
-
-        const weeklyInsights = {
-            chartType: 'weekly_revenue_trend',
-            description: 'Weekly revenue aggregation and patterns',
-            performance: {
-                totalWeeks: weeklyData.length,
-                averageWeeklyRevenue: formatCurrencyUtil(avgWeekly),
-                highestWeek: formatCurrencyUtil(maxWeekly),
-                lowestWeek: formatCurrencyUtil(minWeekly),
-                totalWeeklyRevenue: formatCurrencyUtil(totalWeeklyRevenue)
-            },
-            weeklyPattern: {
-                trend: trend,
-                growthPercent: `${Math.abs(changePercent).toFixed(1)}%`,
-                consistency: Math.abs(changePercent) <= 10 ? 'high' : Math.abs(changePercent) <= 25 ? 'medium' : 'low'
-            },
-            hasTarget: salesTarget && salesTarget['Omzet Mingguan'] ? true : false,
-            targetDescription: salesTarget && salesTarget['Omzet Mingguan']
-                ? `Weekly target: ${formatCurrencyUtil(salesTarget['Omzet Mingguan'])}`
-                : "No weekly revenue target configured"
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            weeklyRevenueInsights: weeklyInsights
-        });
-    }
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -4173,68 +3991,6 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
     tableHTML += '</tbody></table>';
 
     container.innerHTML = tableHTML;
-
-    // PHASE 2.6: Add hourly heatmap insights for general-penjualan
-    if (summaries.length > 0 && heatmapData.some(dayArr => dayArr.some(val => val > 0))) {
-        // Find peak hours and days
-        let peakHour = 0, peakDay = 0, peakValue = 0;
-        let totalHourlyRevenue = 0;
-        const hourlyTotals = Array(24).fill(0);
-        const dailyTotals = Array(7).fill(0);
-
-        heatmapData.forEach((dayArr, dayIndex) => {
-            dayArr.forEach((value, hourIndex) => {
-                if (value > peakValue) {
-                    peakValue = value;
-                    peakHour = hourIndex;
-                    peakDay = dayIndex;
-                }
-                totalHourlyRevenue += value;
-                hourlyTotals[hourIndex] += value;
-                dailyTotals[dayIndex] += value;
-            });
-        });
-
-        // Find top performing hours and days
-        const hourRankings = hourlyTotals.map((total, hour) => ({ hour, total }))
-            .sort((a, b) => b.total - a.total);
-        const dayRankings = dailyTotals.map((total, day) => ({ day, total }))
-            .sort((a, b) => b.total - a.total);
-
-        const avgHourlyRevenue = totalHourlyRevenue / (24 * 7);
-        const peakHourRevenue = hourRankings[0]?.total || 0;
-        const peakDayRevenue = dayRankings[0]?.total || 0;
-
-        const hourlyHeatmapInsights = {
-            chartType: 'hourly_sales_heatmap',
-            description: 'Sales performance pattern by hour and day of week',
-            timePatterns: {
-                peakHours: hourRankings.slice(0, 3).map(h => `${h.hour.toString().padStart(2, '0')}:00`),
-                slowHours: hourRankings.slice(-3).map(h => `${h.hour.toString().padStart(2, '0')}:00`),
-                peakDays: dayRankings.slice(0, 2).map(d => days[d.day]),
-                slowDays: dayRankings.slice(-2).map(d => days[d.day])
-            },
-            performance: {
-                peakTimeSlot: {
-                    day: days[peakDay],
-                    hour: `${peakHour.toString().padStart(2, '0')}:00`,
-                    revenue: formatCurrencyUtil(peakValue)
-                },
-                averageHourlyRevenue: formatCurrencyUtil(avgHourlyRevenue),
-                peakHourRevenue: formatCurrencyUtil(peakHourRevenue),
-                peakDayRevenue: formatCurrencyUtil(peakDayRevenue),
-                totalDataPoints: summaries.length
-            },
-            weeklyDistribution: {
-                weekdayTrend: dailyTotals.slice(1, 6).reduce((sum, val) => sum + val, 0) > dailyTotals[0] + dailyTotals[6] ? 'weekday-focused' : 'weekend-focused',
-                peakIntensity: maxOmzet > avgHourlyRevenue * 3 ? 'high' : maxOmzet > avgHourlyRevenue * 1.5 ? 'medium' : 'low'
-            }
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            hourlyHeatmapInsights: hourlyHeatmapInsights
-        });
-    }
 }
 
 function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
@@ -4291,53 +4047,6 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   calendarHTML += '</tr></tbody></table></div>';
 
   container.innerHTML = calendarHTML;
-
-  // PHASE 2.5: Add daily heatmap insights for general-penjualan
-  if (summaries.length > 0) {
-    // Group by day of week
-    const dayOfWeekTotals = summaries.reduce((acc, summary) => {
-      const dayOfWeek = summary.date.getDay(); // 0=Sunday, 6=Saturday
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayName = dayNames[dayOfWeek];
-      acc[dayName] = (acc[dayName] || 0) + summary.totalOmzet;
-      return acc;
-    }, {});
-
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayRevenueArray = dayNames.map(day => ({ day, revenue: dayOfWeekTotals[day] || 0 }));
-    const sortedDays = dayRevenueArray.sort((a, b) => b.revenue - a.revenue);
-
-    const avgDailyRevenue = summaries.length > 0 ? summaries.reduce((sum, s) => sum + s.totalOmzet, 0) / summaries.length : 0;
-    const peakDay = sortedDays[0];
-    const slowestDay = sortedDays[sortedDays.length - 1];
-
-    const dailyHeatmapInsights = {
-      chartType: 'daily_sales_heatmap',
-      description: 'Sales performance pattern by day of week',
-      dayPatterns: {
-        strongestDays: sortedDays.slice(0, 3).map(d => d.day),
-        weakestDays: sortedDays.slice(-2).map(d => d.day),
-        averageDailyRevenue: formatCurrencyUtil(avgDailyRevenue),
-        totalDaysAnalyzed: summaries.length
-      },
-      performance: {
-        peakDay: {
-          day: peakDay.day,
-          revenue: formatCurrencyUtil(peakDay.revenue)
-        },
-        slowestDay: {
-          day: slowestDay.day,
-          revenue: formatCurrencyUtil(slowestDay.revenue)
-        },
-        peakToSlowRatio: slowestDay.revenue > 0 ? (peakDay.revenue / slowestDay.revenue).toFixed(1) : 'N/A'
-      },
-      dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`
-    };
-
-    $store.setActiveViewData('general-penjualan', {
-      dailyHeatmapInsights: dailyHeatmapInsights
-    });
-  }
 }
 
 // In main.ts, replace the existing generateRingkasanFromSummaries function with this one.
@@ -4387,63 +4096,43 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
         document.getElementById(ids.checkGrowth).textContent = '';
         document.getElementById(ids.avgCheckGrowth).textContent = '';
     }
-
-    // PHASE 2.1: Add sales summary insights for general-penjualan
-    if (currentSummaries.length > 0) {
-        const summaryInsights = {
-            salesSummary: {
-                totalOmzet: formatCurrencyUtil(currentTotals.omzet),
-                totalTransactions: currentTotals.checks.toLocaleString('id-ID'),
-                averagePerCheck: formatCurrencyUtil(currentAvgCheck),
-                dataPointsAnalyzed: currentSummaries.length,
-                hasComparison: lastPeriodSummaries && lastPeriodSummaries.length > 0,
-                comparisonDescription: lastPeriodSummaries && lastPeriodSummaries.length > 0
-                    ? `Compared with ${lastPeriodSummaries.length} data points from previous period`
-                    : "No comparison period data available"
-            }
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            salesSummaryInsights: summaryInsights
-        });
-    }
 }
 
 
 function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
     // This uses .toSorted() which is great because it doesn't mutate the original array.
-    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
-    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
-    const data = sortedSummaries.map(s => s.totalOmzet);
+    const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
+    const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
+    const data = sortedSummaries.map(s => s.totalOmzet);
 
     // --- START: New code to calculate the average ---
     const totalOmzet = data.reduce((sum, value) => sum + value, 0);
     const averageOmzet = sortedSummaries.length > 0 ? totalOmzet / sortedSummaries.length : 0;
     // --- END: New code to calculate the average ---
 
-    const datasets = [{
-        label: 'Total Omzet Harian',
-        data: data,
-        borderColor: '#3B82F6',
-        tension: 0.1,
-        type: 'line'
-    }];
+    const datasets = [{
+        label: 'Total Omzet Harian',
+        data: data,
+        borderColor: '#3B82F6',
+        tension: 0.1,
+        type: 'line'
+    }];
 
     // This part for the Target line remains unchanged.
-    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
-    if (salesTarget && salesTarget['Omzet Harian']) {
-        datasets.push({
-            label: 'Target Omzet Harian',
-            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
-            borderColor: '#FFDE21',
-            borderDash: [5, 5],
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0,
-            type: 'line'
-        });
-    }
-    
+    const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
+    if (salesTarget && salesTarget['Omzet Harian']) {
+        datasets.push({
+            label: 'Target Omzet Harian',
+            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
+            borderColor: '#FFDE21',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+            type: 'line'
+        });
+    }
+
     // --- START: New code to add the average line to the chart ---
     if (averageOmzet > 0) {
         datasets.push({
@@ -4459,53 +4148,10 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     }
     // --- END: New code to add the average line ---
 
-    createChart(canvasId, 'line', {
-        labels: labels,
-        datasets: datasets, // This now contains all three datasets
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
-
-    // PHASE 2.2: Add daily revenue chart insights for general-penjualan
-    if (sortedSummaries.length > 0) {
-        const totalRevenue = data.reduce((sum, val) => sum + val, 0);
-        const avgDaily = data.length > 0 ? totalRevenue / data.length : 0;
-        const maxRevenue = Math.max(...data);
-        const minRevenue = Math.min(...data);
-        const maxDay = sortedSummaries[data.indexOf(maxRevenue)];
-        const minDay = sortedSummaries[data.indexOf(minRevenue)];
-
-        // Calculate trend
-        const firstValue = data[0] || 0;
-        const lastValue = data[data.length - 1] || 0;
-        const changePercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : 0;
-        const trend = Math.abs(changePercent) <= 5 ? 'stable' : changePercent > 0 ? 'growing' : 'declining';
-
-        const chartInsights = {
-            chartType: 'daily_revenue_trend',
-            description: 'Daily revenue performance over selected period',
-            performance: {
-                totalRevenue: formatCurrencyUtil(totalRevenue),
-                averageDailyRevenue: formatCurrencyUtil(avgDaily),
-                daysAnalyzed: data.length,
-                highestDay: {
-                    date: maxDay.date.toISOString().split('T')[0],
-                    revenue: formatCurrencyUtil(maxRevenue)
-                },
-                lowestDay: {
-                    date: minDay.date.toISOString().split('T')[0],
-                    revenue: formatCurrencyUtil(minRevenue)
-                }
-            },
-            trend: trend,
-            hasTarget: salesTarget && salesTarget['Omzet Harian'] ? true : false,
-            targetDescription: salesTarget && salesTarget['Omzet Harian']
-                ? `Daily target: ${formatCurrencyUtil(salesTarget['Omzet Harian'])}`
-                : "No daily revenue target configured"
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            dailyRevenueInsights: chartInsights
-        });
-    }
+    createChart(canvasId, 'line', {
+        labels: labels,
+        datasets: datasets, // This now contains all three datasets
+    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
 }
 
 
@@ -4589,55 +4235,6 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
             },
         }
     }, chartXTicks(shortenDateTickCallback)));
-
-    // PHASE 2.3: Add TC/APC chart insights for general-penjualan
-    if (sortedSummaries.length > 0) {
-        const avgTC = tcData.length > 0 ? tcData.reduce((sum, val) => sum + val, 0) / tcData.length : 0;
-        const maxTC = Math.max(...tcData);
-        const minTC = Math.min(...tcData);
-
-        const avgAPC = apcData.length > 0 ? apcData.reduce((sum, val) => sum + val, 0) / apcData.length : 0;
-        const maxAPC = Math.max(...apcData);
-        const minAPC = Math.min(...apcData);
-
-        // Calculate trends
-        const firstTC = tcData[0] || 0;
-        const lastTC = tcData[tcData.length - 1] || 0;
-        const tcChangePercent = firstTC !== 0 ? ((lastTC - firstTC) / Math.abs(firstTC)) * 100 : 0;
-        const tcTrend = Math.abs(tcChangePercent) <= 5 ? 'stable' : tcChangePercent > 0 ? 'increasing' : 'decreasing';
-
-        const firstAPC = apcData[0] || 0;
-        const lastAPC = apcData[apcData.length - 1] || 0;
-        const apcChangePercent = firstAPC !== 0 ? ((lastAPC - firstAPC) / Math.abs(firstAPC)) * 100 : 0;
-        const apcTrend = Math.abs(apcChangePercent) <= 5 ? 'stable' : apcChangePercent > 0 ? 'improving' : 'declining';
-
-        const tcApcInsights = {
-            chartType: 'dual_axis_transaction_analysis',
-            description: 'Daily transaction count and average per check analysis',
-            transactionAnalysis: {
-                averageTransactionsPerDay: avgTC.toFixed(0),
-                highestTransactionDay: maxTC.toFixed(0),
-                lowestTransactionDay: minTC.toFixed(0),
-                transactionTrend: tcTrend,
-                totalTransactionsAnalyzed: tcData.reduce((sum, val) => sum + val, 0).toLocaleString('id-ID')
-            },
-            apcAnalysis: {
-                averagePerCheck: formatCurrencyUtil(avgAPC),
-                highestAPC: formatCurrencyUtil(maxAPC),
-                lowestAPC: formatCurrencyUtil(minAPC),
-                apcTrend: apcTrend
-            },
-            hasTargets: {
-                tc: salesTarget && salesTarget['Total Check'] ? true : false,
-                apc: salesTarget && salesTarget['APC'] ? true : false
-            },
-            targetDescription: `TC target: ${salesTarget && salesTarget['Total Check'] ? salesTarget['Total Check'] : 'None'}, APC target: ${salesTarget && salesTarget['APC'] ? formatCurrencyUtil(salesTarget['APC']) : 'None'}`
-        };
-
-        $store.setActiveViewData('general-penjualan', {
-            tcApcInsights: tcApcInsights
-        });
-    }
 }
 
 /**
@@ -12829,7 +12426,6 @@ async function generateGeneralPenjualanSection() {
         viewContext: {
             selectedBranch,
             dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
-            totalRecordsAnalyzed: currentData.length,
             dataSource: "Sales transaction summaries and daily aggregations",
             filtersApplied: { selectedBranch, startDate, endDate },
             salesTargetActive: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0,
@@ -12877,35 +12473,6 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
         labels: Object.keys(byMenuCategory),
         datasets: [{ data: Object.values(byMenuCategory), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6'] }],
     });
-
-    // Add insights for general-produk-channel section
-    if (Object.keys(byMenuCategory).length > 0) {
-        const totalQuantity = Object.values(byMenuCategory).reduce((sum: number, val: unknown) => sum + (val as number), 0);
-        const sortedCategories = Object.entries(byMenuCategory).sort((a, b) => (b[1] as number) - (a[1] as number));
-        const topCategory = sortedCategories.length > 0 ? sortedCategories[0] : null;
-
-        if (topCategory) {
-            const categoryInsights = {
-                chartType: 'menu_category_distribution',
-                description: 'Order quantity distribution by menu category',
-                categories: sortedCategories.map(([category, quantity]) => ({
-                    name: category,
-                    quantity: quantity as number,
-                    percentage: `${((quantity as number) / totalQuantity * 100).toFixed(1)}%`
-                })),
-                summary: {
-                    totalOrders: totalQuantity,
-                    categoryCount: Object.keys(byMenuCategory).length,
-                    topCategory: topCategory[0],
-                    topCategoryPercentage: `${((topCategory[1] as number) / totalQuantity * 100).toFixed(1)}%`
-                }
-            };
-
-            $store.setActiveViewData('general-produk-channel', {
-                categoryOrdersInsights: categoryInsights
-            });
-        }
-    }
 }
 
 /**
@@ -12941,37 +12508,6 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
         labels,
         datasets: [{ data, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
     });
-
-    // Add insights for general-produk-channel section
-    if (sortedItems.length > 0) {
-        const totalQuantity = Object.values(allItems).reduce((sum: number, val: unknown) => sum + (val as number), 0);
-        const top5Total = top5.reduce((sum, item) => sum + (item[1] as number), 0);
-        const allItemsCount = sortedItems.length;
-
-        const topItemsInsights = {
-            chartType: 'top_items_breakdown',
-            categoryName: categoryName,
-            description: `Top 5 ${categoryName.toLowerCase()} items by quantity`,
-            topItems: top5.map(([name, quantity]) => ({
-                name: name,
-                quantity: quantity as number,
-                percentage: `${((quantity as number) / totalQuantity * 100).toFixed(1)}%`
-            })),
-            summary: {
-                totalItems: allItemsCount,
-                totalQuantity: totalQuantity,
-                top5Percentage: `${(top5Total / totalQuantity * 100).toFixed(1)}%`,
-                othersQuantity: othersCount,
-                othersPercentage: othersCount > 0 ? `${(othersCount / totalQuantity * 100).toFixed(1)}%` : '0%'
-            }
-        };
-
-        // Use different keys for MAKANAN vs MINUMAN
-        const insightKey = categoryName === 'MAKANAN' ? 'topFoodItemsInsights' : 'topBeverageItemsInsights';
-        $store.setActiveViewData('general-produk-channel', {
-            [insightKey]: topItemsInsights
-        });
-    }
 }
 
 /**
@@ -12993,38 +12529,11 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
     const minDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
     const maxDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
 
-    // Count unique items, channels, and categories
-    const uniqueMenuItems = new Set<string>();
-    const uniqueChannels = new Set<string>();
-    const uniqueCategories = new Set<string>();
-
-    filteredSummaries.forEach(s => {
-        if (s.menuItemQuantities) {
-            for (const category in s.menuItemQuantities) {
-                uniqueCategories.add(category);
-                for (const menuName in s.menuItemQuantities[category]) {
-                    if (!menuName.includes('(PACKAGE)')) {
-                        uniqueMenuItems.add(menuName);
-                    }
-                }
-            }
-        }
-        if (s.revenueByVisitPurpose) {
-            for (const channel in s.revenueByVisitPurpose) {
-                uniqueChannels.add(channel);
-            }
-        }
-    });
-
     // Store minimal view context instead of raw data
     $store.setActiveViewData('general-produk-channel', {
         viewContext: {
             selectedBranch: selectedBranch || "All Branches",
-            periodsAnalyzed: filteredSummaries.length,
             periodRange: filteredSummaries.length > 0 ? `${minDate} to ${maxDate}` : 'No data',
-            totalMenuItems: uniqueMenuItems.size,
-            totalChannels: uniqueChannels.size,
-            totalCategories: uniqueCategories.size,
             dataSource: "Daily sales summaries with menu items, channels, and categories"
         }
     }, { selectedBranch });
@@ -13701,39 +13210,6 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
             }
         }
     });
-
-    // NEW: Add cumulative investor share insights
-    if (monthlyProfits.length > 0) {
-        let cumulativeShare = 0;
-        const monthlyShares = monthlyProfits.map(p => {
-            const monthlyShare = p.profit * (investorSharePercentage / 100);
-            cumulativeShare += monthlyShare;
-            return { period: p.period, monthlyShare, cumulativeShare };
-        });
-
-        const latestCumulative = cumulativeShare;
-        const avgMonthlyShare = monthlyShares.reduce((sum, s) => sum + s.monthlyShare, 0) / monthlyShares.length;
-        const maxMonthlyShare = Math.max(...monthlyShares.map(s => s.monthlyShare));
-
-        const cumulativeShareInsights = {
-            chartType: 'cumulative_investor_share',
-            description: 'Accumulated investor profit sharing over time',
-            investorShareConfig: {
-                sharePercentage: `${investorSharePercentage}%`,
-                periodsTracked: monthlyProfits.length
-            },
-            cumulativeAnalysis: {
-                totalAccumulated: formatCurrencyUtil(latestCumulative),
-                averageMonthlyShare: formatCurrencyUtil(avgMonthlyShare),
-                highestMonthlyShare: formatCurrencyUtil(maxMonthlyShare),
-                projectedAnnual: formatCurrencyUtil(avgMonthlyShare * 12)
-            }
-        };
-
-        $store.setActiveViewData('general-investasi', {
-            cumulativeShareInsights: cumulativeShareInsights
-        });
-    }
 }
 
 
@@ -13829,7 +13305,6 @@ async function generateGeneralInvestasiSection() {
         $store.setActiveViewData('general-investasi', {
             viewContext: {
                 selectedBranch,
-                periodsAnalyzed: monthlyProfits.length,
                 periodRange: monthlyProfits.length > 0 ?
                     `${monthlyProfits[0].period} to ${monthlyProfits[monthlyProfits.length - 1].period}` :
                     'No data',
@@ -13887,43 +13362,6 @@ function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: numb
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
         }
     });
-
-    // NEW: Add business yield insights
-    if (monthlyProfits.length > 0) {
-        const avgProfit = monthlyProfits.reduce((sum, p) => sum + p.profit, 0) / monthlyProfits.length;
-        const maxProfit = Math.max(...monthlyProfits.map(p => p.profit));
-        const minProfit = Math.min(...monthlyProfits.map(p => p.profit));
-        const avgYield = totalInvestment > 0 ? (avgProfit / totalInvestment * 100) : 0;
-        const maxYield = totalInvestment > 0 ? (maxProfit / totalInvestment * 100) : 0;
-        const latestProfit = monthlyProfits[monthlyProfits.length - 1].profit;
-        const firstProfit = monthlyProfits[0].profit;
-        const profitTrend = getProfitTrend(firstProfit, latestProfit);
-
-        const businessYieldInsights = {
-            chartType: 'business_yield_analysis',
-            description: 'Monthly business profit vs ROI yield percentage',
-            profitAnalysis: {
-                averageProfit: formatCurrencyUtil(avgProfit),
-                highestProfit: formatCurrencyUtil(maxProfit),
-                lowestProfit: formatCurrencyUtil(minProfit),
-                latestProfit: formatCurrencyUtil(latestProfit),
-                profitTrend: profitTrend
-            },
-            yieldAnalysis: {
-                averageYield: `${avgYield.toFixed(2)}%`,
-                peakYield: `${maxYield.toFixed(2)}%`,
-                annualizedAverage: `${(avgYield * 12).toFixed(1)}%`
-            },
-            investmentPerformance: {
-                totalInvestment: formatCurrencyUtil(totalInvestment),
-                periodsTracked: monthlyProfits.length
-            }
-        };
-
-        $store.setActiveViewData('general-investasi', {
-            businessYieldInsights: businessYieldInsights
-        });
-    }
 }
 
 /**
@@ -13962,35 +13400,6 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
         }
     });
-
-    // NEW: Add investor yield insights
-    if (monthlyProfits.length > 0 && slots > 0) {
-        const investmentPerSlot = totalInvestment / slots;
-        const avgProfitPerSlot = monthlyProfits.reduce((sum, p) => sum + p.profit, 0) / monthlyProfits.length / slots;
-        const avgYieldPerSlot = investmentPerSlot > 0 ? (avgProfitPerSlot / investmentPerSlot * 100) : 0;
-        const totalReturn = monthlyProfits.reduce((sum, p) => sum + p.profit, 0);
-        const totalReturnPerSlot = totalReturn / slots;
-
-        const investorYieldInsights = {
-            chartType: 'investor_yield_analysis',
-            description: 'Monthly profit and yield analysis per investment slot',
-            slotAnalysis: {
-                totalSlots: slots,
-                investmentPerSlot: formatCurrencyUtil(investmentPerSlot),
-                averageMonthlyProfitPerSlot: formatCurrencyUtil(avgProfitPerSlot),
-                averageMonthlyYieldPerSlot: `${avgYieldPerSlot.toFixed(2)}%`
-            },
-            returnAnalysis: {
-                totalReturnAllPeriods: formatCurrencyUtil(totalReturn),
-                totalReturnPerSlot: formatCurrencyUtil(totalReturnPerSlot),
-                annualizedYieldPerSlot: `${(avgYieldPerSlot * 12).toFixed(1)}%`
-            }
-        };
-
-        $store.setActiveViewData('general-investasi', {
-            investorYieldInsights: investorYieldInsights
-        });
-    }
 }
 
 async function setupCabangInvestasiSelectors() {
