@@ -80,6 +80,39 @@ export function truncateToFixed(value: number, decimals: number) {
   return Math.trunc(value * multiplier) / multiplier;
 }
 
+/**
+ * Format a number as a percentage with configurable decimal points.
+ *
+ * @description
+ * Converts a decimal value to percentage format with Indonesian locale formatting.
+ * The input should be in decimal form (0.15 for 15%).
+ *
+ * @param {number} value – Decimal value to format as percentage (e.g., 0.15 for 15%).
+ * @param {number} [fractionDigits=1] – Number of decimal digits to display.
+ * @returns {string} Formatted percentage string.
+ *
+ * @example
+ * formatPercent(0.1546, 2)
+ * // => "15,46%"
+ *
+ * formatPercent(0.25)
+ * // => "25,0%"
+ *
+ * formatPercent(0.333333, 0)
+ * // => "33%"
+ */
+export function formatPercent(value: number, fractionDigits = 1): string {
+  if (typeof value !== 'number' || isNaN(value)) return '0%'
+
+  const percentage = value * 100
+  const formatted = percentage.toLocaleString('id-ID', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  })
+
+  return `${formatted}%`
+}
+
 // Mapping untuk suffix berdasarkan nilai
 const numberSuffixMap = {
   [1_000_000_000_000_000]: 'kd', // kuadriliun

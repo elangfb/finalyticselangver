@@ -44,13 +44,14 @@ import {
   shortenNumber,
   shortenCurrency,
   formatCurrency as formatCurrencyUtil,
+  formatPercent,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
 import { globalConfigService } from './services/globalConfigService';
-import { createAlsoStoreFn } from './utils/also-store';
+import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn, maybeAlsoStore } from './utils/also-store';
 
 // Firebase Config
 const firebaseConfig = {
@@ -3388,7 +3389,8 @@ function generateSpecificSubCategoryRatioChart(
         canvasId: string,
         mainCategory: string,
         subCategory: string,
-        title: string
+        title: string,
+        alsoStore?: AlsoStoreFn,
     }
 ) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
@@ -3405,6 +3407,9 @@ function generateSpecificSubCategoryRatioChart(
         barData.push(subCategoryValue);
         lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
     });
+
+    config.alsoStore?.(barData, (v) => ({ [`${config.title} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
+    config.alsoStore?.(lineData, (v) => ({ [`${config.title} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -3560,7 +3565,7 @@ async function setupGeneralProdukChannelSelectors() {
  * Generates a P&L Target vs Actual comparison table for a single period.
  * If no target is found, it displays an upload button.
  */
-async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string) {
+async function generatePnlTargetComparisonTable(period: string, branch: string, containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const container = document.getElementById(containerId);
     container.innerHTML = '<p class="text-gray-500">Loading P&L comparison...</p>';
 
@@ -3571,7 +3576,7 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
     const targetSnap = await getDoc(targetRef);
 
     if (targetSnap.exists()) {
-        await showPnlTargetModal(targetSnap.data(), reportId);
+        await showPnlTargetModal(targetSnap.data(), reportId, config);
         const modalHTML = document.getElementById('pnl-target-modal-body').innerHTML;
         container.innerHTML = modalHTML;
         document.getElementById('pnl-target-modal').classList.add('hidden');
@@ -3590,7 +3595,7 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
 /**
  * Generates a historical P&L table showing data for multiple months.
  */
-function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string) {
+function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const thead = document.getElementById(theadId);
     const tbody = document.getElementById(tbodyId);
 
@@ -3615,7 +3620,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
     const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
 
-    const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
+    const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
     allMetrics.forEach(metricName => {
         const isSubtotal = !!subtotals[metricName];
@@ -3652,7 +3657,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 /**
  * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
  */
-function generatePnlOverviewChart(reports: any[]) {
+function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoStoreFn }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const revenueData: number[] = [];
     const expenseData: number[] = [];
@@ -3674,7 +3679,7 @@ function generatePnlOverviewChart(reports: any[]) {
         profitData.push(profit);
     });
 
-    const alsoStore = createAlsoStoreFn($store, 'general-keuangan')
+    const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
     createChart('general-pnl-overview-chart', 'bar', {
         labels,
@@ -3742,7 +3747,7 @@ function generatePnlOverviewChart(reports: any[]) {
 /**
  * Reusable function to generate dual-axis financial ratio charts.
  */
-function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string }) {
+function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const barData = []; // This will hold the absolute value (Rp)
     const lineData = []; // This will hold the percentage of Revenue
@@ -3759,6 +3764,9 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
         barData.push(absoluteValue);
         lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
     });
+
+    config.alsoStore?.(barData, (v) => ({ [`${config.metric} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
+    config.alsoStore?.(lineData, (v) => ({ [`${config.metric} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -11780,7 +11788,7 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
  */
 // In main.ts, replace the existing showPnlTargetModal function with this one.
 
-async function showPnlTargetModal(targetData: any, reportId: string) {
+async function showPnlTargetModal(targetData: any, reportId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const modal = document.getElementById('pnl-target-modal');
     const titleEl = document.getElementById('pnl-target-modal-title');
     const bodyEl = document.getElementById('pnl-target-modal-body');
@@ -11840,7 +11848,7 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
         ];
 
-        const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
+        const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
         metricOrder.forEach(metric => {
             const targetRevenue = targets['Pendapatan (Revenue)'];
