@@ -47,6 +47,7 @@ import {
   formatNumber,
   formatPercent,
   formatMachineYearMonthDay,
+  formatMachineYearMonth,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
@@ -3575,8 +3576,20 @@ function generateSpecificSubCategoryRatioChart(
         lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
     });
 
-    config.alsoStore?.(barData, (v) => ({ [`${config.title} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
-    config.alsoStore?.(lineData, (v) => ({ [`${config.title} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
+    config.alsoStore?.(barData, (v) => ({
+      [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
+        [formatMachineYearMonth(reports[index].period)]: {
+          inCurrency: formatCurrencyUtil(v),
+        },
+      }))),
+    }));
+    config.alsoStore?.(lineData, (v) => ({
+      [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
+        [formatMachineYearMonth(reports[index].period)]: {
+          inPercentage: formatPercent(v / 100),
+        },
+      }))),
+    }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -3809,10 +3822,13 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             } else {
                 value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
             }
-            alsoStore(value, (value) => {
-              const reportDate = new Date(report.period + '-02').toDateString();
-              return { historicalPnl: { [reportDate]: { [metricName]: formatCurrencyUtil(value) } } };
-            })
+            alsoStore(value, (value) => ({
+              historicalPnl: {
+                [formatMachineYearMonth(report.period)]: {
+                  [metricName]: formatCurrencyUtil(value),
+                },
+              },
+            }))
             rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
 
@@ -3855,12 +3871,24 @@ function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoSto
         datasets: [
             {
                 label: 'Profit',
-                data: alsoStore(profitData, (v) => ({ pnlOverviewChart: { profits: v } })),
+                data: alsoStore(profitData, (v) => ({
+                  pnlOverviewChart: deepmerge(...v.map((v, index) => ({
+                    [formatMachineYearMonth(reports[index].period)]: {
+                      profit: v,
+                    },
+                  }))),
+                })),
                 backgroundColor: '#10B981' // Green
             },
             {
                 label: 'Expense',
-                data: alsoStore(expenseData, (v) => ({ pnlOverviewChart: { expenses: v } })),
+                data: alsoStore(expenseData, (v) => ({
+                  pnlOverviewChart: deepmerge(...v.map((v, index) => ({
+                    [formatMachineYearMonth(reports[index].period)]: {
+                      expense: v,
+                    },
+                  }))),
+                })),
                 backgroundColor: '#EF4444' // Red
             }
         ]
@@ -3932,8 +3960,20 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
         lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
     });
 
-    config.alsoStore?.(barData, (v) => ({ [`${config.metric} Chart`]: { value_rp: v.map((v) => formatCurrency(v)) } }));
-    config.alsoStore?.(lineData, (v) => ({ [`${config.metric} Chart`]: { value_percent: v.map((v) => formatPercent(v / 100)) } }));
+    config.alsoStore?.(barData, (v) => ({
+      [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
+        [formatMachineYearMonth(reports[index].period)]: {
+          inCurrency: formatCurrencyUtil(v),
+        },
+      }))),
+    }));
+    config.alsoStore?.(lineData, (v) => ({
+      [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
+        [formatMachineYearMonth(reports[index].period)]: {
+          inPercentage: formatPercent(v / 100),
+        },
+      }))),
+    }));
 
     createChart(config.canvasId, 'bar', {
         labels,
@@ -12214,19 +12254,23 @@ async function showPnlTargetModal(targetData: any, reportId: string, config?: { 
             if (change > 0) changeColor = isCost ? 'text-red-600' : 'text-green-600';
             if (change < 0) changeColor = isCost ? 'text-green-600' : 'text-red-600';
 
+            alsoStore(formatCurrency(targetValue), (v) => ({ monthlyPnL_vs_target: { targets: { [metric]: v } } }))
+            alsoStore(formatCurrency(actualValue), (v) => ({ monthlyPnL_vs_target: { actuals: { [metric]: v } } }))
+            alsoStore(percentageChangeText, (v) => ({ monthlyPnL_vs_target: { changes: { [metric]: v } } }))
+
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(targetValue), (v) => ({ pnlTargets: { [metric]: v } }))}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(actualValue), (v) => ({ pnlActuals: { [metric]: v } }))}</td>
-                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${alsoStore(percentageChangeText, (v) => ({ pnlChanges: { [metric]: v } }))}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(targetValue)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
+                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${percentageChangeText}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">
 
                         <div class="flex items-center hidden">
                             <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
                             </div>
-                            <span class="font-semibold">${alsoStore(achievement.toFixed(1), (v) => ({ pnlAchievements: { [metric]: `${v}%` } }))}%</span>
+                            <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>
 
                     </td>
@@ -13479,14 +13523,14 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
 
     config?.alsoStore?.([valueA, valueB] as const, ([a, b]) => ({
       [`${config.title}Chart`]: {
-        periodA: { value_rp: formatCurrencyUtil(a) },
-        periodB: { value_rp: formatCurrencyUtil(b) },
+        periodA: { inCurrency: formatCurrencyUtil(a) },
+        periodB: { inCurrency: formatCurrencyUtil(b) },
       },
     }));
     config?.alsoStore?.([percentA, percentB] as const, ([a, b]) => ({
       [`${config.title}Chart`]: {
-        periodA: { value_percent: formatPercent(a) },
-        periodB: { value_percent: formatPercent(b) },
+        periodA: { inPercentage: formatPercent(a) },
+        periodB: { inPercentage: formatPercent(b) },
       },
     }));
 

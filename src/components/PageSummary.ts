@@ -78,7 +78,7 @@ export const PageSummaryFinished = (props: { pageId: string, summary: string, us
             >
                 ${marked.parse(props.summary)}
             </div>
-            
+
             ${props.usageMetadata ? html`
                 <div class="border-t pt-2 mt-3 text-xs text-gray-400 text-right">
                     <span>Prompt: <strong>${props.usageMetadata.promptTokenCount}</strong></span> |
@@ -197,7 +197,7 @@ export const setupPageSummary = (params: {
             console.warn('Error checking cache:', err);
         }
     };
-    
+
     const onAnalyze = async () => {
         const viewData = getStore('activeViewData');
         if (!viewData) {
@@ -205,6 +205,7 @@ export const setupPageSummary = (params: {
             return;
         }
         const { data, filters } = viewData;
+        console.debug(`View data for ${viewData.viewId}:`, viewData); return;
         ifPlaceholder(($p) => $p.outerHTML = PageSummaryLoading({ pageId: params.pageId }));
 
         try {
@@ -215,7 +216,7 @@ export const setupPageSummary = (params: {
 
             if (cached) {
                 ifPlaceholder(
-                    ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary, usageMetadata: cached.usageMetadata }), 
+                    ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: cached.summary, usageMetadata: cached.usageMetadata }),
                     attachListenersToFinishedState
                 );
                 return;
@@ -225,13 +226,13 @@ export const setupPageSummary = (params: {
             const prompt = promptCreator({ data: dataForPrompt, filters });
             // Destructure the response from the AI call
             const { summaryText, usageMetadata } = await params.analyzeUsingAI(prompt);
-            
+
             // Save the summary AND the usage metadata to the cache
             await createLiveCache({ filtersHash, dataHash, summary: summaryText, usageMetadata, filters });
-            
+
             // Pass both pieces of data to the finished component
             ifPlaceholder(
-                ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: summaryText, usageMetadata }), 
+                ($p) => $p.outerHTML = PageSummaryFinished({ pageId: params.pageId, summary: summaryText, usageMetadata }),
                 attachListenersToFinishedState
             );
 
