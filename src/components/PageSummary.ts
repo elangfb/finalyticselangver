@@ -175,7 +175,16 @@ export const setupPageSummary = (params: {
     };
 
     const attachListenersToFinishedState = ($p: HTMLElement) => {
-        $p.querySelector('button[data-el="reset-summary-btn"]')?.addEventListener('click', () => {
+        $p.querySelector('button[data-el="reset-summary-btn"]')?.addEventListener('click', async () => {
+            const viewData = getStore('activeViewData');
+            if (viewData?.filters) {
+                try {
+                    const filtersHash = await generateSHA256(viewData.filters);
+                    await deactivateHistoricalCache(filtersHash);
+                } catch (err) {
+                    console.warn('Error expiring cache on reset:', err);
+                }
+            }
             showInit();
         });
     };
