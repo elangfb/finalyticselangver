@@ -14076,8 +14076,6 @@ async function generateCabangInvestasiSection() {
                 branchA,
                 branchB,
                 comparisonType: 'Branch Investment Analysis',
-                dataPointsA: dataA.monthlyProfits.length,
-                dataPointsB: dataB.monthlyProfits.length
             }
         }, { startPeriod, endPeriod, branchA, branchB });
 
@@ -14155,7 +14153,6 @@ function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endP
                         return {};
                     })
                 ),
-                totalMonths: data.allMonths.length,
                 winner: (data.cumulativeDataA[data.cumulativeDataA.length - 1] || 0) > (data.cumulativeDataB[data.cumulativeDataB.length - 1] || 0)
                     ? dataA.investment.branchName : dataB.investment.branchName
             }
@@ -14247,7 +14244,6 @@ function generateCabangBusinessYieldComparisonChart(dataA, dataB, config?: { als
                         return {};
                     })
                 ),
-                totalMonths: data.allMonths.length,
                 betterPerformer: (data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length) >
                                (data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length)
                                ? dataA.investment.branchName : dataB.investment.branchName
@@ -14347,7 +14343,6 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB, config?: { als
                         return {};
                     })
                 ),
-                totalMonths: data.allMonths.length,
                 betterInvestorYield: (data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length) >
                                    (data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length)
                                    ? dataA.investment.branchName : dataB.investment.branchName
