@@ -7169,7 +7169,6 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
     setupPageSummary({
         pageId: 'general-keuangan-section',
         analyzeUsingAI: getGeminiAnalysis,
-        promptDataFormatter: (viewData) => createGeneralFinanceBreakdown(viewData)
     });
 }
             if (targetId === 'general-penjualan') {
@@ -7178,7 +7177,6 @@ document.getElementById('analysis-view').addEventListener('click', async (e) => 
                 pageId: 'general-penjualan-section',
                 analyzeUsingAI: getGeminiAnalysis,
                 // FIX: Add this line to use your new daily breakdown function for this specific view
-                promptDataFormatter: (data) => createGeneralSalesDailyBreakdown(data)
             });
             }
             if (targetId === 'waktu-keuangan') {
@@ -12829,8 +12827,7 @@ async function generateGeneralPenjualanSection() {
         omzetGrowth: 'general-omzet-growth',
         checkGrowth: 'general-check-growth',
         avgCheckGrowth: 'general-avg-check-growth',
-        alsoStore,
-    });
+    }, { alsoStore });
 
     // The rest of the chart functions are called as before, but with the new filtered data
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart', { alsoStore });
