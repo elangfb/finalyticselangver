@@ -190,9 +190,6 @@ const store = createStore<AppStore>((set, get) => ({
   // Clear specific view data when filters change significantly
   clearViewData: (viewId: string) => set(produce((state: AppState) => {
     delete state.viewData[viewId];
-    if (state.activeViewData?.viewId === viewId) {
-      state.activeViewData = undefined;
-    }
   })),
 
   setActiveViewData: (viewId: string, data: any, filters?: {[key: string]: any}) => {
