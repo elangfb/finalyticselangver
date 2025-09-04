@@ -259,9 +259,9 @@ export const setupPageSummary = (params: {
                 unsubscribe();
             }
 
-            const isFiltersChanged = !isEqual(state.activeViewData?.filters, prevState.activeViewData?.filters);
+            const isChanged = !isEqual(state.activeViewData, prevState.activeViewData);
 
-            if (isFiltersChanged) {
+            if (isChanged) {
                 showInit();
                 await tryShowFromCache(state.activeViewData);
             }
