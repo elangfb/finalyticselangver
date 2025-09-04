@@ -12513,8 +12513,8 @@ async function generateGeneralPenjualanSection() {
     generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart', { alsoStore });
     generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line', { alsoStore });
     generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart', { alsoStore });
-    generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container', { alsoStore });
-    generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container', { alsoStore });
+    generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container'); // Exclude heatmap from alsoStore beacuse it's duplicate data
+    generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container'); // Exclude heatmap from alsoStore beacuse it's duplicate data
     generateSalesTrendHourlyDailyChartFromSummaries(currentData, 'general-sales-trend-chart', { alsoStore });
 
 }
