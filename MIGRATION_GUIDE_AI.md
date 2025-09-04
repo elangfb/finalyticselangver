@@ -121,9 +121,9 @@ After migrating a view:
 | Investasi | `general-investasi` | **Migrated** |
 | **Analisis Perbandingan Waktu** | | |
 | Aspek Keuangan | `waktu-keuangan` | **Migrated** |
-| Aspek Penjualan | `waktu-penjualan` | Not Migrated |
-| Aspek Produk & Channel | `waktu-produk-channel` | Not Migrated |
+| Aspek Penjualan | `waktu-penjualan` | **Migrated** |
+| Aspek Produk & Channel | `waktu-produk-channel` | **Migrated** |
 | **Analisis Perbandingan Cabang** | | |
-| Aspek Keuangan | `cabang-keuangan` | Not Migrated |
-| Aspek Penjualan | `cabang-penjualan` | Not Migrated |
+| Aspek Keuangan | `cabang-keuangan` | **Migrated** |
+| Aspek Penjualan | `cabang-penjualan` | **Migrated** |
 | Aspek Produk & Channel | `cabang-produk-channel` | Not Migrated |

@@ -2984,6 +2984,17 @@ async function generateCabangKeuanganSection() {
         return;
     }
 
+    $store.clearViewData('cabang-keuangan');
+    $store.setActiveViewData('cabang-keuangan', {
+        viewContext: {
+            period,
+            branchA,
+            branchB
+        }
+    }, { period, branchA, branchB });
+
+    const alsoStore = createAlsoStoreFn($store, 'cabang-keuangan');
+
     showLoading({ message: 'Comparing P&L data...', value: 30 });
 
     const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
@@ -2993,12 +3004,10 @@ async function generateCabangKeuanganSection() {
     const reportA = reportsSnap.docs.find(doc => doc.data().branchName === branchA)?.data();
     const reportB = reportsSnap.docs.find(doc => doc.data().branchName === branchB)?.data();
 
-    generateBranchPnlComparisonTable(reportA, reportB, 'cabang-pnl-comparison-container');
-    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
-    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
-
-    $store.setActiveViewData('cabang-keuangan', { reportA, reportB }, { period, branchA, branchB });
+    generateBranchPnlComparisonTable(reportA, reportB, 'cabang-pnl-comparison-container', { alsoStore });
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS', alsoStore });
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit', alsoStore });
+    generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'cabang-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income', alsoStore });
 
     hideLoading();
 }
@@ -3014,14 +3023,23 @@ function generateCabangPenjualanSection() {
 
     if (!period || !branchA || !branchB || branchA === branchB) return;
 
+    $store.clearViewData('cabang-penjualan');
+    $store.setActiveViewData('cabang-penjualan', {
+        viewContext: {
+            period,
+            branchA,
+            branchB
+        }
+    }, { period, branchA, branchB });
+
+    const alsoStore = createAlsoStoreFn($store, 'cabang-penjualan');
+
     const periodData = $store.getAllSalesData().filter((s: any) => s.date.toISOString().startsWith(period));
 
-    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
-    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
-    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-apc-comparison-chart', metric: 'apc', title: 'ATC' });
-    generateBranchWeeklyTrendComparisonChart(periodData, branchA, branchB, 'cabang-weekly-trend-comparison-chart');
-
-    $store.setActiveViewData('cabang-penjualan', periodData, { period, branchA, branchB });
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset', alsoStore });
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check', alsoStore });
+    generateBranchComparisonLineChart(periodData, branchA, branchB, { canvasId: 'cabang-apc-comparison-chart', metric: 'apc', title: 'ATC', alsoStore });
+    generateBranchWeeklyTrendComparisonChart(periodData, branchA, branchB, 'cabang-weekly-trend-comparison-chart', { alsoStore });
 }
 
 /**
@@ -3057,7 +3075,7 @@ async function setupCabangPenjualanSelectors() {
 /**
  * Reusable function to compare a daily metric trend between two branches.
  */
-function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string }) {
+function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
     const labels = Array.from({ length: 31 }, (_, i) => i + 1);
 
     const getDailyData = (branchName) => {
@@ -3070,11 +3088,37 @@ function generateBranchComparisonLineChart(periodData: any[], branchA: string, b
         return daily;
     };
 
+    const branchAData = getDailyData(branchA);
+    const branchBData = getDailyData(branchB);
+
+    // Store branch comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { branchAData, branchBData, branchA, branchB, metric: config.metric, title: config.title },
+        (v) => {
+            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
+                              config.metric === 'apc' ? formatCurrencyUtil :
+                              (val: any) => formatNumber(val);
+
+            return {
+                [`${v.title.toLowerCase().replace(/\s+/g, '')}BranchComparison`]: {
+                    [v.branchA]: deepmerge(...v.branchAData.map((value, index) =>
+                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    )),
+                    [v.branchB]: deepmerge(...v.branchBData.map((value, index) =>
+                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    )),
+                    metric: v.metric
+                }
+            };
+        }
+    );
+
     createChart(config.canvasId, 'line', {
         labels,
         datasets: [
-            { label: `${config.title} ${branchA}`, data: getDailyData(branchA), borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
-            { label: `${config.title} ${branchB}`, data: getDailyData(branchB), borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+            { label: `${config.title} ${branchA}`, data: branchAData, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} ${branchB}`, data: branchBData, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
         ]
     });
 }
@@ -3082,7 +3126,7 @@ function generateBranchComparisonLineChart(periodData: any[], branchA: string, b
 /**
  * Generates a chart comparing average sales by day of the week for two branches.
  */
-function generateBranchWeeklyTrendComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+function generateBranchWeeklyTrendComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     const getAvgWeeklyData = (branchName) => {
@@ -3103,11 +3147,30 @@ function generateBranchWeeklyTrendComparisonChart(periodData: any[], branchA: st
         return weeklyTotals.map((total, i) => weeklyCounts[i] > 0 ? total / weeklyCounts[i] : 0);
     };
 
+    const branchAWeekly = getAvgWeeklyData(branchA);
+    const branchBWeekly = getAvgWeeklyData(branchB);
+
+    // Store weekly trend comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { branchAWeekly, branchBWeekly, branchA, branchB, dayLabels },
+        (v) => ({
+            weeklyTrendBranchComparison: {
+                [v.branchA]: deepmerge(...v.branchAWeekly.map((value, index) => ({
+                    [v.dayLabels[index] as string]: formatCurrencyUtil(value)
+                }))),
+                [v.branchB]: deepmerge(...v.branchBWeekly.map((value, index) => ({
+                    [v.dayLabels[index] as string]: formatCurrencyUtil(value)
+                })))
+            }
+        })
+    );
+
     createChart(canvasId, 'line', {
         labels: dayLabels,
         datasets: [
-            { label: `Avg Sales ${branchA}`, data: getAvgWeeklyData(branchA), borderColor: '#9CA3AF', tension: 0.1 },
-            { label: `Avg Sales ${branchB}`, data: getAvgWeeklyData(branchB), borderColor: '#4F46E5', tension: 0.1 }
+            { label: `Avg Sales ${branchA}`, data: branchAWeekly, borderColor: '#9CA3AF', tension: 0.1 },
+            { label: `Avg Sales ${branchB}`, data: branchBWeekly, borderColor: '#4F46E5', tension: 0.1 }
         ]
     });
 }
@@ -3129,12 +3192,29 @@ function calculatePnlMetrics(pnlData) {
 };
 
 // Add this new function to generate the table
-function generateBranchPnlComparisonTable(reportA, reportB, containerId) {
+function generateBranchPnlComparisonTable(reportA, reportB, containerId, config?: { alsoStore?: AlsoStoreFn }) {
     const metricsA = calculatePnlMetrics(reportA?.pnlData);
     const metricsB = calculatePnlMetrics(reportB?.pnlData);
     const container = document.getElementById(containerId);
 
     const metricsToShow = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)", "Beban Operasional (OPEX)", "Pendapatan Bersih (Net Income)"];
+
+    // Store P&L comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { metricsA, metricsB, metricsToShow, branchA: reportA?.branchName, branchB: reportB?.branchName },
+        (v) => ({
+            pnlComparison: {
+                [v.branchA || 'Branch A']: deepmerge(...v.metricsToShow.map(metric => ({
+                    [metric]: formatCurrencyUtil(v.metricsA[metric] || 0)
+                }))),
+                [v.branchB || 'Branch B']: deepmerge(...v.metricsToShow.map(metric => ({
+                    [metric]: formatCurrencyUtil(v.metricsB[metric] || 0)
+                })))
+            }
+        })
+    );
+
     let tableHtml = `<table class="min-w-full divide-y divide-gray-200"><thead>...</thead><tbody>`; // Simplified header
     metricsToShow.forEach(metric => {
         const valA = metricsA[metric] || 0;
@@ -3150,7 +3230,7 @@ function generateBranchPnlComparisonTable(reportA, reportB, containerId) {
 }
 
 // Add this new reusable function for the charts
-function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId: string, metric: string, title: string }) {
+function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
     const metricsA = calculatePnlMetrics(reportA?.pnlData);
     const metricsB = calculatePnlMetrics(reportB?.pnlData);
 
@@ -3160,6 +3240,29 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
     const revenueB = metricsB['Pendapatan (Revenue)'] || 0;
     const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
     const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
+
+    // Store ratio comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        {
+            valueA, valueB, percentA, percentB,
+            branchA: reportA?.branchName, branchB: reportB?.branchName,
+            metric: config.metric, title: config.title
+        },
+        (v) => ({
+            [`${v.title.toLowerCase().replace(/\s+/g, '')}Comparison`]: {
+                [v.branchA || 'Branch A']: {
+                    absoluteValue: formatCurrencyUtil(v.valueA),
+                    percentage: formatPercent(v.percentA / 100)
+                },
+                [v.branchB || 'Branch B']: {
+                    absoluteValue: formatCurrencyUtil(v.valueB),
+                    percentage: formatPercent(v.percentB / 100)
+                },
+                metric: v.metric
+            }
+        })
+    );
 
     createChart(config.canvasId, 'bar', {
         labels: [reportA?.branchName || 'Branch A', reportB?.branchName || 'Branch B'],
@@ -3241,11 +3344,37 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
         return daily;
     };
 
+    const periodADaily = getDailyData(periodAData);
+    const periodBDaily = getDailyData(periodBData);
+
+    // Store the comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { periodADaily, periodBDaily, metric: config.metric },
+        (v) => {
+            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
+                              config.metric === 'apc' ? formatCurrencyUtil :
+                              (val: any) => formatNumber(val);
+
+            return {
+                [`${config.title.toLowerCase()}Comparison`]: {
+                    periodA: deepmerge(...v.periodADaily.map((value, index) =>
+                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    )),
+                    periodB: deepmerge(...v.periodBDaily.map((value, index) =>
+                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    )),
+                    metric: v.metric
+                }
+            };
+        }
+    );
+
     createChart(config.canvasId, 'line', {
         labels,
         datasets: [
-            { label: `${config.title} Period A`, data: getDailyData(periodAData), borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
-            { label: `${config.title} Period B`, data: getDailyData(periodBData), borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+            { label: `${config.title} Period A`, data: periodADaily, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} Period B`, data: periodBDaily, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
         ]
     });
 }
@@ -3273,11 +3402,30 @@ function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any
         return weeklyTotals.map((total, i) => weeklyCounts[i] > 0 ? total / weeklyCounts[i] : 0);
     };
 
+    const periodAWeekly = getAvgWeeklyData(periodAData);
+    const periodBWeekly = getAvgWeeklyData(periodBData);
+
+    // Store the weekly trend comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { periodAWeekly, periodBWeekly, dayLabels },
+        (v) => ({
+            weeklyTrendComparison: {
+                periodA: deepmerge(...v.periodAWeekly.map((value, index) => ({
+                    [v.dayLabels[index] as string]: formatCurrencyUtil(value)
+                }))),
+                periodB: deepmerge(...v.periodBWeekly.map((value, index) => ({
+                    [v.dayLabels[index] as string]: formatCurrencyUtil(value)
+                })))
+            }
+        })
+    );
+
     createChart(canvasId, 'line', {
         labels: dayLabels,
         datasets: [
-            { label: `Avg Sales Period A`, data: getAvgWeeklyData(periodAData), borderColor: '#9CA3AF', tension: 0.1 },
-            { label: `Avg Sales Period B`, data: getAvgWeeklyData(periodBData), borderColor: '#4F46E5', tension: 0.1 }
+            { label: `Avg Sales Period A`, data: periodAWeekly, borderColor: '#9CA3AF', tension: 0.1 },
+            { label: `Avg Sales Period B`, data: periodBWeekly, borderColor: '#4F46E5', tension: 0.1 }
         ]
     });
 }
@@ -3295,7 +3443,21 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string, con
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
-    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'Omset', ...config });
+    // Store YoY context for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { periodA, periodB, yearA, yearB },
+        (v) => ({
+            yearOverYearContext: {
+                currentPeriod: v.periodB,
+                previousYearPeriod: v.periodA,
+                currentYear: v.yearB,
+                previousYear: v.yearA
+            }
+        })
+    );
+
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'YoY Omset', ...config });
 }
 
 /**
@@ -12786,15 +12948,24 @@ function generateWaktuProdukChannelSection() {
 
     if (!periodA || !periodB || !selectedBranch) return;
 
+    $store.clearViewData('waktu-produk-channel');
+    $store.setActiveViewData('waktu-produk-channel', {
+        viewContext: {
+            periodA,
+            periodB,
+            selectedBranch
+        }
+    }, { periodA, periodB, selectedBranch });
+
+    const alsoStore = createAlsoStoreFn($store, 'waktu-produk-channel');
+
     const branchData = $store.getAllSalesData().filter(s => s.branches.includes(selectedBranch));
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
-    setupWaktuMenuTrendChart(periodAData, periodBData);
-    generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart');
-    generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart');
-
-    $store.setActiveViewData('waktu-produk-channel', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
+    setupWaktuMenuTrendChart(periodAData, periodBData, { alsoStore });
+    generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart', { alsoStore });
+    generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart', { alsoStore });
 }
 
 
@@ -12882,7 +13053,7 @@ async function setupWaktuProdukChannelSelectors() {
 /**
  * Sets up the interactive menu trend chart for comparing two periods.
  */
-function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
+function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?: { alsoStore?: AlsoStoreFn }) {
     const existingSelect = $store.getUIComponent('waktuMenuTrendSelect');
     if (existingSelect) {
         existingSelect.destroy(); // Destroy old instance to repopulate options
@@ -12890,6 +13061,18 @@ function setupWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
     const selectEl = document.getElementById('waktu-menu-trend-select') as HTMLSelectElement;
     const combinedData = [...periodAData, ...periodBData];
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
+
+    // Store menu items data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        allMenuItems,
+        (v) => ({
+            availableMenuItems: {
+                totalCount: v.length,
+                items: v.slice(0, 10) // Store first 10 items as sample
+            }
+        })
+    );
 
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
@@ -12981,16 +13164,35 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[]) {
 /**
  * Generates a grouped bar chart comparing menu category quantities between two periods.
  */
-function generateCategoryComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+function generateCategoryComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const allCategories = [...new Set([...periodAData, ...periodBData].flatMap(s => Object.keys(s.menuCategories || {})))];
 
     const getData = (data) => allCategories.map(cat => data.reduce((sum, s) => sum + (s.menuCategories?.[cat]?.quantity || 0), 0));
 
+    const periodAValues = getData(periodAData);
+    const periodBValues = getData(periodBData);
+
+    // Store category comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { allCategories, periodAValues, periodBValues },
+        (v) => ({
+            categoryComparison: {
+                periodA: deepmerge(...v.allCategories.map((category, index) => ({
+                    [category]: formatNumber(v.periodAValues[index])
+                }))),
+                periodB: deepmerge(...v.allCategories.map((category, index) => ({
+                    [category]: formatNumber(v.periodBValues[index])
+                })))
+            }
+        })
+    );
+
     createChart(canvasId, 'bar', {
         labels: allCategories,
         datasets: [
-            { label: 'Period A', data: getData(periodAData), backgroundColor: '#9CA3AF' },
-            { label: 'Period B', data: getData(periodBData), backgroundColor: '#4F46E5' }
+            { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
+            { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' }
         ]
     });
 }
@@ -12998,16 +13200,35 @@ function generateCategoryComparisonChart(periodAData: any[], periodBData: any[],
 /**
  * Generates a grouped bar chart comparing channel revenue between two periods.
  */
-function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const allChannels = [...new Set([...periodAData, ...periodBData].flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
 
     const getData = (data) => allChannels.map(chan => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0));
 
+    const periodAValues = getData(periodAData);
+    const periodBValues = getData(periodBData);
+
+    // Store channel comparison data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { allChannels, periodAValues, periodBValues },
+        (v) => ({
+            channelComparison: {
+                periodA: deepmerge(...v.allChannels.map((channel, index) => ({
+                    [channel]: formatCurrencyUtil(v.periodAValues[index])
+                }))),
+                periodB: deepmerge(...v.allChannels.map((channel, index) => ({
+                    [channel]: formatCurrencyUtil(v.periodBValues[index])
+                })))
+            }
+        })
+    );
+
     createChart(canvasId, 'bar', {
         labels: allChannels,
         datasets: [
-            { label: 'Period A', data: getData(periodAData), backgroundColor: '#9CA3AF' },
-            { label: 'Period B', data: getData(periodBData), backgroundColor: '#4F46E5' }
+            { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
+            { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' }
         ]
     }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
 }
