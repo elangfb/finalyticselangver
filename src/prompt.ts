@@ -52,7 +52,7 @@ function formatPromptForPage(params: { shortDescription: string, data: unknown }
     -----
 
     \`\`\`json
-    ${JSON.stringify(params.data, null, 2)}
+    ${JSON.stringify(params.data)}
     \`\`\`
   `)
 }
@@ -98,7 +98,7 @@ function createGeneralKeuanganPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -144,7 +144,7 @@ function createWaktuKeuanganPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -190,7 +190,7 @@ function createCabangKeuanganPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -236,7 +236,7 @@ function createGeneralPenjualanPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -282,7 +282,7 @@ function createWaktuPenjualanPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -328,7 +328,7 @@ function createCabangPenjualanPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -374,7 +374,7 @@ function createGeneralProdukChannelPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -420,7 +420,7 @@ function createWaktuProdukChannelPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -466,7 +466,7 @@ function createCabangProdukChannelPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -512,7 +512,7 @@ function createGeneralInvestasiPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
@@ -558,7 +558,7 @@ function createCabangInvestasiPrompt(data: unknown): string {
     -----
 
     \`\`\`json
-    ${JSON.stringify(data, null, 2)}
+    ${JSON.stringify(data)}
     \`\`\`
   `)
 }
