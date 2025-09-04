@@ -2618,12 +2618,12 @@ async function setupPnlPeriodSelector() {
     }
 }
 
-function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string) {
+function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     // This check is to prevent re-creating the dropdown over and over.
     // We will create it once and then just update the chart.
     const existingSelect = $store.getUIComponent('generalMenuTrendSelect');
     if (existingSelect) {
-        drawGeneralMenuTrendChart(summaries, canvasId);
+        drawGeneralMenuTrendChart(summaries, canvasId, config);
         return;
     }
 
@@ -2661,7 +2661,7 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
         select: `#${selectId}`,
         settings: { placeholderText: 'Select menus...' },
         events: {
-            afterChange: () => drawGeneralMenuTrendChart($store.getAllSalesData(), canvasId)
+            afterChange: () => drawGeneralMenuTrendChart($store.getAllSalesData(), canvasId, config)
         }
       }),
       ($select) => {
@@ -2671,7 +2671,7 @@ function setupGeneralMenuTrendChart(summaries: any[], selectId: string, canvasId
     );
 }
 
-function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
+function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const menuSelect = $store.getUIComponent('generalMenuTrendSelect');
     if (!menuSelect) return;
 
@@ -2702,6 +2702,10 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string) {
             fill: false
         };
     });
+
+    config?.alsoStore?.(datasets, (v) => ({
+      menuTrend: deepmerge(...v.map(d => ({ [d.label]: d.data })))
+    }));
 
     createChart(canvasId, 'line', { labels, datasets }, deepmerge(
         chartYTicks(shortenNumber),
@@ -2914,18 +2918,27 @@ function generateWaktuPenjualanSection() {
 
     if (!periodA || !periodB || !selectedBranch) return;
 
+    $store.clearViewData('waktu-penjualan');
+    $store.setActiveViewData('waktu-penjualan', {
+        viewContext: {
+            periodA,
+            periodB,
+            selectedBranch
+        }
+    }, { periodA, periodB, selectedBranch });
+
+    const alsoStore = createAlsoStoreFn($store, 'waktu-penjualan');
+
     const branchData = $store.getAllSalesData().filter((s: any) => s.branches.includes(selectedBranch));
 
     const periodAData = branchData.filter((s: any) => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
-    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
-    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check' });
-    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC' });
-    generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart');
-    generateYoYComparisonChart(periodB, selectedBranch);
-
-    $store.setActiveViewData('waktu-penjualan', { periodAData, periodBData }, { periodA, periodB, selectedBranch });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-omset-comparison-chart', metric: 'totalOmzet', title: 'Omset', alsoStore });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-tc-comparison-chart', metric: 'totalTransactions', title: 'Total Check', alsoStore });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-apc-comparison-chart', metric: 'apc', title: 'ATC', alsoStore });
+    generateWeeklyTrendComparisonChart(periodAData, periodBData, 'waktu-weekly-trend-comparison-chart', { alsoStore });
+    generateYoYComparisonChart(periodB, selectedBranch, { alsoStore });
 }
 
 async function setupCabangKeuanganSelectors() {
@@ -3216,7 +3229,7 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
 /**
  * Reusable function to generate a line chart comparing a metric between two periods.
  */
-function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[], config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string }) {
+function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[], config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
     const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
 
     const getDailyData = (data) => {
@@ -3240,7 +3253,7 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
 /**
  * Generates a line chart comparing average sales by day of the week for two periods.
  */
-function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any[], canvasId: string) {
+function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     const getAvgWeeklyData = (data) => {
@@ -3269,7 +3282,7 @@ function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any
     });
 }
 
-function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
+function generateYoYComparisonChart(periodB: string, selectedBranch: string, config?: { alsoStore?: AlsoStoreFn }) {
     const dateB = new Date(periodB + '-02');
     const yearB = dateB.getFullYear();
     const yearA = yearB - 1;
@@ -3282,7 +3295,7 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string) {
     const periodAData = branchData.filter(s => s.date.toISOString().startsWith(periodA));
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
-    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'Omset' });
+    generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'Omset', ...config });
 }
 
 /**
@@ -3791,7 +3804,7 @@ function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
     return results;
 }
 
-function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: string, type: 'doughnut' | 'pie' = 'doughnut') {
+function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: string, type: 'doughnut' | 'pie' = 'doughnut', config?: { alsoStore?: AlsoStoreFn }) {
     const channelSales = summaries.reduce((acc, s) => {
         if (s.revenueByVisitPurpose) {
             for (const channel in s.revenueByVisitPurpose) {
@@ -3800,6 +3813,8 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
         }
         return acc;
     }, {});
+
+    config?.alsoStore?.(channelSales, (v) => ({ channelSales: v }));
 
     createChart(canvasId, type, { // Use the specified type
         labels: Object.keys(channelSales),
@@ -12522,7 +12537,7 @@ async function generateGeneralPenjualanSection() {
 /**
  * Generates an "Order by Menu Category" doughnut chart.
  */
-function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
+function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const byMenuCategory = summaries.reduce((acc, s) => {
         if (s.menuCategories) {
             for (const category in s.menuCategories) {
@@ -12531,6 +12546,8 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
         }
         return acc;
     }, {});
+
+    config?.alsoStore?.(byMenuCategory, (v) => ({ byMenuCategory: v }));
 
     createChart(canvasId, 'doughnut', {
         labels: Object.keys(byMenuCategory),
@@ -12542,7 +12559,7 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string) {
  * Generates a "Top 5" doughnut chart for a specific menu category (e.g., MAKANAN).
  * It groups the remaining items into an "Others" slice.
  */
-function generateTopItemsDonutChart(summaries: any[], canvasId: string, categoryName: string) {
+function generateTopItemsDonutChart(summaries: any[], canvasId: string, categoryName: string, config?: { alsoStore?: AlsoStoreFn }) {
     const allItems = summaries.reduce((acc, s) => {
         if (s.menuItemQuantities && s.menuItemQuantities[categoryName]) {
             for (const menuName in s.menuItemQuantities[categoryName]) {
@@ -12592,7 +12609,8 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
     const minDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : 'N/A';
     const maxDate = dates.length > 0 ? dates[dates.length - 1].toISOString().split('T')[0] : 'N/A';
 
-    // Store minimal view context instead of raw data
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.clearViewData('general-produk-channel');
     $store.setActiveViewData('general-produk-channel', {
         viewContext: {
             selectedBranch: selectedBranch || "All Branches",
@@ -12601,12 +12619,14 @@ function generateGeneralProdukChannelSection(summaries: any[]) {
         }
     }, { selectedBranch });
 
+    const alsoStore = createAlsoStoreFn($store, 'general-produk-channel');
+
     // Now, generate all charts using the correctly filtered data
-    setupGeneralMenuTrendChart(filteredSummaries, 'general-menu-trend-select', 'general-menu-trend-chart');
-    generatePenjualanChannelChartFromSummaries(filteredSummaries, 'general-channel-donut-chart', 'doughnut');
-    generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart');
-    generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN');
-    generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN');
+    setupGeneralMenuTrendChart(filteredSummaries, 'general-menu-trend-select', 'general-menu-trend-chart', { alsoStore });
+    generatePenjualanChannelChartFromSummaries(filteredSummaries, 'general-channel-donut-chart', 'doughnut', { alsoStore });
+    generateOrderByCategoryDonutChart(filteredSummaries, 'general-category-donut-chart', { alsoStore });
+    generateTopItemsDonutChart(filteredSummaries, 'general-top-makanan-donut-chart', 'MAKANAN', { alsoStore });
+    generateTopItemsDonutChart(filteredSummaries, 'general-top-minuman-donut-chart', 'MINUMAN', { alsoStore });
 }
 
 
@@ -12622,6 +12642,17 @@ async function generateWaktuKeuanganSection() {
     if (!periodA || !periodB) return;
 
     showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
+
+    $store.clearViewData('waktu-keuangan');
+    $store.setActiveViewData('waktu-keuangan', {
+        viewContext: {
+            periodA,
+            periodB,
+            selectedBranch
+        }
+    }, { periodA, periodB, selectedBranch });
+
+    const alsoStore = createAlsoStoreFn($store, 'waktu-keuangan');
 
     // This function will now query all P&L reports and then filter by branch on the client-side.
     // This is necessary because the document ID is now a composite key.
@@ -12641,13 +12672,11 @@ async function generateWaktuKeuanganSection() {
     const reportA = findReport(periodA, selectedBranch);
     const reportB = findReport(periodB, selectedBranch);
 
-    generatePnlComparisonTable(reportA, reportB, 'waktu-pnl-comparison-container');
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX' });
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
-
-    $store.setActiveViewData('waktu-keuangan', { reportA, reportB }, { periodA, periodB, selectedBranch });
+    generatePnlComparisonTable(reportA, reportB, 'waktu-pnl-comparison-container', { alsoStore });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-cogs-comparison-chart', metric: 'Harga Pokok Produksi', title: 'COGS', alsoStore });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-gpm-comparison-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit', alsoStore });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-hr-comparison-chart', metric: 'Beban Operasional (OPEX)', title: 'OPEX', alsoStore });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'waktu-npm-comparison-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income', alsoStore });
 
     hideLoading();
 }
@@ -12987,7 +13016,7 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
  * Generates a detailed P&L comparison table between two periods,
  * formatted similarly to the P&L vs. Target table.
  */
-function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string) {
+function generatePnlComparisonTable(reportA: any, reportB: any, containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const container = document.getElementById(containerId);
     if (!container) return; // Added a guard clause for safety
     container.innerHTML = '';
@@ -13021,6 +13050,8 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
 
         const valuesA = calculateAllMetrics(pnlDataA);
         const valuesB = calculateAllMetrics(pnlDataB);
+
+        const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
         const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
         const labelA = reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A';
@@ -13069,6 +13100,9 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
                  achievement = 100;
             }
 
+            alsoStore(valueA, (v) => ({ pnlComparison: { reportA: { [metric]: formatCurrencyUtil(v) } } }));
+            alsoStore(valueB, (v) => ({ pnlComparison: { reportB: { [metric]: formatCurrencyUtil(v) } } }));
+
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
@@ -13098,7 +13132,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
 /**
  * Reusable function to generate a dual-axis comparison chart for a financial ratio.
  */
-function generateRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string }) {
+function generateRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
     const pnlDataA = reportA?.pnlData;
     const pnlDataB = reportB?.pnlData;
 
@@ -13119,6 +13153,19 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
     const revenueB = Object.values(pnlDataB?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
     const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
     const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
+
+    config?.alsoStore?.([valueA, valueB] as const, ([a, b]) => ({
+      [`${config.title}Chart`]: {
+        periodA: { value_rp: formatCurrencyUtil(a) },
+        periodB: { value_rp: formatCurrencyUtil(b) },
+      },
+    }));
+    config?.alsoStore?.([percentA, percentB] as const, ([a, b]) => ({
+      [`${config.title}Chart`]: {
+        periodA: { value_percent: formatPercent(a) },
+        periodB: { value_percent: formatPercent(b) },
+      },
+    }));
 
     const labels = [
         reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A',
@@ -13242,7 +13289,7 @@ async function saveInvestmentData() {
     }
 }
 
-function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSharePercentage: number) {
+function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSharePercentage: number, config?: { alsoStore?: AlsoStoreFn }) {
     const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
 
     let cumulativeShare = 0;
@@ -13251,6 +13298,12 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
         cumulativeShare += monthlyShare;
         return cumulativeShare;
     });
+
+    config?.alsoStore?.(cumulativeData, (v) => ({
+      cumulativeInvestorShareChart: {
+        cumulativeShares: deepmerge(...v.map((s, i) => ({ [labels[i]]: s })))
+      }
+    }));
 
     createChart('cumulative-investor-share-chart', 'line', {
         labels,
@@ -13365,6 +13418,7 @@ async function generateGeneralInvestasiSection() {
             };
         });
 
+        $store.clearViewData('general-investasi');
         $store.setActiveViewData('general-investasi', {
             viewContext: {
                 selectedBranch,
@@ -13377,9 +13431,11 @@ async function generateGeneralInvestasiSection() {
             }
         }, { selectedBranch });
 
-        generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount);
-        generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots);
-        generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage);
+        const alsoStore = createAlsoStoreFn($store, 'general-investasi');
+
+        generateBusinessYieldChart(monthlyProfits, investmentData.investmentAmount, { alsoStore });
+        generateInvestorYieldChart(monthlyProfits, investmentData.investmentAmount, investmentData.investmentSlots, { alsoStore });
+        generateCumulativeInvestorShareChart(monthlyProfits, investmentData.investorSharePercentage, { alsoStore });
 
     } catch (error) {
         console.error("Error generating investment analysis:", error);
@@ -13395,10 +13451,21 @@ async function generateGeneralInvestasiSection() {
 /**
  * Generates the "Yield Bisnis per Bulan" chart.
  */
-function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: number) {
+function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: number, config?: { alsoStore?: AlsoStoreFn }) {
     const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const profitData = monthlyProfits.map(p => p.profit);
     const yieldData = monthlyProfits.map(p => totalInvestment > 0 ? (p.profit / totalInvestment) * 100 : 0);
+
+    config?.alsoStore?.(profitData, (v) => ({
+      businessYieldChart: {
+        profits: deepmerge(...v.map((p, i) => ({ [labels[i]]: p })))
+      }
+    }));
+    config?.alsoStore?.(yieldData, (v) => ({
+      businessYieldChart: {
+        yields: deepmerge(...v.map((y, i) => ({ [labels[i]]: y })))
+      }
+    }));
 
     createChart('business-yield-chart', 'bar', {
         labels,
@@ -13430,13 +13497,24 @@ function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: numb
 /**
  * Generates the "Yield Investor per Bulan" chart.
  */
-function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: number, slots: number) {
+function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: number, slots: number, config?: { alsoStore?: AlsoStoreFn }) {
     if (slots === 0) return; // Avoid division by zero
     const investmentPerSlot = totalInvestment / slots;
 
     const labels = monthlyProfits.map(p => new Date(p.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
     const profitData = monthlyProfits.map(p => p.profit);
     const yieldData = monthlyProfits.map(p => investmentPerSlot > 0 ? (p.profit / investmentPerSlot) * 100 : 0);
+
+    config?.alsoStore?.(profitData, (v) => ({
+      investorYieldChart: {
+        profits: deepmerge(...v.map((p, i) => ({ [labels[i]]: p })))
+      }
+    }));
+    config?.alsoStore?.(yieldData, (v) => ({
+      investorYieldChart: {
+        yields: deepmerge(...v.map((y, i) => ({ [labels[i]]: y })))
+      }
+    }));
 
     createChart('investor-yield-chart', 'bar', {
         labels,
