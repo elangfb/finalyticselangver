@@ -3363,14 +3363,13 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
                               (val: any) => formatNumber(val);
 
             return {
-                [`${config.title.toLowerCase()}Comparison`]: {
+                [`${config.title}_Comparison`]: {
                     periodA: deepmerge(...v.periodADaily.map((value, index) =>
                         value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
                     )),
                     periodB: deepmerge(...v.periodBDaily.map((value, index) =>
                         value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
                     )),
-                    metric: v.metric
                 }
             };
         }
@@ -3453,14 +3452,7 @@ function generateYoYComparisonChart(periodB: string, selectedBranch: string, con
     maybeAlsoStore(
         config?.alsoStore,
         { periodA, periodB, yearA, yearB },
-        (v) => ({
-            yearOverYearContext: {
-                currentPeriod: v.periodB,
-                previousYearPeriod: v.periodA,
-                currentYear: v.yearB,
-                previousYear: v.yearA
-            }
-        })
+        (v) => ({ yearOverYearContext: v })
     );
 
     generatePeriodComparisonLineChart(periodAData, periodBData, { canvasId: 'waktu-yoy-comparison-chart', metric: 'totalOmzet', title: 'YoY Omset', ...config });
