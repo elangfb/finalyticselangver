@@ -13534,13 +13534,13 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
     const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
 
     config?.alsoStore?.([valueA, valueB] as const, ([a, b]) => ({
-      [`${config.title}Chart`]: {
+      [`${config.title} Chart`]: {
         periodA: { inCurrency: formatCurrencyUtil(a) },
         periodB: { inCurrency: formatCurrencyUtil(b) },
       },
     }));
     config?.alsoStore?.([percentA, percentB] as const, ([a, b]) => ({
-      [`${config.title}Chart`]: {
+      [`${config.title} Chart`]: {
         periodA: { inPercentage: formatPercent(a) },
         periodB: { inPercentage: formatPercent(b) },
       },
