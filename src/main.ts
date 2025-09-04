@@ -2706,7 +2706,11 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: 
     });
 
     config?.alsoStore?.(datasets, (v) => ({
-      menuTrend: deepmerge(...v.map(d => ({ [d.label]: d.data })))
+      menuTrend: deepmerge(...v.map(d => ({
+        [d.label]: deepmerge(...d.data.map((v, index) => ({
+          [formatMachineYearMonthDay(labels[index])]: formatNumber(v),
+        }))),
+      }))),
     }));
 
     createChart(canvasId, 'line', { labels, datasets }, deepmerge(
@@ -4017,7 +4021,11 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
         return acc;
     }, {});
 
-    config?.alsoStore?.(channelSales, (v) => ({ channelSales: v }));
+    config?.alsoStore?.(channelSales, (v) => ({
+      channelSales: Object.fromEntries(Object.entries(v).map(([channel, sales]) => (
+        [channel, formatCurrencyUtil(sales)],
+      ))),
+    }));
 
     createChart(canvasId, type, { // Use the specified type
         labels: Object.keys(channelSales),
@@ -12855,7 +12863,11 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, c
         return acc;
     }, {});
 
-    config?.alsoStore?.(byMenuCategory, (v) => ({ byMenuCategory: v }));
+    config?.alsoStore?.(byMenuCategory, (v) => ({
+      totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
+        [category, formatNumber(totalOrder)],
+      ))),
+    }));
 
     createChart(canvasId, 'doughnut', {
         labels: Object.keys(byMenuCategory),
