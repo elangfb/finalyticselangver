@@ -411,6 +411,31 @@ export function clearViewData(viewId: string): void {
 }
 
 /**
+ * Attempt to restore existing view data for the specified view ID.
+ *
+ * @description
+ * Searches for previously cached view data by view ID and sets it as the active
+ * view data if found. This is useful for restoring view state when returning to
+ * a previously visited view without re-running expensive data fetching operations.
+ * If no cached data exists for the view ID, the function does nothing.
+ *
+ * @param viewId - The unique identifier for the view to restore
+ *
+ * @example
+ * // Restore cached data for the waktu-keuangan view
+ * trySetFromExistingViewData('waktu-keuangan');
+ *
+ * // Used in initialization guards to restore state
+ * if (getInitFlag('waktuKeuanganSelectorsInitialized')) {
+ *   trySetFromExistingViewData('waktu-keuangan');
+ *   return;
+ * }
+ */
+export function trySetFromExistingViewData(viewId: string): void {
+  store.getState().trySetFromExistingViewData(viewId);
+}
+
+/**
  * Set individual application store property with type-safe key-value assignment.
  *
  * @description

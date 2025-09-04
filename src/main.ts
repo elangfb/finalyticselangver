@@ -2948,7 +2948,10 @@ function generateWaktuPenjualanSection() {
 }
 
 async function setupCabangKeuanganSelectors() {
-    if ($store.getInitFlag('cabangKeuanganSelectorsInitialized')) return;
+    if ($store.getInitFlag('cabangKeuanganSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('cabang-keuangan');
+        return;
+    }
 
     const periodSelect = document.getElementById('cabang-keuangan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-keuangan-branch-a-select') as HTMLSelectElement;
@@ -3052,7 +3055,10 @@ function generateCabangPenjualanSection() {
  * Sets up the selectors for the "Cabang > Penjualan" section.
  */
 async function setupCabangPenjualanSelectors() {
-    if ($store.getInitFlag('cabangPenjualanSelectorsInitialized')) return;
+    if ($store.getInitFlag('cabangPenjualanSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('cabang-penjualan');
+        return;
+    }
     const periodSelect = document.getElementById('cabang-penjualan-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-penjualan-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-penjualan-branch-b-select') as HTMLSelectElement;
@@ -3280,7 +3286,10 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
 }
 
 async function setupWaktuPenjualanSelectors() {
-    if ($store.getInitFlag('waktuPenjualanSelectorsInitialized')) return;
+    if ($store.getInitFlag('waktuPenjualanSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('waktu-penjualan');
+        return;
+    }
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-penjualan-period-a') as HTMLSelectElement;
@@ -3605,7 +3614,10 @@ function generateSpecificSubCategoryRatioChart(
  * Sets up the period selector dropdown for the "Aspek Keuangan" section.
  */
 async function setupGeneralKeuanganPeriodSelector() {
-    if ($store.getInitFlag('generalKeuanganSelectorInitialized')) return;
+    if ($store.getInitFlag('generalKeuanganSelectorInitialized')) {
+        $store.trySetFromExistingViewData('general-keuangan');
+        return;
+    }
     if (!currentUser) return;
 
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;
@@ -5825,7 +5837,10 @@ function generateCabangProdukChannelSection() {
  * Sets up the selectors for the "Cabang > Produk dan Channel" section.
  */
 async function setupCabangProdukChannelSelectors() {
-    if ($store.getInitFlag('cabangProdukChannelSelectorsInitialized')) return;
+    if ($store.getInitFlag('cabangProdukChannelSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('cabang-produk-channel');
+        return;
+    }
     const periodSelect = document.getElementById('cabang-produk-channel-period-select') as HTMLSelectElement;
     const branchASelect = document.getElementById('cabang-produk-channel-branch-a-select') as HTMLSelectElement;
     const branchBSelect = document.getElementById('cabang-produk-channel-branch-b-select') as HTMLSelectElement;
@@ -12997,7 +13012,10 @@ async function generateWaktuKeuanganSection() {
  * Sets up the period selectors for the "Waktu > Keuangan" section.
  */
 async function setupWaktuKeuanganPeriodSelectors() {
-    if ($store.getInitFlag('waktuKeuanganSelectorsInitialized')) return;
+    if ($store.getInitFlag('waktuKeuanganSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('waktu-keuangan');
+        return;
+    }
     const selectA = document.getElementById('waktu-keuangan-period-a') as HTMLSelectElement;
     const selectB = document.getElementById('waktu-keuangan-period-b') as HTMLSelectElement;
     const branchSelect = document.getElementById('waktu-keuangan-branch-select') as HTMLSelectElement;
@@ -13171,7 +13189,10 @@ async function updatePeriodSelectorsForProdukChannel(selectedBranch: string) {
 }
 
 async function setupWaktuProdukChannelSelectors() {
-    if ($store.getInitFlag('waktuProdukChannelSelectorsInitialized')) return;
+    if ($store.getInitFlag('waktuProdukChannelSelectorsInitialized')) {
+        $store.trySetFromExistingViewData('waktu-produk-channel');
+        return;
+    }
     if (!currentUser) return;
 
     const selectA = document.getElementById('waktu-produk-period-a') as HTMLSelectElement;
@@ -13915,7 +13936,10 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
 }
 
 async function setupCabangInvestasiSelectors() {
-    if ($store.getInitFlag('cabangInvestasiSelectorInitialized')) return;
+    if ($store.getInitFlag('cabangInvestasiSelectorInitialized')) {
+        $store.trySetFromExistingViewData('cabang-investasi');
+        return;
+    }
     if (!currentUser) return;
 
     const startPeriodSelect = document.getElementById('cabang-investasi-start-period') as HTMLSelectElement;
