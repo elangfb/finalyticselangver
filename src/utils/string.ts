@@ -221,4 +221,71 @@ export function shortenDate(date: string | Date, allDates: string[] | Date[] = [
   }
 }
 
+/**
+ * Format a date to machine-parsable year-month format.
+ *
+ * @description
+ * Converts a date to YYYY-MM format for consistent machine processing.
+ * Useful for API keys, database queries, or standardized date comparisons.
+ *
+ * @param {string | Date} date – Date to format.
+ * @returns {string} Year-month string in YYYY-MM format.
+ *
+ * @example
+ * formatMachineYearMonth('2024-06-24')
+ * // => '2024-06'
+ *
+ * formatMachineYearMonth(new Date('2023-12-15'))
+ * // => '2023-12'
+ *
+ * formatMachineYearMonth('2025-01-01T10:30:00Z')
+ * // => '2025-01'
+ */
+export function formatMachineYearMonth(date: string | Date): string {
+  const dateObj = new Date(date);
+
+  if (isNaN(dateObj.getTime())) {
+    throw new Error('Invalid date provided');
+  }
+
+  const year = dateObj.getFullYear();
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+
+  return `${year}-${month}`;
+}
+
+/**
+ * Format a date to machine-parsable year-month-day format.
+ *
+ * @description
+ * Converts a date to YYYY-MM-DD format for consistent machine processing.
+ * Useful for API parameters, database queries, or standardized date comparisons.
+ *
+ * @param {string | Date} date – Date to format.
+ * @returns {string} Year-month-day string in YYYY-MM-DD format.
+ *
+ * @example
+ * formatMachineYearMonthDay('2024-06-24')
+ * // => '2024-06-24'
+ *
+ * formatMachineYearMonthDay(new Date('2023-12-15'))
+ * // => '2023-12-15'
+ *
+ * formatMachineYearMonthDay('2025-01-01T10:30:00Z')
+ * // => '2025-01-01'
+ */
+export function formatMachineYearMonthDay(date: string | Date): string {
+  const dateObj = new Date(date);
+
+  if (isNaN(dateObj.getTime())) {
+    throw new Error('Invalid date provided');
+  }
+
+  const year = dateObj.getFullYear();
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+  const day = dateObj.getDate().toString().padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 export const html = String.raw

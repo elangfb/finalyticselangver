@@ -45,13 +45,14 @@ import {
   shortenCurrency,
   formatCurrency as formatCurrencyUtil,
   formatPercent,
+  formatMachineYearMonthDay,
 } from './utils/string'
 import { deepmerge } from 'deepmerge-ts'
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
 import { globalConfigService } from './services/globalConfigService';
-import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from './utils/also-store';
+import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn, maybeAlsoStore } from './utils/also-store';
 
 // Firebase Config
 const firebaseConfig = {
@@ -1898,7 +1899,7 @@ async function getGeminiAnalysis(prompt: string): Promise<{ summaryText: string,
   }
 
   const result = await response.json();
-  
+
   const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis could be generated. The response from the AI was empty.';
   const usageMetadata = result.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 };
 
@@ -3325,14 +3326,15 @@ async function generateGeneralKeuanganSection() {
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
     // Initialize view storage with context; further insights will be merged
+    $store.clearViewData('general-keuangan');
     $store.setActiveViewData('general-keuangan', {
-        viewContext: {
-            selectedBranch,
-            selectedPeriod,
-            periodRange: historicalReports.length > 0 ?
-                `${historicalReports[0].period} to ${historicalReports[historicalReports.length - 1].period}` :
-                'No data'
-        }
+            viewContext: {
+                selectedBranch,
+                selectedPeriod,
+                periodRange: historicalReports.length > 0 ?
+                    `${historicalReports[0].period} to ${historicalReports[historicalReports.length - 1].period}` :
+                    'No data'
+            }
     }, { selectedBranch, selectedPeriod });
 
     const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
@@ -3808,7 +3810,7 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
     });
 }
 
-function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string) {
+function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
 
     const dailyData = Array(7).fill(0).map(() => Array(24).fill(0));
 
@@ -3827,7 +3829,13 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
 
     const datasets = dayLabels.map((label, dayIndex) => ({
         label: label,
-        data: dailyData[dayIndex],
+        data: maybeAlsoStore(config?.alsoStore, dailyData[dayIndex], (v) => ({
+          salesTrendHourlyDaily: {
+            [`Day ${label}`]: deepmerge({}, ...v!.map((val, hr) => ({
+              [`Hour ${hr}:00 to ${hr}:59`]: formatCurrencyUtil(val),
+            }))),
+          },
+        })),
         borderColor: colors[dayIndex % colors.length],
         backgroundColor: colors[dayIndex % colors.length],
         tension: 0.2,
@@ -3870,7 +3878,7 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
     });
 }
 
-function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'bar') {
+function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'bar', config?: { alsoStore?: AlsoStoreFn }) {
     const weeklyOmzet = summaries.reduce((acc, summary) => {
         const d = summary.date;
         const firstDayOfWeek = new Date(d);
@@ -3884,7 +3892,15 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
 
     const datasets = [{
         label: 'Total Omzet Mingguan',
-        data: sortedWeeks.map((week) => weeklyOmzet[week]),
+        data: maybeAlsoStore(
+          config?.alsoStore,
+          sortedWeeks.map((week) => weeklyOmzet[week]),
+          (v) => ({
+            omzetMingguan: deepmerge(...v.map((v, index) => ({
+              [`Week ${index + 1}`]: formatCurrencyUtil(v),
+            }))),
+          }),
+        ),
         backgroundColor: '#10B981',
         borderColor: '#10B981',
     }];
@@ -3894,7 +3910,11 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
         datasets.push({
             type: 'line',
             label: 'Target Omzet Mingguan',
-            data: Array(sortedWeeks.length).fill(salesTarget['Omzet Mingguan']),
+            data: Array(sortedWeeks.length).fill(maybeAlsoStore(
+              config?.alsoStore,
+              salesTarget['Omzet Mingguan'],
+              (v) => ({ targetOmzetMingguan: formatCurrencyUtil(v) }),
+            )),
             borderColor: '#EF4444',
             borderDash: [5, 5],
             borderWidth: 2,
@@ -3949,7 +3969,7 @@ function generateOmzetBulananChartFromSummaries(summaries: any[]) {
     });
 }
 
-function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string) {
+function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const container = document.getElementById(containerId);
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -3982,6 +4002,9 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
             const color = `rgba(79, 70, 229, ${opacity})`;
             const title = `Rp${omzet.toLocaleString('id-ID')}`;
             tableHTML += `<td class="heatmap-cell" style="background-color: ${color}" title="${title}"></td>`;
+            config?.alsoStore?.(omzet, (v) => ({
+              hourlyOmzet: { [`${day} at ${hour}:00 to ${hour}:59`]: formatCurrencyUtil(v) },
+            }));
         });
         tableHTML += '</tr>';
     });
@@ -3990,7 +4013,7 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
     container.innerHTML = tableHTML;
 }
 
-function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container') {
+function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container', config?: { alsoStore?: AlsoStoreFn }) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -4040,6 +4063,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
     const title = `${dateStr}: Rp${omzet.toLocaleString('id-ID')}`;
     const textColor = opacity > 0.5 ? 'white' : '#374151';
     calendarHTML += `<td style="background-color: ${color}" title="${title}"><div class="day-number" style="color: ${textColor}">${d.getUTCDate()}</div></td>`;
+    config?.alsoStore?.(omzet, (v) => ({ dailyOmzet: { [dateStr!]: formatCurrencyUtil(v) } }));
   }
   calendarHTML += '</tr></tbody></table></div>';
 
@@ -4048,7 +4072,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
 
 // In main.ts, replace the existing generateRingkasanFromSummaries function with this one.
 
-function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }) {
+function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }, config?: { alsoStore?: AlsoStoreFn }) {
 
     // --- FIX START: Helper function to dynamically adjust font size ---
     const adjustFontSize = (elementId: string, text: string) => {
@@ -4078,16 +4102,22 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 
     // --- FIX: Use the new helper function to set the text and adjust size ---
     adjustFontSize(ids.omzet, `Rp${currentTotals.omzet.toLocaleString('id-ID')}`);
+    config?.alsoStore?.(currentTotals.omzet, (v) => ({ omzet: formatCurrencyUtil(v) }))
     adjustFontSize(ids.check, currentTotals.checks.toLocaleString('id-ID'));
+    config?.alsoStore?.(currentTotals.checks, (v) => ({ totalCheck: formatNumber(v) }))
     adjustFontSize(ids.avgCheck, `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`);
+    config?.alsoStore?.(currentAvgCheck, (v) => ({ avgPerCheck: formatCurrencyUtil(v) }))
 
     if (lastPeriodSummaries && lastPeriodSummaries.length > 0) {
         const lastPeriodTotals = calculateTotals(lastPeriodSummaries);
         const lastPeriodAvgCheck = lastPeriodTotals.checks > 0 ? lastPeriodTotals.omzet / lastPeriodTotals.checks : 0;
 
         calculateAndDisplayGrowth(ids.omzetGrowth, currentTotals.omzet, lastPeriodTotals.omzet);
+        config?.alsoStore?.(lastPeriodTotals.omzet, (v) => ({ lastPeriodOmzet: formatCurrencyUtil(v) }))
         calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
+        config?.alsoStore?.(lastPeriodTotals.checks, (v) => ({ lastPeriodCheck: formatNumber(v) }))
         calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
+        config?.alsoStore?.(lastPeriodAvgCheck, (v) => ({ lastPeriodAvgPerCheck: formatCurrencyUtil(v) }))
     } else {
         document.getElementById(ids.omzetGrowth).textContent = '';
         document.getElementById(ids.checkGrowth).textContent = '';
@@ -4096,7 +4126,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
 }
 
 
-function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string) {
+function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     // This uses .toSorted() which is great because it doesn't mutate the original array.
     const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
@@ -4109,7 +4139,15 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
 
     const datasets = [{
         label: 'Total Omzet Harian',
-        data: data,
+        data: maybeAlsoStore(
+          config?.alsoStore,
+          data,
+          (v) => ({
+            omzetHarian: deepmerge(...v.map((v, index) => ({
+              [`Day ${index + 1}`]: formatCurrencyUtil(v) }),
+            )),
+          }),
+        ),
         borderColor: '#3B82F6',
         tension: 0.1,
         type: 'line'
@@ -4120,7 +4158,11 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     if (salesTarget && salesTarget['Omzet Harian']) {
         datasets.push({
             label: 'Target Omzet Harian',
-            data: Array(labels.length).fill(salesTarget['Omzet Harian']),
+            data: Array(labels.length).fill(maybeAlsoStore(
+              config?.alsoStore,
+              salesTarget['Omzet Harian'],
+              (v) => ({ targetOmzetHarian: formatCurrencyUtil(v) }),
+            )),
             borderColor: '#FFDE21',
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4134,7 +4176,11 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     if (averageOmzet > 0) {
         datasets.push({
             label: 'Average Omzet',
-            data: Array(labels.length).fill(averageOmzet),
+            data: Array(labels.length).fill(maybeAlsoStore(
+              config?.alsoStore,
+              averageOmzet,
+              (v) => ({ avgOmzet: formatCurrencyUtil(v) }),
+            )),
             borderColor: '#10B981', // Green for the average line
             borderDash: [5, 5],
             borderWidth: 2,
@@ -4152,7 +4198,7 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
 }
 
 
-function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string) {
+function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const tcData = sortedSummaries.map(s => s.totalTransactions);
@@ -4163,7 +4209,14 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
         {
             type: 'bar',
             label: 'Total Check (TC)',
-            data: tcData,
+            data: maybeAlsoStore(
+              config?.alsoStore,
+              tcData,
+              (v) => ({
+                totalCheckHarian: deepmerge(...v.map((v, index) => ({
+                  [`Day ${index + 1}`]: formatNumber(v),
+                }))),
+              })),
             backgroundColor: '#60A5FA',
             yAxisID: 'y-tc',
             order: 2
@@ -4172,7 +4225,14 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
         {
             type: 'line',
             label: 'Average Check (APC)',
-            data: apcData,
+            data: maybeAlsoStore(
+              config?.alsoStore,
+              apcData,
+              (v) => ({
+                avgPerCheckHarian: deepmerge(...v.map((v, index) => ({
+                  [`Day ${index + 1}`]: formatNumber(v),
+                }))),
+              })),
             borderColor: '#F97316',
             tension: 0.1,
             yAxisID: 'y-apc',
@@ -4183,6 +4243,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     // Add Target Line for "Total Transaksi Per Hari" (TC)
     const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
     if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
+      config?.alsoStore?.(salesTarget['Total Transaksi Per Hari'], (v) => ({ targetTotalCheckHarian: formatNumber(v) }))
         datasets.push({
             type: 'line',
             label: 'Target TC Harian',
@@ -4197,6 +4258,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
 
     // Add Target Line for "Average Check" (APC)
     if (salesTarget && salesTarget['Average Check']) {
+      config?.alsoStore?.(salesTarget['Average Check'], (v) => ({ targetAvgPerCheckHarian: formatCurrencyUtil(v) }))
         datasets.push({
             type: 'line',
             label: 'Target Average Check',
@@ -4585,7 +4647,7 @@ function generateRingkasan(currentData: any[], lastPeriodData: any[]): void {
  * calculateAndDisplayGrowth('sales-growth', 5000, 0);
  * // The element will show: "vs N/A" in gray
  */
-function calculateAndDisplayGrowth(elementId: string, currentValue: number, previousValue: number, isCurrency = false): void {
+function calculateAndDisplayGrowth(elementId: string, currentValue: number, previousValue: number, isCurrency = false, config?: { alsoStore?: AlsoStoreFn }): void {
   const element = document.getElementById(elementId)
   if (previousValue === 0) {
     element.textContent = 'vs N/A'
@@ -4596,6 +4658,11 @@ function calculateAndDisplayGrowth(elementId: string, currentValue: number, prev
   const growth = ((currentValue - previousValue) / previousValue) * 100
   const sign = growth >= 0 ? '+' : ''
   const colorClass = growth >= 0 ? 'text-green-600' : 'text-red-600'
+
+  config?.alsoStore?.(growth, (v) => ({
+    [`${elementId}_growth`]:
+    `${sign}${formatPercent(v)}`,
+  }))
 
   element.textContent = `${sign}${growth.toFixed(1)}% vs comparison period`
   element.className = `text-sm mt-1 font-medium ${colorClass}`
@@ -12418,7 +12485,17 @@ async function generateGeneralPenjualanSection() {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
 
-    $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.clearViewData('general-penjualan');
+    $store.setActiveViewData('general-penjualan', {
+        viewContext: {
+            selectedBranch,
+            dateRange: `${formatMachineYearMonthDay(startDate)} to ${formatMachineYearMonthDay(endDate)}`,
+            hasSalesTarget: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0,
+        }
+    }, { selectedBranch, startDate, endDate });
+
+    const alsoStore = createAlsoStoreFn($store, 'general-penjualan')
 
     // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
     // This will still display the main KPI values but will not show any growth percentages.
@@ -12428,16 +12505,17 @@ async function generateGeneralPenjualanSection() {
         avgCheck: 'general-avg-check',
         omzetGrowth: 'general-omzet-growth',
         checkGrowth: 'general-check-growth',
-        avgCheckGrowth: 'general-avg-check-growth'
+        avgCheckGrowth: 'general-avg-check-growth',
+        alsoStore,
     });
 
     // The rest of the chart functions are called as before, but with the new filtered data
-    generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart');
-    generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line');
-    generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart');
-    generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container');
-    generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container');
-    generateSalesTrendHourlyDailyChartFromSummaries(currentData, 'general-sales-trend-chart');
+    generateOmzetHarianChartFromSummaries(currentData, 'general-omzet-harian-chart', { alsoStore });
+    generateOmzetMingguanChartFromSummaries(currentData, 'general-omzet-mingguan-chart', 'line', { alsoStore });
+    generateTcApcHarianChartFromSummaries(currentData, 'general-tc-apc-chart', { alsoStore });
+    generateDailyOmzetHeatmapFromSummaries(currentData, 'general-heatmap-harian-container', { alsoStore });
+    generateOmzetHeatmapFromSummaries(currentData, 'general-heatmap-jam-hari-container', { alsoStore });
+    generateSalesTrendHourlyDailyChartFromSummaries(currentData, 'general-sales-trend-chart', { alsoStore });
 
 }
 
