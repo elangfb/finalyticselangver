@@ -44,6 +44,7 @@ import {
   shortenNumber,
   shortenCurrency,
   formatCurrency as formatCurrencyUtil,
+  formatNumber,
   formatPercent,
   formatMachineYearMonthDay,
 } from './utils/string'
@@ -5761,11 +5762,23 @@ function generateCabangProdukChannelSection() {
 
     const periodData = $store.getAllSalesData().filter(s => s.date.toISOString().startsWith(period));
 
-    setupBranchMenuTrendChart(periodData, branchA, branchB);
-    generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart');
-    generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart');
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.clearViewData('cabang-produk-channel');
+    $store.setActiveViewData('cabang-produk-channel', {
+        viewContext: {
+            period: new Date(period + '-02').toLocaleString('default', { month: 'long', year: 'numeric' }),
+            branchA,
+            branchB,
+            comparisonType: 'Branch Product & Channel Analysis',
+            dataRecords: periodData.length
+        }
+    }, { period, branchA, branchB });
 
-    $store.setActiveViewData('cabang-produk-channel', periodData, { period, branchA, branchB });
+    const alsoStore = createAlsoStoreFn($store, 'cabang-produk-channel');
+
+    setupBranchMenuTrendChart(periodData, branchA, branchB, { alsoStore });
+    generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart', { alsoStore });
+    generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart', { alsoStore });
 }
 
 /**
@@ -5801,7 +5814,7 @@ async function setupCabangProdukChannelSelectors() {
 /**
  * Sets up the interactive menu trend chart for comparing two branches.
  */
-function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
+function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string, config?: { alsoStore?: AlsoStoreFn }) {
     const existingSelect = $store.getUIComponent('cabangMenuTrendSelect');
     if (existingSelect) {
         existingSelect.destroy();
@@ -5813,6 +5826,20 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
 
     const allMenuItems = [...new Set(combinedData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].toSorted();
 
+    // Store menu analysis data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        allMenuItems,
+        (items) => ({
+            menuAnalysis: {
+                totalMenuItems: items.length,
+                availableMenus: items.slice(0, 10), // Top 10 menu items for analysis
+                branchComparison: `${branchA} vs ${branchB}`,
+                dataPoints: combinedData.length
+            }
+        })
+    );
+
     selectEl.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
 
     // Store cabangMenuTrendSelect instance for cleanup on view reset
@@ -5820,13 +5847,13 @@ function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: 
       'cabangMenuTrendSelect',
       new SlimSelect({
         select: '#cabang-menu-trend-select',
-        events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB) }
+        events: { afterChange: () => drawBranchMenuTrendChart(periodData, branchA, branchB, config) }
       }),
       ($select) => $select.setSelected(allMenuItems.slice(0, 3)),
     );
 }
 
-function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string) {
+function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string, config?: { alsoStore?: AlsoStoreFn }) {
     const cabangMenuSelect = $store.getUIComponent('cabangMenuTrendSelect');
     if (!cabangMenuSelect) return;
 
@@ -5880,6 +5907,31 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         ];
     });
 
+    // Store menu trend comparison data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { selectedMenus, datasets },
+        (data) => ({
+            menuTrendComparison: {
+                selectedMenuItems: data.selectedMenus,
+                branchComparison: `${branchA} vs ${branchB}`,
+                totalDatasets: data.datasets.length,
+                trendsAnalyzed: data.selectedMenus.map(menu => {
+                    const branchAData = data.datasets.find(d => d.label.includes(`${menu} (${branchA})`))?.data || [];
+                    const branchBData = data.datasets.find(d => d.label.includes(`${menu} (${branchB})`))?.data || [];
+                    const branchATotal = branchAData.reduce((sum, val) => sum + (val || 0), 0);
+                    const branchBTotal = branchBData.reduce((sum, val) => sum + (val || 0), 0);
+                    return {
+                        menuItem: menu,
+                        [branchA]: formatNumber(branchATotal),
+                        [branchB]: formatNumber(branchBTotal),
+                        performance: branchATotal > branchBTotal ? `${branchA} leads` : branchBTotal > branchATotal ? `${branchB} leads` : 'Equal'
+                    };
+                })
+            }
+        })
+    );
+
     createChart('cabang-menu-trend-chart', 'line', {
         labels,
         datasets
@@ -5900,18 +5952,43 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
 /**
  * Generates a grouped bar chart comparing menu category quantities between two branches.
  */
-function generateBranchCategoryComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+function generateBranchCategoryComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
     const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
     const allCategories = [...new Set([...branchAData, ...branchBData].flatMap(s => Object.keys(s.menuCategories || {})))];
 
     const getData = (data) => allCategories.map(cat => data.reduce((sum, s) => sum + (s.menuCategories?.[cat]?.quantity || 0), 0));
 
+    const branchAValues = getData(branchAData);
+    const branchBValues = getData(branchBData);
+
+    // Store category comparison data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { allCategories, branchAValues, branchBValues },
+        (data) => ({
+            categoryComparison: {
+                categories: data.allCategories,
+                branchPerformance: deepmerge(
+                    ...data.allCategories.map((category, index) => ({
+                        [category]: {
+                            [branchA]: formatNumber(data.branchAValues[index]),
+                            [branchB]: formatNumber(data.branchBValues[index]),
+                            leader: data.branchAValues[index] > data.branchBValues[index] ? branchA :
+                                   data.branchBValues[index] > data.branchAValues[index] ? branchB : 'Equal'
+                        }
+                    }))
+                ),
+                totalCategories: data.allCategories.length
+            }
+        })
+    );
+
     createChart(canvasId, 'bar', {
         labels: allCategories,
         datasets: [
-            { label: branchA, data: getData(branchAData), backgroundColor: '#9CA3AF' },
-            { label: branchB, data: getData(branchBData), backgroundColor: '#4F46E5' }
+            { label: branchA, data: branchAValues, backgroundColor: '#9CA3AF' },
+            { label: branchB, data: branchBValues, backgroundColor: '#4F46E5' }
         ]
     });
 }
@@ -5919,18 +5996,43 @@ function generateBranchCategoryComparisonChart(periodData: any[], branchA: strin
 /**
  * Generates a grouped bar chart comparing channel revenue between two branches.
  */
-function generateBranchChannelComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string) {
+function generateBranchChannelComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const branchAData = periodData.filter(s => s.revenueByBranch?.[branchA] !== undefined);
     const branchBData = periodData.filter(s => s.revenueByBranch?.[branchB] !== undefined);
     const allChannels = [...new Set([...branchAData, ...branchBData].flatMap(s => Object.keys(s.revenueByVisitPurpose || {})))];
 
     const getData = (data) => allChannels.map(chan => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0));
 
+    const branchAValues = getData(branchAData);
+    const branchBValues = getData(branchBData);
+
+    // Store channel comparison data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { allChannels, branchAValues, branchBValues },
+        (data) => ({
+            channelComparison: {
+                channels: data.allChannels,
+                revenuePerformance: deepmerge(
+                    ...data.allChannels.map((channel, index) => ({
+                        [channel]: {
+                            [branchA]: formatCurrencyUtil(data.branchAValues[index]),
+                            [branchB]: formatCurrencyUtil(data.branchBValues[index]),
+                            leader: data.branchAValues[index] > data.branchBValues[index] ? branchA :
+                                   data.branchBValues[index] > data.branchAValues[index] ? branchB : 'Equal'
+                        }
+                    }))
+                ),
+                totalChannels: data.allChannels.length
+            }
+        })
+    );
+
     createChart(canvasId, 'bar', {
         labels: allChannels,
         datasets: [
-            { label: branchA, data: getData(branchAData), backgroundColor: '#9CA3AF' },
-            { label: branchB, data: getData(branchBData), backgroundColor: '#4F46E5' }
+            { label: branchA, data: branchAValues, backgroundColor: '#9CA3AF' },
+            { label: branchB, data: branchBValues, backgroundColor: '#4F46E5' }
         ]
     }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
 }
@@ -13858,6 +13960,9 @@ async function generateCabangInvestasiSection() {
         return;
     }
 
+    // PHASE 1: Replace raw data storage with minimal view context
+    $store.clearViewData('cabang-investasi');
+
     showLoading({ message: 'Comparing cumulative returns...' });
 
     try {
@@ -13894,13 +13999,26 @@ async function generateCabangInvestasiSection() {
             throw new Error(`No P&L reports found for the selected branches in this period.`);
         }
 
-        // Generate the two single-period comparison charts
-        generateCabangBusinessYieldComparisonChart(dataA, dataB);
-        generateCabangInvestorYieldComparisonChart(dataA, dataB);
-        // Generate the cumulative comparison chart
-        generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod);
+        // Store minimal view context and create alsoStore function
+        $store.setActiveViewData('cabang-investasi', {
+            viewContext: {
+                startPeriod: new Date(startPeriod + '-02').toLocaleString('default', { month: 'long', year: 'numeric' }),
+                endPeriod: new Date(endPeriod + '-02').toLocaleString('default', { month: 'long', year: 'numeric' }),
+                branchA,
+                branchB,
+                comparisonType: 'Branch Investment Analysis',
+                dataPointsA: dataA.monthlyProfits.length,
+                dataPointsB: dataB.monthlyProfits.length
+            }
+        }, { startPeriod, endPeriod, branchA, branchB });
 
-        $store.setActiveViewData('cabang-investasi', { dataA, dataB }, { startPeriod, endPeriod, branchA, branchB });
+        const alsoStore = createAlsoStoreFn($store, 'cabang-investasi');
+
+        // Generate the two single-period comparison charts
+        generateCabangBusinessYieldComparisonChart(dataA, dataB, { alsoStore });
+        generateCabangInvestorYieldComparisonChart(dataA, dataB, { alsoStore });
+        // Generate the cumulative comparison chart
+        generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod, { alsoStore });
 
     } catch (error) {
         console.error("Error generating branch cumulative comparison:", error);
@@ -13911,7 +14029,7 @@ async function generateCabangInvestasiSection() {
 }
 
 
-function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod) {
+function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod, config?: { alsoStore?: AlsoStoreFn }) {
     // 1. Create a master list of all months in the selected range
     const allMonths = [];
     let currentDate = new Date(startPeriod + '-02');
@@ -13941,6 +14059,39 @@ function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endP
 
     // 4. Render the chart
     const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+
+    // Store cumulative analysis data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { cumulativeDataA, cumulativeDataB, chartLabels, allMonths },
+        (data) => ({
+            cumulativeAnalysis: {
+                periodRange: `${startPeriod} to ${endPeriod}`,
+                branchComparison: `${dataA.investment.branchName} vs ${dataB.investment.branchName}`,
+                finalCumulativeValues: {
+                    [dataA.investment.branchName]: formatCurrencyUtil(data.cumulativeDataA[data.cumulativeDataA.length - 1] || 0),
+                    [dataB.investment.branchName]: formatCurrencyUtil(data.cumulativeDataB[data.cumulativeDataB.length - 1] || 0)
+                },
+                monthlyBreakdown: deepmerge(
+                    ...data.allMonths.slice(-6).map((month, index) => { // Last 6 months for analysis
+                        const realIndex = data.allMonths.length - 6 + index;
+                        if (realIndex >= 0) {
+                            return {
+                                [month]: {
+                                    [dataA.investment.branchName]: formatCurrencyUtil(data.cumulativeDataA[realIndex] || 0),
+                                    [dataB.investment.branchName]: formatCurrencyUtil(data.cumulativeDataB[realIndex] || 0)
+                                }
+                            };
+                        }
+                        return {};
+                    })
+                ),
+                totalMonths: data.allMonths.length,
+                winner: (data.cumulativeDataA[data.cumulativeDataA.length - 1] || 0) > (data.cumulativeDataB[data.cumulativeDataB.length - 1] || 0)
+                    ? dataA.investment.branchName : dataB.investment.branchName
+            }
+        })
+    );
 
     createChart('branch-cumulative-chart', 'line', {
         labels: chartLabels,
@@ -13976,7 +14127,7 @@ function generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endP
 /**
  * Renders the Business Yield comparison chart.
  */
-function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
+function generateCabangBusinessYieldComparisonChart(dataA, dataB, config?: { alsoStore?: AlsoStoreFn }) {
     // 1. Create a master list of all months in the selected range to ensure a consistent X-axis.
     const allMonths = [...new Set([...dataA.monthlyProfits.map(p => p.period), ...dataB.monthlyProfits.map(p => p.period)])].sort();
 
@@ -13997,6 +14148,43 @@ function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
 
     // 4. Format month labels for the chart's X-axis.
     const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+
+    // Store business yield analysis data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { yieldDataA, yieldDataB, allMonths },
+        (data) => ({
+            businessYieldAnalysis: {
+                branchComparison: `${dataA.investment.branchName} vs ${dataB.investment.branchName}`,
+                investmentAmounts: {
+                    [dataA.investment.branchName]: formatCurrencyUtil(dataA.investment.investmentAmount),
+                    [dataB.investment.branchName]: formatCurrencyUtil(dataB.investment.investmentAmount)
+                },
+                averageYields: {
+                    [dataA.investment.branchName]: `${(data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length || 0).toFixed(2)}%`,
+                    [dataB.investment.branchName]: `${(data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length || 0).toFixed(2)}%`
+                },
+                bestPerformingMonths: deepmerge(
+                    ...data.allMonths.slice(-3).map((month, index) => { // Last 3 months for analysis
+                        const realIndex = data.allMonths.length - 3 + index;
+                        if (realIndex >= 0) {
+                            return {
+                                [month]: {
+                                    [dataA.investment.branchName]: `${(data.yieldDataA[realIndex] || 0).toFixed(2)}%`,
+                                    [dataB.investment.branchName]: `${(data.yieldDataB[realIndex] || 0).toFixed(2)}%`
+                                }
+                            };
+                        }
+                        return {};
+                    })
+                ),
+                totalMonths: data.allMonths.length,
+                betterPerformer: (data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length) >
+                               (data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length)
+                               ? dataA.investment.branchName : dataB.investment.branchName
+            }
+        })
+    );
 
     createChart('cabang-business-yield-chart', 'bar', {
         labels: chartLabels,
@@ -14027,7 +14215,7 @@ function generateCabangBusinessYieldComparisonChart(dataA, dataB) {
 /**
  * Renders the Investor Yield comparison chart.
  */
-function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
+function generateCabangInvestorYieldComparisonChart(dataA, dataB, config?: { alsoStore?: AlsoStoreFn }) {
     // 1. Calculate the investment cost per slot for each branch.
     const investmentPerSlotA = dataA.investment.investmentSlots > 0 ? dataA.investment.investmentAmount / dataA.investment.investmentSlots : 0;
     const investmentPerSlotB = dataB.investment.investmentSlots > 0 ? dataB.investment.investmentAmount / dataB.investment.investmentSlots : 0;
@@ -14052,6 +14240,51 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB) {
 
     // 5. Format month labels for the chart's X-axis.
     const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
+
+    // Store investor yield analysis data for AI
+    maybeAlsoStore(
+        config?.alsoStore,
+        { yieldDataA, yieldDataB, investmentPerSlotA, investmentPerSlotB, allMonths },
+        (data) => ({
+            investorYieldAnalysis: {
+                branchComparison: `${dataA.investment.branchName} vs ${dataB.investment.branchName}`,
+                investmentDetails: {
+                    [dataA.investment.branchName]: {
+                        totalInvestment: formatCurrencyUtil(dataA.investment.investmentAmount),
+                        slots: formatNumber(dataA.investment.investmentSlots),
+                        perSlot: formatCurrencyUtil(data.investmentPerSlotA)
+                    },
+                    [dataB.investment.branchName]: {
+                        totalInvestment: formatCurrencyUtil(dataB.investment.investmentAmount),
+                        slots: formatNumber(dataB.investment.investmentSlots),
+                        perSlot: formatCurrencyUtil(data.investmentPerSlotB)
+                    }
+                },
+                averageYieldPerSlot: {
+                    [dataA.investment.branchName]: `${(data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length || 0).toFixed(2)}%`,
+                    [dataB.investment.branchName]: `${(data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length || 0).toFixed(2)}%`
+                },
+                recentPerformance: deepmerge(
+                    ...data.allMonths.slice(-3).map((month, index) => { // Last 3 months for analysis
+                        const realIndex = data.allMonths.length - 3 + index;
+                        if (realIndex >= 0) {
+                            return {
+                                [month]: {
+                                    [dataA.investment.branchName]: `${(data.yieldDataA[realIndex] || 0).toFixed(2)}%`,
+                                    [dataB.investment.branchName]: `${(data.yieldDataB[realIndex] || 0).toFixed(2)}%`
+                                }
+                            };
+                        }
+                        return {};
+                    })
+                ),
+                totalMonths: data.allMonths.length,
+                betterInvestorYield: (data.yieldDataA.reduce((sum, val) => sum + val, 0) / data.yieldDataA.length) >
+                                   (data.yieldDataB.reduce((sum, val) => sum + val, 0) / data.yieldDataB.length)
+                                   ? dataA.investment.branchName : dataB.investment.branchName
+            }
+        })
+    );
 
     createChart('cabang-investor-yield-chart', 'bar', {
         labels: chartLabels,

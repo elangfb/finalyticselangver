@@ -126,4 +126,5 @@ After migrating a view:
 | **Analisis Perbandingan Cabang** | | |
 | Aspek Keuangan | `cabang-keuangan` | **Migrated** |
 | Aspek Penjualan | `cabang-penjualan` | **Migrated** |
-| Aspek Produk & Channel | `cabang-produk-channel` | Not Migrated |
+| Aspek Produk & Channel | `cabang-produk-channel` | **Migrated** |
+| Aspek Investasi | `cabang-investasi` | **Migrated** |
