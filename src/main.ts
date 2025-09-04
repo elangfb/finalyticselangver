@@ -50,6 +50,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask 
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { setupPageSummary } from './components/PageSummary';
 import { globalConfigService } from './services/globalConfigService';
+import { createAlsoStoreFn } from './utils/also-store';
 
 // Firebase Config
 const firebaseConfig = {
@@ -3394,12 +3395,11 @@ async function generateGeneralKeuanganSection() {
 
     showLoading({ message: 'Generating tables and charts...', value: 50 });
 
-    // Store minimal view context instead of raw data
+    // Initialize view storage with context; further insights will be merged
     $store.setActiveViewData('general-keuangan', {
         viewContext: {
             selectedBranch,
             selectedPeriod,
-            periodsAnalyzed: historicalReports.length,
             periodRange: historicalReports.length > 0 ?
                 `${historicalReports[0].period} to ${historicalReports[historicalReports.length - 1].period}` :
                 'No data'
@@ -3474,47 +3474,6 @@ function generateSpecificSubCategoryRatioChart(
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
         }
     });
-
-    // Generate insights for AI analysis - capture exactly what users see in the chart
-    if (barData.length > 0 && lineData.length > 0) {
-        const minValue = Math.min(...barData);
-        const maxValue = Math.max(...barData);
-        const avgValue = barData.reduce((sum, val) => sum + val, 0) / barData.length;
-
-        const avgRatio = lineData.reduce((sum, val) => sum + val, 0) / lineData.length;
-
-        // Calculate growth from first to last period
-        const firstValue = barData[0];
-        const lastValue = barData[barData.length - 1];
-        const growthPercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue) * 100) : 0;
-
-        let trend = 'stable';
-        if (Math.abs(growthPercent) > 5) {
-            trend = growthPercent > 0 ? 'increasing' : 'decreasing';
-        }
-
-        const chartInsights = {
-            chartType: 'subcategory_ratio_analysis',
-            mainCategory: config.mainCategory,
-            subCategory: config.subCategory,
-            title: config.title,
-            chartLabels: labels,
-            analysis: {
-                averageValue: formatCurrencyUtil(avgValue),
-                highestValue: formatCurrencyUtil(maxValue),
-                lowestValue: formatCurrencyUtil(minValue),
-                averageRatioToRevenue: `${avgRatio.toFixed(1)}%`,
-                growthPercent: `${growthPercent.toFixed(1)}%`,
-                trend: trend
-            }
-        };
-
-        // Store insights using the merging capability, keyed by chart ID
-        const insightKey = config.canvasId + 'Insights';
-        $store.setActiveViewData('general-keuangan', {
-            [insightKey]: chartInsights
-        });
-    }
 }
 
 /**
@@ -3712,6 +3671,8 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
     const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
 
+    const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
+
     allMetrics.forEach(metricName => {
         const isSubtotal = !!subtotals[metricName];
         const tr = document.createElement('tr');
@@ -3732,60 +3693,15 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             } else {
                 value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
             }
+            alsoStore(value, (value) => {
+              const reportDate = new Date(report.period + '-02').toDateString();
+              return { historicalPnl: { [reportDate]: { [metricName]: formatCurrencyUtil(value) } } };
+            })
             rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
 
         tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
-    });
-
-    // Generate insights for AI analysis - capture exactly what users see
-    const historicalPnlTrends = {};
-
-    allMetrics.forEach(metricName => {
-        const isSubtotal = !!subtotals[metricName];
-        const values = [];
-
-        reports.forEach(report => {
-            let value = 0;
-            const pnlData = report.pnlData || {};
-
-            if (isSubtotal) {
-                const categoryTotals = {};
-                categoryOrder.forEach(cat => {
-                   categoryTotals[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
-                });
-                value = subtotals[metricName](categoryTotals);
-            } else {
-                value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            }
-            values.push(value);
-        });
-
-        if (values.length > 0) {
-            const firstValue = values[0];
-            const lastValue = values[values.length - 1];
-            const avgValue = values.reduce((sum, val) => sum + val, 0) / values.length;
-            const growthPercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue) * 100) : 0;
-
-            let trend = 'stable';
-            if (Math.abs(growthPercent) > 5) {
-                trend = growthPercent > 0 ? 'growing' : 'declining';
-            }
-
-            historicalPnlTrends[metricName] = {
-                firstPeriod: formatCurrencyUtil(firstValue),
-                lastPeriod: formatCurrencyUtil(lastValue),
-                average: formatCurrencyUtil(avgValue),
-                growthPercent: `${growthPercent.toFixed(1)}%`,
-                trend: trend
-            };
-        }
-    });
-
-    // Store insights using the merging capability
-    $store.setActiveViewData('general-keuangan', {
-        historicalPnlTrends: historicalPnlTrends
     });
 }
 
@@ -3814,6 +3730,8 @@ function generatePnlOverviewChart(reports: any[]) {
         profitData.push(profit);
     });
 
+    const alsoStore = createAlsoStoreFn($store, 'general-keuangan')
+
     createChart('general-pnl-overview-chart', 'bar', {
         labels,
         // FIX: The datasets now only include the components of the bar (Profit and Expense).
@@ -3821,12 +3739,12 @@ function generatePnlOverviewChart(reports: any[]) {
         datasets: [
             {
                 label: 'Profit',
-                data: profitData,
+                data: alsoStore(profitData, (v) => ({ pnlOverviewChart: { profits: v } })),
                 backgroundColor: '#10B981' // Green
             },
             {
                 label: 'Expense',
-                data: expenseData,
+                data: alsoStore(expenseData, (v) => ({ pnlOverviewChart: { expenses: v } })),
                 backgroundColor: '#EF4444' // Red
             }
         ]
@@ -3873,39 +3791,6 @@ function generatePnlOverviewChart(reports: any[]) {
             }
         }
     });
-
-    // Generate insights for AI analysis - capture exactly what users see in the chart
-    if (revenueData.length > 0) {
-        const minRevenue = Math.min(...revenueData);
-        const maxRevenue = Math.max(...revenueData);
-        const avgRevenue = revenueData.reduce((sum, val) => sum + val, 0) / revenueData.length;
-        const avgExpense = expenseData.reduce((sum, val) => sum + val, 0) / expenseData.length;
-        const avgExpenseRatio = avgRevenue > 0 ? (avgExpense / avgRevenue * 100) : 0;
-
-        // Determine profitability trend
-        const profitTrend = profitData.every(p => p > 0) ? 'consistently_profitable' :
-                           profitData.every(p => p < 0) ? 'consistently_unprofitable' :
-                           'mixed_profitability';
-
-        const pnlOverviewInsights = {
-            chartType: 'stacked_bar_chart',
-            description: 'P&L Overview showing Revenue (Omset), Expense, and Profit trends over time',
-            periodsDisplayed: labels.length,
-            revenueRange: {
-                min: formatCurrencyUtil(minRevenue),
-                max: formatCurrencyUtil(maxRevenue),
-                average: formatCurrencyUtil(avgRevenue)
-            },
-            expenseRatio: `${avgExpenseRatio.toFixed(1)}%`,
-            profitabilityTrend: profitTrend,
-            chartLabels: labels
-        };
-
-        // Store insights using the merging capability
-        $store.setActiveViewData('general-keuangan', {
-            pnlOverviewInsights: pnlOverviewInsights
-        });
-    }
 }
 
 
@@ -3943,51 +3828,6 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
             'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
         }
     });
-
-    // Generate insights for AI analysis - capture exactly what users see in the chart
-    if (barData.length > 0 && lineData.length > 0) {
-        const minValue = Math.min(...barData);
-        const maxValue = Math.max(...barData);
-        const avgValue = barData.reduce((sum, val) => sum + val, 0) / barData.length;
-
-        const minRatio = Math.min(...lineData);
-        const maxRatio = Math.max(...lineData);
-        const avgRatio = lineData.reduce((sum, val) => sum + val, 0) / lineData.length;
-
-        // Determine trend based on first vs last values
-        const firstRatio = lineData[0];
-        const lastRatio = lineData[lineData.length - 1];
-        const ratioChange = firstRatio !== 0 ? ((lastRatio - firstRatio) / Math.abs(firstRatio) * 100) : 0;
-
-        let trend = 'stable';
-        if (Math.abs(ratioChange) > 5) {
-            trend = ratioChange > 0 ? 'improving' : 'declining';
-        }
-
-        const chartInsights = {
-            chartType: 'dual_axis_financial_ratio',
-            metricName: config.metric,
-            title: config.title,
-            chartLabels: labels,
-            ratioAnalysis: {
-                average: `${avgRatio.toFixed(1)}%`,
-                highest: `${maxRatio.toFixed(1)}%`,
-                lowest: `${minRatio.toFixed(1)}%`,
-                trend: trend
-            },
-            absoluteValues: {
-                averageValue: formatCurrencyUtil(avgValue),
-                highestValue: formatCurrencyUtil(maxValue),
-                lowestValue: formatCurrencyUtil(minValue)
-            }
-        };
-
-        // Store insights using the merging capability, keyed by chart ID
-        const insightKey = config.canvasId + 'Insights';
-        $store.setActiveViewData('general-keuangan', {
-            [insightKey]: chartInsights
-        });
-    }
 }
 
 function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
@@ -12403,6 +12243,8 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
         ];
 
+        const alsoStore = createAlsoStoreFn($store, 'general-keuangan');
+
         metricOrder.forEach(metric => {
             const targetRevenue = targets['Pendapatan (Revenue)'];
             let targetValue = 0;
@@ -12435,16 +12277,16 @@ async function showPnlTargetModal(targetData: any, reportId: string) {
             tableHtml += `
                 <tr>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">${metric}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(targetValue)}</td>
-                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(actualValue)}</td>
-                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${percentageChangeText}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(targetValue), (v) => ({ pnlTargets: { [metric]: v } }))}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${alsoStore(formatCurrency(actualValue), (v) => ({ pnlActuals: { [metric]: v } }))}</td>
+                    <td class="px-6 py-4 text-sm text-center font-semibold ${changeColor}">${alsoStore(percentageChangeText, (v) => ({ pnlChanges: { [metric]: v } }))}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">
 
                         <div class="flex items-center hidden">
                             <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
                             </div>
-                            <span class="font-semibold">${achievement.toFixed(1)}%</span>
+                            <span class="font-semibold">${alsoStore(achievement.toFixed(1), (v) => ({ pnlAchievements: { [metric]: `${v}%` } }))}%</span>
                         </div>
 
                     </td>
