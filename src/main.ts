@@ -12418,19 +12418,7 @@ async function generateGeneralPenjualanSection() {
         currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
 
-    // PHASE 1: Replace raw data storage with minimal view context
-    $store.setActiveViewData('general-penjualan', {
-        viewContext: {
-            selectedBranch,
-            dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
-            dataSource: "Sales transaction summaries and daily aggregations",
-            filtersApplied: { selectedBranch, startDate, endDate },
-            salesTargetActive: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0,
-            salesTargetDescription: Object.keys($store.getConfigValue('activeSalesTarget')).length > 0
-                ? `Monthly sales targets loaded for ${selectedBranch}`
-                : "No sales targets configured for this period"
-        }
-    }, { selectedBranch, startDate, endDate });
+    $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
 
     // Since comparison is removed, we pass an empty array for the 'lastPeriodData'.
     // This will still display the main KPI values but will not show any growth percentages.
