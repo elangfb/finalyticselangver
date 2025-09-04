@@ -4,6 +4,7 @@ import { html } from "@/utils/string"
 import { marked } from "marked"
 import { generateSHA256 } from "@/utils/hash"
 import { findLiveCache, deactivateHistoricalCache, createLiveCache } from "@/services/analysisCacheService"
+import isEqual from "fast-deep-equal"
 
 const BasePageSummaryCard = (props: { children: string }) => (
     html`
@@ -244,10 +245,14 @@ export const setupPageSummary = (params: {
 
     const registerSubscriber = () => {
         const unsubscribe = store.subscribe(async (state, prevState) => {
+            // Unsubscribe on go back to dashboard
             if (prevState.activeViewData && !state.activeViewData) {
                 unsubscribe();
             }
-            if (state.activeViewData && state.activeViewData !== prevState.activeViewData) {
+
+            const isFiltersChanged = !isEqual(state.activeViewData?.filters, prevState.activeViewData?.filters);
+
+            if (isFiltersChanged) {
                 showInit();
                 await tryShowFromCache(state.activeViewData);
             }
