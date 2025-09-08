@@ -3591,8 +3591,8 @@ function generateSpecificSubCategoryRatioChart(
     createChart(config.canvasId, 'bar', {
         labels,
         datasets: [
-            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
-            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent' }
+            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp', order: 2},
+            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent', order: 1 }
         ]
     }, {
         scales: {
@@ -4023,8 +4023,8 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
     createChart(config.canvasId, 'bar', {
         labels,
         datasets: [
-            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
-            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent' }
+            { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp', order: 2 },
+            { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent', order: 1}
         ]
     }, {
         scales: {
@@ -12375,6 +12375,7 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
                 data: sortedByRevenue.map((s) => s.totalRevenue),
                 backgroundColor: '#4F46E5',
                 yAxisID: 'y-omzet',
+                order: 2,
             },
             {
                 type: 'line',
@@ -12382,7 +12383,8 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
                 data: sortedByRevenue.map((s) => s.totalCheck),
                 borderColor: '#F97316',
                 yAxisID: 'y-check',
-                tension: 0.1
+                tension: 0.1,
+                order: 2,
             },
         ],
     }, {
