@@ -3772,6 +3772,8 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
 /**
  * Generates a historical P&L table showing data for multiple months.
  */
+// In main.ts, replace the existing generateHistoricalPnlTable function
+
 function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const thead = document.getElementById(theadId);
     const tbody = document.getElementById(tbodyId);
@@ -3787,52 +3789,98 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
     tbody.innerHTML = '';
 
-    const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-    const subtotals = {
-        "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-        "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-        "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-        "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
-    };
-
-    const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
+    const allMetrics = [
+        "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)",
+        "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)",
+        "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)",
+        "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)"
+    ];
 
     const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
     allMetrics.forEach(metricName => {
-        const isSubtotal = !!subtotals[metricName];
-        const tr = document.createElement('tr');
-        tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : '';
+        const metrics = reports.map(report => calculateAllPnlMetrics(report.pnlData || {}));
+        const isSubtotal = !reports[0]?.pnlData?.[metricName];
 
-        let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`;
+        const mainRow = document.createElement('tr');
+        let mainRowHtml = '';
 
-        reports.forEach(report => {
-            let value = 0;
-            const pnlData = report.pnlData || {};
+        if (!isSubtotal) {
+            mainRow.className = 'pnl-main-category bg-gray-50 hover:bg-gray-100';
+            const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '');
+            mainRow.dataset.target = `sub-items-of-${sanitizedMetricName}`;
+            mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold"><div class="flex items-center">${metricName}<svg class="w-4 h-4 ml-2 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div></td>`;
+        } else {
+            mainRow.className = 'bg-white font-bold';
+            mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${metricName}</td>`;
+        }
 
-            if (isSubtotal) {
-                const categoryTotals = {};
-                categoryOrder.forEach(cat => {
-                   categoryTotals[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
-                });
-                value = subtotals[metricName](categoryTotals);
-            } else {
-                value = Object.values(pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
-            }
-            alsoStore(value, (value) => ({
-              historicalPnl: {
-                [formatMachineYearMonth(report.period)]: {
-                  [metricName]: formatCurrencyUtil(value),
-                },
-              },
-            }))
-            rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
+        metrics.forEach((metricSet, index) => {
+            const value = metricSet[metricName] || 0;
+            alsoStore(value, (v) => ({
+              historicalPnl: { [formatMachineYearMonth(reports[index].period)]: { [metricName]: formatCurrencyUtil(v) } },
+            }));
+            mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
+        
+        mainRow.innerHTML = mainRowHtml;
+        tbody.appendChild(mainRow);
 
-        tr.innerHTML = rowHtml;
-        tbody.appendChild(tr);
+        if (!isSubtotal) {
+            const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '');
+            const allSubKeys = new Set(reports.flatMap(r => Object.keys(r.pnlData?.[metricName] || {})));
+            
+            allSubKeys.forEach(subKey => {
+                const subRow = document.createElement('tr');
+                subRow.className = `pnl-sub-category sub-items-of-${sanitizedMetricName} hidden`;
+                let subRowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${subKey}</td>`;
+
+                reports.forEach(report => {
+                    const subValue = report.pnlData?.[metricName]?.[subKey] || 0;
+                    
+                    // --- FIX START: Add the subcategory data to the AI payload ---
+                    alsoStore(subValue, (v) => ({
+                        historicalPnl: {
+                            [formatMachineYearMonth(report.period)]: {
+                                [metricName]: { // Ensure it's nested under the main category
+                                    [subKey]: formatCurrencyUtil(v)
+                                }
+                            }
+                        }
+                    }));
+                    // --- FIX END ---
+                    
+                    subRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(subValue)}</td>`;
+                });
+                subRow.innerHTML = subRowHtml;
+                tbody.appendChild(subRow);
+            });
+        }
     });
 }
+
+// In main.ts, add this event listener to the main script area
+
+document.getElementById('general-pnl-history-tbody')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const headerRow = target.closest('.pnl-main-category');
+
+    if (headerRow) {
+        const targetClass = (headerRow as HTMLElement).dataset.target;
+        if (!targetClass) return;
+
+        const subRows = document.querySelectorAll(`.${targetClass}`);
+        const chevron = headerRow.querySelector('.chevron-icon');
+
+        subRows.forEach(row => {
+            row.classList.toggle('hidden');
+        });
+
+        if (chevron) {
+            chevron.classList.toggle('rotate-180');
+        }
+    }
+});
 
 /**
  * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
