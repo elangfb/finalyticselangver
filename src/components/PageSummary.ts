@@ -232,8 +232,8 @@ export const setupPageSummary = (params: {
             }
 
             await deactivateHistoricalCache(filtersHash);
-            console.log ({ data: dataForPrompt, filters });
-            return;
+            // console.log ({ data: dataForPrompt, filters });
+            // return;
             const prompt = promptCreator({ data: dataForPrompt, filters });
             // Destructure the response from the AI call
             const { summaryText, usageMetadata } = await params.analyzeUsingAI(prompt);
