@@ -9,4 +9,4 @@ deploy:
     git add .app-meta
     git commit -m 'chore: update app meta'
     git push
-    git push --force noeffort-bot.github.com:noeffort-bot/arunami-finalytics-web-next.git main-update:main
+    git push --force github.com:luthfisolahudin/arunami-finalytics-web.git main-update:main
