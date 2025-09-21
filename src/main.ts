@@ -49,6 +49,7 @@ import {
   formatCurrency as formatCurrencyUtil,
   formatNumber as formatNumberUtil,
   formatDecimalBasedPercentage,
+  formatIntBasedPercentage,
   formatMachineYearMonthDay,
   formatMachineYearMonth,
 } from './utils/string'
@@ -3352,7 +3353,7 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
                 }
                 const value = context.parsed.y;
                 if (context.dataset.yAxisID === 'y-rp') {
-                    label += formatCurrency(value);
+                    label += formatCurrencyUtil(value);
                 } else {
                     label += `${Number(value).toFixed(2)}%`;
                 }
@@ -3704,9 +3705,9 @@ function generateSpecificSubCategoryRatioChart(
                 }
                 const value = context.parsed.y;
                 if (context.dataset.yAxisID === 'y-rp') {
-                    label += formatCurrency(value);
+                    label += formatCurrencyUtil(value);
                 } else {
-                    label += formatPercentage(value, 2);
+                    label += formatIntBasedPercentage(value, 2);
                 }
                 return label;
             }
@@ -4153,9 +4154,9 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
                 }
                 const value = context.parsed.y;
                 if (context.dataset.yAxisID === 'y-rp') {
-                    label += formatCurrency(value);
+                    label += formatCurrencyUtil(value);
                 } else {
-                    label += formatPercentage(value, 2); // Using the new helper
+                    label += formatIntBasedPercentage(value, 2); // Using the new helper
                 }
                 return label;
             }
@@ -4592,7 +4593,11 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     createChart(canvasId, 'line', {
         labels: labels,
         datasets: datasets, // This now contains all three datasets
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    }, mergeChartOptions(
+      chartTooltip({ label: currencyTooltipCallback }),
+      chartYTicks(shortenCurrency),
+      chartXTicks(shortenDateTickCallback),
+    ));
 }
 
 
@@ -13855,9 +13860,9 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
                 }
                 const value = context.parsed.y;
                 if (context.dataset.yAxisID === 'y-rp') {
-                    label += formatCurrency(value);
+                    label += formatCurrencyUtil(value);
                 } else {
-                    label += formatPercentage(value, 2);
+                    label += formatIntBasedPercentage(value, 2);
                 }
                 return label;
             }
@@ -14243,9 +14248,9 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
                 if (label) { label += ': '; }
                 const value = context.parsed.y;
                 if (context.dataset.yAxisID === 'y-rp') {
-                    label += formatCurrency(value);
+                    label += formatCurrencyUtil(value);
                 } else {
-                    label += formatPercentage(value, 2);
+                    label += formatIntBasedPercentage(value, 2);
                 }
                 return label;
             }

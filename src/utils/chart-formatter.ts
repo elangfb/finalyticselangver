@@ -120,8 +120,10 @@ export const currencyTooltipCallback = ((context) => {
     if (label) {
         label += ': ';
     }
-    if (context.parsed.y !== null) {
+    if (context.parsed.y) {
         label += formatCurrency(context.parsed.y);
+    } else if (context.parsed) {
+        label += formatCurrency(context.parsed);
     }
     return label;
 }) satisfies TooltipCallbackLabel;
@@ -134,7 +136,9 @@ export const percentageTooltipCallback = ((context) => {
     if (label) {
         label += ': ';
     }
-    if (context.parsed !== null) {
+    if (context.parsed.y) {
+        label += formatIntBasedPercentage(context.parsed.y);
+    } else if (context.parsed) {
         label += formatIntBasedPercentage(context.parsed);
     }
     return label;
