@@ -350,11 +350,11 @@ function createGeneralProdukChannelPrompt(data: unknown): string {
     **Instruksi Utama (Proses Analisis Internal):**
 
     1.  **Identifikasi Performa Produk Kunci:** Prioritaskan analisis pada:
-        - **Menu Performance Rankings** (produk terlaris dan underperformers)
-        - **Category Mix Analysis** (komposisi makanan vs minuman)
+        - **Menu Performance Rankings** (produk terlaris dan underperformers, **KECUALI minuman/air**)
+        - **Category Mix Analysis** (komposisi makanan vs minuman, **fokus pada makanan**)
         - **Channel Distribution Effectiveness** (performa per saluran distribusi)
         - **Product Portfolio Balance** (diversifikasi dan concentration)
-        - **Sales Trend per Menu Item** (tren penjualan produk individual)
+        - **Sales Trend per Menu Item** (tren penjualan produk individual, **KECUALI minuman/air**)
 
     2.  **Analisis Channel dan Category Performance:** Evaluasi:
         - Channel contribution dan effectiveness per kategori
@@ -363,7 +363,7 @@ function createGeneralProdukChannelPrompt(data: unknown): string {
         - Distribution channel efficiency dan reach
 
     3.  **Sintesis Product-Channel:** Tentukan:
-        - 1-2 **top product performers** dan faktor keberhasilannya
+        - 1-2 **top product performers** dan faktor keberhasilannya (**KECUALI minuman/air**)
         - 1 **channel-category insight** yang paling strategis
         - Overall **portfolio health** dan distribution effectiveness
 
@@ -396,11 +396,11 @@ function createWaktuProdukChannelPrompt(data: unknown): string {
     **Instruksi Utama (Proses Analisis Internal):**
 
     1.  **Identifikasi Tren Product-Channel Temporal:** Prioritaskan analisis pada:
-        - **Product Lifecycle Trends** (rising stars, declining products)
+        - **Product Lifecycle Trends** (rising stars, declining products, **KECUALI minuman/air**)
         - **Channel Evolution Patterns** (growth/decline per distribution channel)
-        - **Seasonal Product Preferences** (pola musiman dalam demand produk)
-        - **Category Performance Cycles** (fluktuasi makanan vs minuman)
-        - **Channel-Product Interaction Trends** (how products perform across channels over time)
+        - **Seasonal Product Preferences** (pola musiman dalam demand produk, **fokus pada makanan**)
+        - **Category Performance Cycles** (fluktuasi makanan vs minuman, **prioritas pada makanan**)
+        - **Channel-Product Interaction Trends** (how products perform across channels over time, **KECUALI minuman/air**)
 
     2.  **Analisis Pola Temporal Product-Channel:** Evaluasi:
         - Product momentum dan lifecycle stage identification
@@ -409,8 +409,8 @@ function createWaktuProdukChannelPrompt(data: unknown): string {
         - Emerging trends dalam customer preferences
 
     3.  **Sintesis Tren Product-Channel:** Tentukan:
-        - 1-2 **strongest product/channel trends** yang paling signifikan
-        - 1 **seasonal or cyclical pattern** yang paling strategis
+        - 1-2 **strongest product/channel trends** yang paling signifikan (**KECUALI minuman/air**)
+        - 1 **seasonal or cyclical pattern** yang paling strategis (**fokus pada makanan**)
         - Overall **product-channel evolution** trajectory
 
     -----
@@ -442,11 +442,11 @@ function createCabangProdukChannelPrompt(data: unknown): string {
     **Instruksi Utama (Proses Analisis Internal):**
 
     1.  **Identifikasi Variasi Product-Channel per Cabang:** Prioritaskan analisis pada:
-        - **Product Performance by Location** (produk favorit per cabang)
+        - **Product Performance by Location** (produk favorit per cabang, **KECUALI minuman/air**)
         - **Channel Effectiveness Variation** (channel yang paling efektif per lokasi)
-        - **Category Performance Gaps** (perbedaan performa kategori antar cabang)
-        - **Location-specific Product Mix** (karakteristik portfolio per cabang)
-        - **Regional Preferences** (preferensi produk dan channel per area)
+        - **Category Performance Gaps** (perbedaan performa kategori antar cabang, **fokus pada makanan**)
+        - **Location-specific Product Mix** (karakteristik portfolio per cabang, **prioritas makanan**)
+        - **Regional Preferences** (preferensi produk dan channel per area, **KECUALI minuman/air**)
 
     2.  **Analisis Comparative Product-Channel:** Evaluasi:
         - Best dan worst performing branches untuk specific products/channels
@@ -455,8 +455,8 @@ function createCabangProdukChannelPrompt(data: unknown): string {
         - Product diversification success per cabang
 
     3.  **Sintesis Perbandingan Product-Channel:** Tentukan:
-        - 1-2 **location-specific product/channel winners** dengan konteks lokasi
-        - 1 **biggest opportunity** untuk product-channel optimization
+        - 1-2 **location-specific product/channel winners** dengan konteks lokasi (**KECUALI minuman/air**)
+        - 1 **biggest opportunity** untuk product-channel optimization (**fokus pada makanan**)
         - Overall **location adaptation patterns** dan market fit insights
 
     -----

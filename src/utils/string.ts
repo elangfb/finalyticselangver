@@ -92,25 +92,21 @@ export function truncateToFixed(value: number, decimals: number) {
  * @returns {string} Formatted percentage string.
  *
  * @example
- * formatPercent(0.1546, 2)
+ * formatDecimalBasedPercentage(0.1546, 2)
  * // => "15,46%"
  *
- * formatPercent(0.25)
+ * formatDecimalBasedPercentage(0.25)
  * // => "25,0%"
  *
- * formatPercent(0.333333, 0)
+ * formatDecimalBasedPercentage(0.333333, 0)
  * // => "33%"
  */
-export function formatPercent(value: number, fractionDigits = 1): string {
+export function formatDecimalBasedPercentage(value: number, fractionDigits = 1): string {
   if (typeof value !== 'number' || isNaN(value)) return '0%'
 
   const percentage = value * 100
-  const formatted = percentage.toLocaleString('id-ID', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits
-  })
 
-  return `${formatted}%`
+  return formatIntBasedPercentage(percentage, fractionDigits)
 }
 
 // Mapping untuk suffix berdasarkan nilai
@@ -289,3 +285,29 @@ export function formatMachineYearMonthDay(date: string | Date): string {
 }
 
 export const html = String.raw
+
+/**
+ * Format a number as a percentage string.
+ *
+ * @description
+ * Appends a '%' symbol and uses locale-specific formatting for the number.
+ * Best for whole or pre-calculated percentage values.
+ *
+ * @param value – The numeric value to format.
+ * @param fractionDigits – Number of decimal digits to display.
+ * @returns Formatted percentage string, e.g., "75%".
+ *
+ * @example
+ * formatIntBasedPercentage(75.5, 1)
+ * // => "75,5%"
+ */
+export function formatIntBasedPercentage(value: number, fractionDigits = 0): string {
+  if (typeof value !== 'number' || isNaN(value)) return '0%';
+
+  const formatted = truncateToFixed(value, fractionDigits).toLocaleString('id-ID', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  });
+
+  return `${formatted}%`;
+}
