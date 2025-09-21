@@ -3132,37 +3132,50 @@ async function setupCabangPenjualanSelectors() {
  * Reusable function to compare a daily metric trend between two branches.
  */
 function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1);
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
 
-    const getDailyData = (branchName) => {
-        const daily = Array(31).fill(null);
+    const getWeeklyData = (branchName) => {
+        const weeklyTotals = Array(5).fill(null).map(() => ({ revenue: 0, transactions: 0 }));
+
         const branchSummaries = periodData.filter(s => s.revenueByBranch?.[branchName] !== undefined);
+
         branchSummaries.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            daily[dayIndex] = s[config.metric]; // Note: This assumes TC and APC are top-level on the summary
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+
+            if (weekIndex < 5) {
+                weeklyTotals[weekIndex].revenue += s.revenueByBranch[branchName] || 0;
+                weeklyTotals[weekIndex].transactions += s.transactionCountsByBranch?.[branchName] || 0;
+            }
         });
-        return daily;
+
+        if (config.metric === 'apc') {
+            return weeklyTotals.map(week => week.transactions > 0 ? week.revenue / week.transactions : null);
+        }
+        if (config.metric === 'totalTransactions') {
+            return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.transactions : null);
+        }
+        // Default to totalOmzet
+        return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.revenue : null);
     };
 
-    const branchAData = getDailyData(branchA);
-    const branchBData = getDailyData(branchB);
+    const branchAData = getWeeklyData(branchA);
+    const branchBData = getWeeklyData(branchB);
 
-    // Store branch comparison data for AI analysis
+    // Store WEEKLY branch comparison data for AI analysis
     maybeAlsoStore(
         config?.alsoStore,
-        { branchAData, branchBData, branchA, branchB, metric: config.metric, title: config.title },
+        { branchAData, branchBData, branchA, branchB, metric: config.metric, title: config.title, labels },
         (v) => {
-            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
-                              config.metric === 'apc' ? formatCurrencyUtil :
-                              (val: any) => formatNumberUtil(val);
+            const formatValue = config.metric === 'totalTransactions' ? formatNumberUtil : formatCurrencyUtil;
 
             return {
                 [`${v.title.toLowerCase().replace(/\s+/g, '')}BranchComparison`]: {
                     [v.branchA]: deepmerge(...v.branchAData.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                     [v.branchB]: deepmerge(...v.branchBData.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                     metric: v.metric
                 }
@@ -3423,36 +3436,46 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
  * Reusable function to generate a line chart comparing a metric between two periods.
  */
 function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[], config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
 
-    const getDailyData = (data) => {
-        const daily = Array(31).fill(null);
+    const getWeeklyData = (data) => {
+        const weeklyTotals = Array(5).fill(null).map(() => ({ revenue: 0, transactions: 0 }));
+
         data.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            daily[dayIndex] = s[config.metric];
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+            if (weekIndex < 5) {
+                weeklyTotals[weekIndex].revenue += s.totalOmzet;
+                weeklyTotals[weekIndex].transactions += s.totalTransactions;
+            }
         });
-        return daily;
+
+        if (config.metric === 'apc') {
+            return weeklyTotals.map(week => week.transactions > 0 ? week.revenue / week.transactions : null);
+        }
+        if (config.metric === 'totalTransactions') {
+            return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.transactions : null);
+        }
+        // Default to totalOmzet
+        return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.revenue : null);
     };
 
-    const periodADaily = getDailyData(periodAData);
-    const periodBDaily = getDailyData(periodBData);
+    const periodAWeekly = getWeeklyData(periodAData);
+    const periodBWeekly = getWeeklyData(periodBData);
 
-    // Store the comparison data for AI analysis
+    // Store the WEEKLY comparison data for AI analysis
     maybeAlsoStore(
         config?.alsoStore,
-        { periodADaily, periodBDaily, metric: config.metric },
+        { periodAWeekly, periodBWeekly, metric: config.metric, labels },
         (v) => {
-            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
-                              config.metric === 'apc' ? formatCurrencyUtil :
-                              (val: any) => formatNumberUtil(val);
-
+            const formatValue = config.metric === 'totalTransactions' ? formatNumberUtil : formatCurrencyUtil;
             return {
                 [`${config.title}_Comparison`]: {
-                    periodA: deepmerge(...v.periodADaily.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    periodA: deepmerge(...v.periodAWeekly.map((value, index) =>
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
-                    periodB: deepmerge(...v.periodBDaily.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    periodB: deepmerge(...v.periodBWeekly.map((value, index) =>
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                 }
             };
@@ -3462,11 +3485,10 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
     createChart(config.canvasId, 'line', {
         labels,
         datasets: [
-            { label: `${config.title} Period A`, data: periodADaily, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
-            { label: `${config.title} Period B`, data: periodBDaily, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+            { label: `${config.title} Period A`, data: periodAWeekly, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} Period B`, data: periodBWeekly, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
         ]
     }, mergeChartOptions(
-        // Use currency for omzet/apc, otherwise use number
         chartYTicks(config.metric === 'totalTransactions' ? shortenNumber : shortenCurrency),
         chartTooltip({
             label: (context) => {
@@ -6083,30 +6105,33 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
     if (!cabangMenuSelect) return;
 
     const selectedMenus = cabangMenuSelect.getSelected() as string[];
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
-    // Helper function to get daily sales quantity for a specific menu at a specific branch
-    const getDailyMenuDataForBranch = (data: any[], branchName: string, menuName: string) => {
-        const dailyQuantities = Array(31).fill(null);
+    // Helper function to get WEEKLY sales quantity for a specific menu at a specific branch
+    const getWeeklyMenuDataForBranch = (data: any[], branchName: string, menuName: string) => {
+        const weeklyQuantities = Array(5).fill(null);
         const branchData = data.filter(s => s.revenueByBranch?.[branchName] !== undefined);
 
         branchData.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            let qty = 0;
-            // Sum quantity from all categories in case menu name exists in multiple
-            if (s.menuItemQuantities) {
-                for (const category in s.menuItemQuantities) {
-                    if (s.menuItemQuantities[category][menuName]) {
-                        qty += s.menuItemQuantities[category][menuName];
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+            if (weekIndex < 5) {
+                let qty = 0;
+                if (s.menuItemQuantities) {
+                    for (const category in s.menuItemQuantities) {
+                        if (s.menuItemQuantities[category][menuName]) {
+                            qty += s.menuItemQuantities[category][menuName];
+                        }
                     }
                 }
-            }
-            if (qty > 0) {
-                 dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
+                if (qty > 0) {
+                    if (weeklyQuantities[weekIndex] === null) weeklyQuantities[weekIndex] = 0;
+                    weeklyQuantities[weekIndex] += qty;
+                }
             }
         });
-        return dailyQuantities;
+        return weeklyQuantities;
     };
 
     // Create a pair of datasets (Branch A and Branch B) for each selected menu
@@ -6115,7 +6140,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         return [
             {
                 label: `${menuName} (${branchA})`,
-                data: getDailyMenuDataForBranch(periodData, branchA, menuName),
+                data: getWeeklyMenuDataForBranch(periodData, branchA, menuName),
                 borderColor: color,
                 borderDash: [5, 5], // Dashed line for Branch A
                 tension: 0.1,
@@ -6123,7 +6148,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
             },
             {
                 label: `${menuName} (${branchB})`,
-                data: getDailyMenuDataForBranch(periodData, branchB, menuName),
+                data: getWeeklyMenuDataForBranch(periodData, branchB, menuName),
                 borderColor: color,
                 borderDash: [], // Solid line for Branch B
                 tension: 0.1,
@@ -6132,7 +6157,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         ];
     });
 
-    // Store menu trend comparison data for AI
+    // Store menu trend comparison data for AI in a WEEKLY format
     config?.alsoStore?.(datasets, (v) => {
         const branchADatasets = v.filter(d => d.label.includes(`(${branchA})`));
         const branchBDatasets = v.filter(d => d.label.includes(`(${branchB})`));
@@ -6142,12 +6167,12 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
                 branches: {
                     [branchA]: deepmerge(...branchADatasets.map(d => ({
                         [d.label.replace(` (${branchA})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [`Day ${index + 1}`]: formatNumberUtil(value),
+                            [labels[index]]: formatNumberUtil(value),
                         }))),
                     }))),
                     [branchB]: deepmerge(...branchBDatasets.map(d => ({
                         [d.label.replace(` (${branchB})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [`Day ${index + 1}`]: formatNumberUtil(value),
+                            [labels[index]]: formatNumberUtil(value),
                         }))),
                     })))
                 }
@@ -6162,7 +6187,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         {
             plugins: { tooltip: { mode: 'index', intersect: false } },
             scales: {
-                x: { title: { display: true, text: 'Day of Month' } },
+                x: { title: { display: true, text: 'Week of Month' } },
                 y: { title: { display: true, text: 'Quantity Sold' } }
             }
         },
@@ -13498,42 +13523,42 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
     if (!waktuMenuSelect) return;
 
     const selectedMenus = waktuMenuSelect.getSelected() as string[];
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
-    // Helper function to get daily sales quantity for a specific menu
-    const getDailyMenuData = (data, menuName) => {
-        const dailyQuantities = Array(31).fill(null);
-        const menuData = data.filter(s => {
-            // Check if the menu exists in any category for this summary
-            return s.menuItemQuantities && Object.values(s.menuItemQuantities).some(cat => cat[menuName] !== undefined);
-        });
+    // Helper function to get WEEKLY sales quantity for a specific menu
+    const getWeeklyMenuData = (data, menuName) => {
+        const weeklyQuantities = Array(5).fill(null);
 
-        menuData.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            let qty = 0;
-            // Sum quantity from all categories in case menu name exists in multiple
-            for (const category in s.menuItemQuantities) {
-                if (s.menuItemQuantities[category][menuName]) {
-                    qty += s.menuItemQuantities[category][menuName];
+        data.forEach(s => {
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+
+            if (weekIndex < 5) {
+                let qty = 0;
+                if (s.menuItemQuantities) {
+                    for (const category in s.menuItemQuantities) {
+                        if (s.menuItemQuantities[category][menuName]) {
+                            qty += s.menuItemQuantities[category][menuName];
+                        }
+                    }
+                }
+                if (qty > 0) {
+                    if (weeklyQuantities[weekIndex] === null) weeklyQuantities[weekIndex] = 0;
+                    weeklyQuantities[weekIndex] += qty;
                 }
             }
-            dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
         });
-        return dailyQuantities;
+        return weeklyQuantities;
     };
 
     // Create a pair of datasets (Period A and Period B) for each selected menu
     const datasets = selectedMenus.flatMap((menuName, index) => {
         const color = colors[index % colors.length];
-
-        const periodAMenuValue = getDailyMenuData(periodAData, menuName);
-        const periodBMenuValue = getDailyMenuData(periodBData, menuName);
-
         return [
             {
                 label: `${menuName} (Period A)`,
-                data: periodAMenuValue,
+                data: getWeeklyMenuData(periodAData, menuName),
                 borderColor: color,
                 borderDash: [5, 5], // Dashed line for Period A
                 tension: 0.1,
@@ -13542,7 +13567,7 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
             },
             {
                 label: `${menuName} (Period B)`,
-                data: periodBMenuValue,
+                data: getWeeklyMenuData(periodBData, menuName),
                 borderColor: color,
                 borderDash: [], // Solid line for Period B
                 tension: 0.1,
@@ -13559,12 +13584,12 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
             menuTrend: {
                 periodA: deepmerge(...periodADatasets.map(d => ({
                     [d.label.replace(' (Period A)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [`Day ${index + 1}`]: formatNumberUtil(value),
+                        [labels[index]]: formatNumberUtil(value),
                     }))),
                 }))),
                 periodB: deepmerge(...periodBDatasets.map(d => ({
                     [d.label.replace(' (Period B)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [`Day ${index + 1}`]: formatNumberUtil(value),
+                        [labels[index]]: formatNumberUtil(value),
                     }))),
                 })))
             }
@@ -13576,14 +13601,9 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
         datasets
     }, mergeChartOptions(
         {
-            plugins: {
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
+            plugins: { tooltip: { mode: 'index', intersect: false } },
             scales: {
-                x: { title: { display: true, text: 'Day of Month' } },
+                x: { title: { display: true, text: 'Week of Month' } },
                 y: { title: { display: true, text: 'Quantity Sold' } }
             }
         },
