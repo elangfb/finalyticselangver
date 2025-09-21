@@ -3822,14 +3822,14 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             }));
             mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
-        
+
         mainRow.innerHTML = mainRowHtml;
         tbody.appendChild(mainRow);
 
         if (!isSubtotal) {
             const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '');
             const allSubKeys = new Set(reports.flatMap(r => Object.keys(r.pnlData?.[metricName] || {})));
-            
+
             allSubKeys.forEach(subKey => {
                 const subRow = document.createElement('tr');
                 subRow.className = `pnl-sub-category sub-items-of-${sanitizedMetricName} hidden`;
@@ -3837,7 +3837,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
                 reports.forEach(report => {
                     const subValue = report.pnlData?.[metricName]?.[subKey] || 0;
-                    
+
                     // --- FIX START: Add the subcategory data to the AI payload ---
                     alsoStore(subValue, (v) => ({
                         historicalPnl: {
@@ -3849,7 +3849,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
                         }
                     }));
                     // --- FIX END ---
-                    
+
                     subRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(subValue)}</td>`;
                 });
                 subRow.innerHTML = subRowHtml;
@@ -6419,7 +6419,7 @@ function generateDailyRecap(data: any[], fileName: string) {
             trafficHtml = daySummary.trafficByHour
                 .map((count, hour) => ({ hour, count }))
                 .filter(item => item.count > 0)
-                .map(item => `<li><span class="font-semibold w-16 inline-block">${String(item.hour).padStart(2, '0')}:00 :</span> ${item.count} bills</li>`)
+                .map(item => `<li><span class="font-semibold w-16 inline-block">${String(item.hour).padStart(2, '0')}:00 :</span> ${item.count} checks</li>`)
                 .join('');
         }
 
@@ -6560,7 +6560,7 @@ function generateMonthlySummary(dailySummaries: any[], fileName: string) {
     document.getElementById('monthly-top-makanan').innerHTML = topMakanan.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
     document.getElementById('monthly-top-minuman').innerHTML = topMinuman.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
     document.getElementById('monthly-revenue-by-branch').innerHTML = Object.entries(monthly.revenueByBranch).map(([name, rev]) => `<li>${name}: ${formatCurrency(rev)}</li>`).join('');
-    document.getElementById('monthly-bills-by-channel').innerHTML = Object.entries(monthly.billsByChannel).map(([name, count]) => `<li>${name}: ${count} bills</li>`).join('');
+    document.getElementById('monthly-bills-by-channel').innerHTML = Object.entries(monthly.billsByChannel).map(([name, count]) => `<li>${name}: ${count} checks</li>`).join('');
 
     // --- 4. Show Modal ---
     document.getElementById('monthly-summary-modal').classList.remove('hidden');
