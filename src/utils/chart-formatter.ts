@@ -1,6 +1,9 @@
-import type { TickOptions } from "chart.js";
-import { shortenDate } from "./string";
+import type { TickOptions, TooltipOptions } from "chart.js";
+import { deepmerge } from "deepmerge-ts";
+import { formatCurrency, formatIntBasedPercentage, shortenDate } from "./string";
 
+type TooltipCallbacks = TooltipOptions['callbacks']
+type TooltipCallbackLabel = TooltipCallbacks['label']
 type TickCallback = TickOptions['callback']
 
 /**
@@ -94,3 +97,59 @@ export const shortenDateTickCallback = function (_, index) {
 
     return shortenDate(labels[index]!, labels);
 } satisfies TickCallback
+
+/**
+ * Generate Chart.js tooltip configuration with custom callback formatters.
+ *
+ * @description
+ * Creates a Chart.js plugins configuration object specifically for tooltip callbacks.
+ * This allows you to define custom functions for the title, label, footer, etc.
+ *
+ * @param callbacks - An object containing callback functions for the tooltip.
+ * @returns A Chart.js plugins configuration object for tooltips.
+ */
+export function chartTooltip<TCallback extends TooltipCallbacks>(callbacks: TCallback) {
+    return { plugins: { tooltip: { callbacks } } }
+}
+
+/**
+ * A pre-configured Chart.js tooltip callback to format the label as Indonesian currency.
+ */
+export const currencyTooltipCallback = ((context) => {
+    let label = context.dataset.label || '';
+    if (label) {
+        label += ': ';
+    }
+    if (context.parsed.y !== null) {
+        label += formatCurrency(context.parsed.y);
+    }
+    return label;
+}) satisfies TooltipCallbackLabel;
+
+/**
+ * A pre-configured Chart.js tooltip callback to format the label as a percentage.
+ */
+export const percentageTooltipCallback = ((context) => {
+    let label = context.dataset.label || '';
+    if (label) {
+        label += ': ';
+    }
+    if (context.parsed !== null) {
+        label += formatIntBasedPercentage(context.parsed);
+    }
+    return label;
+}) satisfies TooltipCallbackLabel;
+
+/**
+ * Deeply merges multiple Chart.js option snippets into a single configuration object.
+ *
+ * @description
+ * Essential for combining the output of multiple helper functions (e.g., chartXTicks,
+ * chartYTicks, chartTooltip) without overwriting nested properties like `scales` or `plugins`.
+ *
+ * @param options - A series of Chart.js option objects to merge.
+ * @returns A single, deeply merged Chart.js options object.
+ */
+export function mergeChartOptions<Ts extends Readonly<ReadonlyArray<object>>>(...options: readonly [...Ts]) {
+    return deepmerge(...options);
+}
