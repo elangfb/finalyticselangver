@@ -960,9 +960,6 @@ async function showSalesTargetModal(data: any) {
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div class="flex items-center">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>
                     </td>
@@ -12292,9 +12289,6 @@ async function showPnlTargetModal(targetData: any, reportId: string, config?: { 
                     <td class="px-6 py-4 text-sm text-gray-500">
 
                         <div class="flex items-center hidden">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>
 
@@ -13520,9 +13514,6 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueB)}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right">
                         <div class="flex items-center justify-end">
-                            <div class="w-20 bg-gray-200 rounded-full h-2.5 mr-3">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold ${changeColor} w-20 text-right">${changeText}</span>
                         </div>
                     </td>
