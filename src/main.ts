@@ -6036,8 +6036,11 @@ function generateCabangProdukChannelSection() {
 
     const alsoStore = createAlsoStoreFn($store, 'cabang-produk-channel');
 
+    const branchAData = periodData.filter(s => s.branches.includes(branchA));
+    const branchBData = periodData.filter(s => s.branches.includes(branchB));
+
     setupBranchMenuTrendChart(periodData, branchA, branchB, { alsoStore });
-    generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart', { alsoStore });
+    generateOrderCompositionChart(branchAData, branchBData, branchA, branchB, 'cabang-category-comparison-chart', { alsoStore });
     generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart', { alsoStore });
 }
 
@@ -13404,10 +13407,9 @@ function generateWaktuProdukChannelSection() {
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
     setupWaktuMenuTrendChart(periodAData, periodBData, { alsoStore });
-    generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart', { alsoStore });
+    generateOrderCompositionChart(periodAData, periodBData, 'Period A', 'Period B', 'waktu-category-comparison-chart', { alsoStore });
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart', { alsoStore });
 }
-
 
 async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
     if (!currentUser) return;
@@ -14846,3 +14848,72 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
         keyFinancialRatios
     };
 }
+
+/**
+ * Generates a grouped bar chart comparing the composition of orders (Food Only, Drink Only, Mixed)
+ * between two datasets (e.g., Period A vs Period B, or Branch A vs Branch B).
+ */
+function generateOrderCompositionChart(
+    dataA: any[],
+    dataB: any[],
+    labelA: string,
+    labelB: string,
+    canvasId: string,
+    config?: { alsoStore?: AlsoStoreFn }
+) {
+    const aggregateComposition = (summaries: any[]) => {
+        return summaries.reduce((acc, s) => {
+            if (s.orderComposition) {
+                acc.foodOnly += s.orderComposition.foodOnly?.count || 0;
+                acc.drinkOnly += s.orderComposition.drinkOnly?.count || 0;
+                acc.mixed += s.orderComposition.mixed?.count || 0;
+            }
+            return acc;
+        }, { foodOnly: 0, drinkOnly: 0, mixed: 0 });
+    };
+
+    const compositionA = aggregateComposition(dataA);
+    const compositionB = aggregateComposition(dataB);
+
+    const labels = ['Food Only Bills', 'Drink Only Bills', 'Mixed Bills'];
+    const valuesA = [compositionA.foodOnly, compositionA.drinkOnly, compositionA.mixed];
+    const valuesB = [compositionB.foodOnly, compositionB.drinkOnly, compositionB.mixed];
+
+    // Store the aggregated data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { labels, valuesA, valuesB },
+        (v) => ({
+            orderComposition: {
+                [labelA]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesA[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesA[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesA[2]),
+                },
+                [labelB]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesB[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesB[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesB[2]),
+                }
+            }
+        })
+    );
+
+    createChart(canvasId, 'bar', {
+        labels,
+        datasets: [
+            { label: labelA, data: valuesA, backgroundColor: '#9CA3AF' },
+            { label: labelB, data: valuesB, backgroundColor: '#4F46E5' }
+        ]
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} bills`;
+            }
+        })
+    ));
+}
+
