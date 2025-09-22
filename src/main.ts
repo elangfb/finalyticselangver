@@ -14875,7 +14875,7 @@ function generateOrderCompositionChart(
     const compositionA = aggregateComposition(dataA);
     const compositionB = aggregateComposition(dataB);
 
-    const labels = ['Food Only Bills', 'Drink Only Bills', 'Mixed Bills'];
+    const labels = ['Food Only Checks', 'Drink Only Checks', 'Mixed Checks'];
     const valuesA = [compositionA.foodOnly, compositionA.drinkOnly, compositionA.mixed];
     const valuesB = [compositionB.foodOnly, compositionB.drinkOnly, compositionB.mixed];
 
@@ -14911,7 +14911,7 @@ function generateOrderCompositionChart(
             label: (context) => {
                 const label = context.dataset.label || '';
                 const value = context.parsed.y;
-                return `${label}: ${formatNumber(value)} bills`;
+                return `${label}: ${formatNumber(value)} checks`;
             }
         })
     ));
