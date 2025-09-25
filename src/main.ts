@@ -36,16 +36,20 @@ import * as $store from './store'
 import { prompts } from './prompt'
 import { applyAnalysisTextBindings } from './utils/dom'
 import {
+  chartTooltip,
   chartXTicks,
   chartYTicks,
+  currencyTooltipCallback,
+  mergeChartOptions,
   shortenDateTickCallback,
-} from './utils/chart-ticks'
+} from './utils/chart-formatter'
 import {
   shortenNumber,
   shortenCurrency,
   formatCurrency as formatCurrencyUtil,
-  formatNumber,
-  formatPercent,
+  formatNumber as formatNumberUtil,
+  formatDecimalBasedPercentage,
+  formatIntBasedPercentage,
   formatMachineYearMonthDay,
   formatMachineYearMonth,
 } from './utils/string'
@@ -149,12 +153,11 @@ function drawMonthlyOmzetComparisonChart() {
     createChart('waktu-omzet-harian-chart', 'line', {
         labels,
         datasets
-    }, {
-        scales: {
-            y: { ticks: { callback: shortenCurrency } },
-            x: { title: { display: true, text: 'Day of Month' } }
-        }
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        { scales: { x: { title: { display: true, text: 'Day of Month' } } } }, // Keep the original title option
+        chartTooltip({ label: currencyTooltipCallback }) // Add tooltip formatting
+    ));
 }
 
 /**
@@ -960,9 +963,6 @@ async function showSalesTargetModal(data: any) {
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div class="flex items-center">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>
                     </td>
@@ -2295,12 +2295,24 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
                 { type: 'bar', label: 'Total Omzet', data: sortedByRevenue.map((s) => s.totalRevenue), backgroundColor: '#4F46E5', yAxisID: 'y-omzet' },
                 { type: 'line', label: 'Total Check', data: sortedByRevenue.map((s) => s.totalCheck), borderColor: '#F97316', yAxisID: 'y-check' },
             ],
-        }, {
-            scales: {
-                'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
-                'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
+        }, mergeChartOptions(
+            {
+                scales: {
+                    'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
+                    'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
+                },
             },
-        });
+            chartTooltip({ // Add this tooltip callback
+                label: (context) => {
+                    const label = context.dataset.label || '';
+                    const value = context.parsed.y;
+                    if (context.dataset.yAxisID === 'y-omzet') {
+                        return `${label}: ${formatCurrency(value)}`;
+                    }
+                    return `${label}: ${formatNumber(value)}`;
+                }
+            })
+        ));
     }
 
     if (ids.apcCanvasId) {
@@ -2309,10 +2321,13 @@ function generateCabangAnalysisFromSummaries(summaries: any[], ids: any) {
         createChart(ids.apcCanvasId, 'bar', {
             labels: sortedByApc.map((s) => s.name),
             datasets: [{ label: 'Average Check (APC)', data: sortedByApc.map((s) => s.avgCheck), backgroundColor: '#10B981' }],
-        }, {
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } },
-        });
+        }, mergeChartOptions(
+            {
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } },
+            },
+            chartTooltip({ label: currencyTooltipCallback })
+        ));
     }
 
     // Populate Detail Table
@@ -2708,14 +2723,21 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: 
     config?.alsoStore?.(datasets, (v) => ({
       menuTrend: deepmerge(...v.map(d => ({
         [d.label]: deepmerge(...d.data.map((v, index) => ({
-          [formatMachineYearMonthDay(labels[index])]: formatNumber(v),
+          [formatMachineYearMonthDay(labels[index])]: formatNumberUtil(v),
         }))),
       }))),
     }));
 
-    createChart(canvasId, 'line', { labels, datasets }, deepmerge(
+    createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
         chartYTicks(shortenNumber),
-        chartXTicks(shortenDateTickCallback)
+        chartXTicks(shortenDateTickCallback),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
     ));
 }
 
@@ -2801,7 +2823,10 @@ function generateYoYAnalysisFromSummaries(summaries: any[]) {
             { label: `Omzet ${prevYear}`, data: monthlyData.map(m => m.prevRevenue), borderColor: '#9CA3AF', tension: 0.1 },
             { label: `Omzet ${selectedYear}`, data: monthlyData.map(m => m.currentRevenue), borderColor: '#4F46E5', tension: 0.1 },
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 
     // --- Populate Detail Table ---
     const tbody = document.getElementById('yoy-detail-tbody');
@@ -2849,7 +2874,13 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
     createChart('order-by-menu-category-chart', 'doughnut', {
         labels: Object.keys(aggregatedData.categoryQuantities),
         datasets: [{ data: Object.values(aggregatedData.categoryQuantities), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'] }],
-    });
+    }, chartTooltip({
+        label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: ${formatNumber(value)} items`;
+        }
+    }));
 
     // --- Helper to create Top 5 Bar Charts ---
     const createTop5Chart = (containerId: string, categoryName: string, color: string) => {
@@ -2869,7 +2900,13 @@ function generateProductAnalysisChartsFromSummaries(summaries: any[]) {
                     data: top5.map(item => item[1]),
                     backgroundColor: color,
                 }],
-            }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+            }, mergeChartOptions(
+                { indexAxis: 'y', plugins: { legend: { display: false } } },
+                chartXTicks(shortenNumber), // Format the horizontal axis (now the value axis)
+                chartTooltip({
+                    label: (context) => `Quantity Sold: ${formatNumber(context.parsed.x)}`
+                })
+            ))
         } else {
             const ctx = document.getElementById(containerId).getContext('2d');
             ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear previous drawing
@@ -2908,12 +2945,24 @@ function generatePenjualanBulananChartFromSummaries(summaries: any[], canvasId: 
             { label: 'Total Penjualan', data: salesData, backgroundColor: '#3B82F6', yAxisID: 'y-sales' },
             { label: 'Total Check', data: checkData, backgroundColor: '#F97316', yAxisID: 'y-check' },
         ],
-    }, {
-        scales: {
-            'y-sales': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Penjualan (Rp)' } },
-            'y-check': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false } },
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-sales': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Penjualan (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-check': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
+            },
         },
-    });
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-sales') {
+                    return `${label}: ${formatCurrency(value)}`;
+                }
+                return `${label}: ${formatNumber(value)}`;
+            }
+        })
+    ));
 }
 
 function generateWaktuPenjualanSection() {
@@ -3083,37 +3132,50 @@ async function setupCabangPenjualanSelectors() {
  * Reusable function to compare a daily metric trend between two branches.
  */
 function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1);
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
 
-    const getDailyData = (branchName) => {
-        const daily = Array(31).fill(null);
+    const getWeeklyData = (branchName) => {
+        const weeklyTotals = Array(5).fill(null).map(() => ({ revenue: 0, transactions: 0 }));
+
         const branchSummaries = periodData.filter(s => s.revenueByBranch?.[branchName] !== undefined);
+
         branchSummaries.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            daily[dayIndex] = s[config.metric]; // Note: This assumes TC and APC are top-level on the summary
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+
+            if (weekIndex < 5) {
+                weeklyTotals[weekIndex].revenue += s.revenueByBranch[branchName] || 0;
+                weeklyTotals[weekIndex].transactions += s.transactionCountsByBranch?.[branchName] || 0;
+            }
         });
-        return daily;
+
+        if (config.metric === 'apc') {
+            return weeklyTotals.map(week => week.transactions > 0 ? week.revenue / week.transactions : null);
+        }
+        if (config.metric === 'totalTransactions') {
+            return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.transactions : null);
+        }
+        // Default to totalOmzet
+        return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.revenue : null);
     };
 
-    const branchAData = getDailyData(branchA);
-    const branchBData = getDailyData(branchB);
+    const branchAData = getWeeklyData(branchA);
+    const branchBData = getWeeklyData(branchB);
 
-    // Store branch comparison data for AI analysis
+    // Store WEEKLY branch comparison data for AI analysis
     maybeAlsoStore(
         config?.alsoStore,
-        { branchAData, branchBData, branchA, branchB, metric: config.metric, title: config.title },
+        { branchAData, branchBData, branchA, branchB, metric: config.metric, title: config.title, labels },
         (v) => {
-            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
-                              config.metric === 'apc' ? formatCurrencyUtil :
-                              (val: any) => formatNumber(val);
+            const formatValue = config.metric === 'totalTransactions' ? formatNumberUtil : formatCurrencyUtil;
 
             return {
                 [`${v.title.toLowerCase().replace(/\s+/g, '')}BranchComparison`]: {
                     [v.branchA]: deepmerge(...v.branchAData.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                     [v.branchB]: deepmerge(...v.branchBData.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                     metric: v.metric
                 }
@@ -3127,7 +3189,16 @@ function generateBranchComparisonLineChart(periodData: any[], branchA: string, b
             { label: `${config.title} ${branchA}`, data: branchAData, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
             { label: `${config.title} ${branchB}`, data: branchBData, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(config.metric === 'totalTransactions' ? shortenNumber : shortenCurrency),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${config.metric === 'totalTransactions' ? formatNumber(value) : formatCurrency(value)}`;
+            }
+        })
+    ));
 }
 
 /**
@@ -3179,7 +3250,10 @@ function generateBranchWeeklyTrendComparisonChart(periodData: any[], branchA: st
             { label: `Avg Sales ${branchA}`, data: branchAWeekly, borderColor: '#9CA3AF', tension: 0.1 },
             { label: `Avg Sales ${branchB}`, data: branchBWeekly, borderColor: '#4F46E5', tension: 0.1 }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 // Add this new helper function
@@ -3260,11 +3334,11 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
             [`${v.title.toLowerCase().replace(/\s+/g, '')}Comparison`]: {
                 [v.branchA || 'Branch A']: {
                     absoluteValue: formatCurrencyUtil(v.valueA),
-                    percentage: formatPercent(v.percentA / 100)
+                    percentage: formatDecimalBasedPercentage(v.percentA / 100)
                 },
                 [v.branchB || 'Branch B']: {
                     absoluteValue: formatCurrencyUtil(v.valueB),
-                    percentage: formatPercent(v.percentB / 100)
+                    percentage: formatDecimalBasedPercentage(v.percentB / 100)
                 },
                 metric: v.metric
             }
@@ -3277,7 +3351,29 @@ function generateBranchRatioComparisonChart(reportA, reportB, config: { canvasId
             { type: 'bar', label: `${config.title} (Rp)`, data: [valueA, valueB], backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
             { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
         ]
-    }, { /* ... standard dual-axis scale options ... */ });
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    label += formatCurrencyUtil(value);
+                } else {
+                    label += `${Number(value).toFixed(2)}%`;
+                }
+                return label;
+            }
+        })
+    ));
 }
 
 async function setupWaktuPenjualanSelectors() {
@@ -3340,36 +3436,46 @@ async function updatePeriodSelectorsForPenjualan(selectedBranch: string) {
  * Reusable function to generate a line chart comparing a metric between two periods.
  */
 function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[], config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
 
-    const getDailyData = (data) => {
-        const daily = Array(31).fill(null);
+    const getWeeklyData = (data) => {
+        const weeklyTotals = Array(5).fill(null).map(() => ({ revenue: 0, transactions: 0 }));
+
         data.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            daily[dayIndex] = s[config.metric];
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+            if (weekIndex < 5) {
+                weeklyTotals[weekIndex].revenue += s.totalOmzet;
+                weeklyTotals[weekIndex].transactions += s.totalTransactions;
+            }
         });
-        return daily;
+
+        if (config.metric === 'apc') {
+            return weeklyTotals.map(week => week.transactions > 0 ? week.revenue / week.transactions : null);
+        }
+        if (config.metric === 'totalTransactions') {
+            return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.transactions : null);
+        }
+        // Default to totalOmzet
+        return weeklyTotals.map(week => week.transactions > 0 || week.revenue > 0 ? week.revenue : null);
     };
 
-    const periodADaily = getDailyData(periodAData);
-    const periodBDaily = getDailyData(periodBData);
+    const periodAWeekly = getWeeklyData(periodAData);
+    const periodBWeekly = getWeeklyData(periodBData);
 
-    // Store the comparison data for AI analysis
+    // Store the WEEKLY comparison data for AI analysis
     maybeAlsoStore(
         config?.alsoStore,
-        { periodADaily, periodBDaily, metric: config.metric },
+        { periodAWeekly, periodBWeekly, metric: config.metric, labels },
         (v) => {
-            const formatValue = config.metric === 'totalOmzet' ? formatCurrencyUtil :
-                              config.metric === 'apc' ? formatCurrencyUtil :
-                              (val: any) => formatNumber(val);
-
+            const formatValue = config.metric === 'totalTransactions' ? formatNumberUtil : formatCurrencyUtil;
             return {
                 [`${config.title}_Comparison`]: {
-                    periodA: deepmerge(...v.periodADaily.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    periodA: deepmerge(...v.periodAWeekly.map((value, index) =>
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
-                    periodB: deepmerge(...v.periodBDaily.map((value, index) =>
-                        value !== null ? { [`Day ${index + 1}`]: formatValue(value) } : {}
+                    periodB: deepmerge(...v.periodBWeekly.map((value, index) =>
+                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
                     )),
                 }
             };
@@ -3379,10 +3485,19 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
     createChart(config.canvasId, 'line', {
         labels,
         datasets: [
-            { label: `${config.title} Period A`, data: periodADaily, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
-            { label: `${config.title} Period B`, data: periodBDaily, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
+            { label: `${config.title} Period A`, data: periodAWeekly, borderColor: '#9CA3AF', tension: 0.1, spanGaps: true },
+            { label: `${config.title} Period B`, data: periodBWeekly, borderColor: '#4F46E5', tension: 0.1, spanGaps: true }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(config.metric === 'totalTransactions' ? shortenNumber : shortenCurrency),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${config.metric === 'totalTransactions' ? formatNumber(value) : formatCurrency(value)}`;
+            }
+        })
+    ));
 }
 
 /**
@@ -3433,7 +3548,10 @@ function generateWeeklyTrendComparisonChart(periodAData: any[], periodBData: any
             { label: `Avg Sales Period A`, data: periodAWeekly, borderColor: '#9CA3AF', tension: 0.1 },
             { label: `Avg Sales Period B`, data: periodBWeekly, borderColor: '#4F46E5', tension: 0.1 }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 function generateYoYComparisonChart(periodB: string, selectedBranch: string, config?: { alsoStore?: AlsoStoreFn }) {
@@ -3583,7 +3701,7 @@ function generateSpecificSubCategoryRatioChart(
     config.alsoStore?.(lineData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
         [formatMachineYearMonth(reports[index].period)]: {
-          inPercentage: formatPercent(v / 100),
+          inPercentage: formatDecimalBasedPercentage(v / 100),
         },
       }))),
     }));
@@ -3594,12 +3712,29 @@ function generateSpecificSubCategoryRatioChart(
             { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp', order: 2},
             { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent', order: 1 }
         ]
-    }, {
-        scales: {
-            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
-        }
-    });
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    label += formatCurrencyUtil(value);
+                } else {
+                    label += formatIntBasedPercentage(value, 2);
+                }
+                return label;
+            }
+        })
+    ));
 }
 
 /**
@@ -3822,14 +3957,14 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
             }));
             mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
-        
+
         mainRow.innerHTML = mainRowHtml;
         tbody.appendChild(mainRow);
 
         if (!isSubtotal) {
             const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '');
             const allSubKeys = new Set(reports.flatMap(r => Object.keys(r.pnlData?.[metricName] || {})));
-            
+
             allSubKeys.forEach(subKey => {
                 const subRow = document.createElement('tr');
                 subRow.className = `pnl-sub-category sub-items-of-${sanitizedMetricName} hidden`;
@@ -3837,7 +3972,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
                 reports.forEach(report => {
                     const subValue = report.pnlData?.[metricName]?.[subKey] || 0;
-                    
+
                     // --- FIX START: Add the subcategory data to the AI payload ---
                     alsoStore(subValue, (v) => ({
                         historicalPnl: {
@@ -3849,7 +3984,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
                         }
                     }));
                     // --- FIX END ---
-                    
+
                     subRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(subValue)}</td>`;
                 });
                 subRow.innerHTML = subRowHtml;
@@ -4015,7 +4150,7 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
     config.alsoStore?.(lineData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
         [formatMachineYearMonth(reports[index].period)]: {
-          inPercentage: formatPercent(v / 100),
+          inPercentage: formatDecimalBasedPercentage(v / 100),
         },
       }))),
     }));
@@ -4026,12 +4161,29 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
             { type: 'bar', label: `${config.title} (Rp)`, data: barData, backgroundColor: '#60A5FA', yAxisID: 'y-rp', order: 2 },
             { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent', order: 1}
         ]
-    }, {
-        scales: {
-            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
-        }
-    });
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    label += formatCurrencyUtil(value);
+                } else {
+                    label += formatIntBasedPercentage(value, 2); // Using the new helper
+                }
+                return label;
+            }
+        })
+    ));
 }
 
 function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
@@ -4074,7 +4226,7 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
             data: Object.values(channelSales),
             backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4444', '#F59E0B'],
         }],
-    });
+    }, chartTooltip({ label: currencyTooltipCallback }));
 }
 
 function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
@@ -4112,7 +4264,10 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
     $store.setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [ds.label]: ds.data })));
 
     // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
-    createChart(canvasId, 'line', { labels, datasets });
+    createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: string) {
@@ -4135,14 +4290,17 @@ function generateOmzetOutletChartFromSummaries(summaries: any[], canvasId: strin
             data: sortedOutlets.map((entry) => entry[1]),
             backgroundColor: '#4F46E5',
         }],
-    }, {
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: { callback: shortenCurrency },
+    }, mergeChartOptions(
+        {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: shortenCurrency },
+                },
             },
         },
-    });
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'bar', config?: { alsoStore?: AlsoStoreFn }) {
@@ -4195,7 +4353,11 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
     createChart(canvasId, 'bar', {
         labels: sortedWeeks,
         datasets: datasets,
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartXTicks(shortenDateTickCallback),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 function generateOmzetBulananChartFromSummaries(summaries: any[]) {
@@ -4222,18 +4384,10 @@ function generateOmzetBulananChartFromSummaries(summaries: any[]) {
             borderColor: '#8B5CF6',
             tension: 0.1,
         }],
-    }, {
-        // This new options object correctly configures the axes.
-        scales: {
-            y: {
-                ticks: { callback: shortenCurrency } // Keep the currency formatting for the y-axis.
-            },
-            x: {
-                // By not specifying a 'type', we let Chart.js use the default 'category'
-                // scale, which will correctly display the month names from the labels.
-            }
-        }
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenCurrency),
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
@@ -4371,7 +4525,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
     adjustFontSize(ids.omzet, `Rp${currentTotals.omzet.toLocaleString('id-ID')}`);
     config?.alsoStore?.(currentTotals.omzet, (v) => ({ omzet: formatCurrencyUtil(v) }))
     adjustFontSize(ids.check, currentTotals.checks.toLocaleString('id-ID'));
-    config?.alsoStore?.(currentTotals.checks, (v) => ({ totalCheck: formatNumber(v) }))
+    config?.alsoStore?.(currentTotals.checks, (v) => ({ totalCheck: formatNumberUtil(v) }))
     adjustFontSize(ids.avgCheck, `Rp${currentAvgCheck.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`);
     config?.alsoStore?.(currentAvgCheck, (v) => ({ avgPerCheck: formatCurrencyUtil(v) }))
 
@@ -4382,7 +4536,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
         calculateAndDisplayGrowth(ids.omzetGrowth, currentTotals.omzet, lastPeriodTotals.omzet);
         config?.alsoStore?.(lastPeriodTotals.omzet, (v) => ({ lastPeriodOmzet: formatCurrencyUtil(v) }))
         calculateAndDisplayGrowth(ids.checkGrowth, currentTotals.checks, lastPeriodTotals.checks);
-        config?.alsoStore?.(lastPeriodTotals.checks, (v) => ({ lastPeriodCheck: formatNumber(v) }))
+        config?.alsoStore?.(lastPeriodTotals.checks, (v) => ({ lastPeriodCheck: formatNumberUtil(v) }))
         calculateAndDisplayGrowth(ids.avgCheckGrowth, currentAvgCheck, lastPeriodAvgCheck);
         config?.alsoStore?.(lastPeriodAvgCheck, (v) => ({ lastPeriodAvgPerCheck: formatCurrencyUtil(v) }))
     } else {
@@ -4461,7 +4615,11 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     createChart(canvasId, 'line', {
         labels: labels,
         datasets: datasets, // This now contains all three datasets
-    }, deepmerge(chartYTicks(shortenCurrency), chartXTicks(shortenDateTickCallback)));
+    }, mergeChartOptions(
+      chartTooltip({ label: currencyTooltipCallback }),
+      chartYTicks(shortenCurrency),
+      chartXTicks(shortenDateTickCallback),
+    ));
 }
 
 
@@ -4481,7 +4639,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
               tcData,
               (v) => ({
                 totalCheckHarian: deepmerge(...v.map((v, index) => ({
-                  [`Day ${index + 1}`]: formatNumber(v),
+                  [`Day ${index + 1}`]: formatNumberUtil(v),
                 }))),
               })),
             backgroundColor: '#60A5FA',
@@ -4497,7 +4655,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
               apcData,
               (v) => ({
                 avgPerCheckHarian: deepmerge(...v.map((v, index) => ({
-                  [`Day ${index + 1}`]: formatNumber(v),
+                  [`Day ${index + 1}`]: formatNumberUtil(v),
                 }))),
               })),
             borderColor: '#F97316',
@@ -4510,7 +4668,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     // Add Target Line for "Total Transaksi Per Hari" (TC)
     const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
     if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
-      config?.alsoStore?.(salesTarget['Total Transaksi Per Hari'], (v) => ({ targetTotalCheckHarian: formatNumber(v) }))
+      config?.alsoStore?.(salesTarget['Total Transaksi Per Hari'], (v) => ({ targetTotalCheckHarian: formatNumberUtil(v) }))
         datasets.push({
             type: 'line',
             label: 'Target TC Harian',
@@ -4542,25 +4700,25 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     createChart(canvasId, 'bar', {
         labels: labels,
         datasets: datasets, // Use the new datasets array
-    }, deepmerge({
-        scales: {
-            'y-tc': {
-                type: 'linear',
-                display: true,
-                position: 'left',
-                title: { display: true, text: 'Total Check' },
-                ticks: { callback: shortenNumber }
-            },
-            'y-apc': {
-                type: 'linear',
-                display: true,
-                position: 'right',
-                title: { display: true, text: 'Average Check (Rp)' },
-                grid: { drawOnChartArea: false },
-                ticks: { callback: shortenCurrency }
-            },
-        }
-    }, chartXTicks(shortenDateTickCallback)));
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-tc': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Check' }, ticks: { callback: shortenNumber } },
+                'y-apc': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenCurrency } },
+            }
+        },
+        chartXTicks(shortenDateTickCallback),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-apc') {
+                    return `${label}: ${formatCurrency(value)}`;
+                }
+                return `${label}: ${formatNumber(value)}`;
+            }
+        })
+    ));
 }
 
 /**
@@ -4686,9 +4844,9 @@ const calculateComparison = (current, previous) => {
   const growth = (diff / previous) * 100
   return {
     upOrDown: growth > 0 ? '▲' : '▼',
-    percentage: formatNumber(Math.abs(growth), 1),
+    percentage: formatNumberUtil(Math.abs(growth), 1),
     plusOrMinus: growth > 0 ? '+' : '-',
-    difference: formatNumber(Math.abs(diff), 0),
+    difference: formatNumberUtil(Math.abs(diff), 0),
   }
 }
 
@@ -4756,7 +4914,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
   const lastPeriodAvgCheck = lastPeriodCheck > 0 ? lastPeriodOmzet / lastPeriodCheck : 0
 
   stateUpdate.currentOmzetFormatted = formatCurrency(currentOmzet)
-  stateUpdate.currentCheckFormatted = formatNumber(currentCheck)
+  stateUpdate.currentCheckFormatted = formatNumberUtil(currentCheck)
   stateUpdate.currentAvgCheckFormatted = formatCurrency(currentAvgCheck)
 
   stateUpdate.lastPeriodOmzetComparison = calculateComparison(currentOmzet, lastPeriodOmzet)
@@ -4775,7 +4933,7 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
   const topOmzetBranch = [...branchStats].toSorted((a, b) => b.revenue - a.revenue)[0]
   if (topOmzetBranch) {
     stateUpdate.topOmzetOutletName = topOmzetBranch.name
-    stateUpdate.topOmzetPercentage = formatNumber((topOmzetBranch.revenue / currentOmzet) * 100)
+    stateUpdate.topOmzetPercentage = formatNumberUtil((topOmzetBranch.revenue / currentOmzet) * 100)
   }
 
   // --- PRODUCT METRICS (FOOD) ---
@@ -4792,11 +4950,11 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
     stateUpdate.top5RevenueFood = foodByMenu.slice(0, 5).map(([name, data]) => ({
       name: name,
       revenue: formatCurrency(data.revenue),
-      percent: formatNumber((data.revenue / totalFoodRevenue) * 100),
+      percent: formatNumberUtil((data.revenue / totalFoodRevenue) * 100),
     }))
     const superhero = foodByMenu[0]
     stateUpdate.superheroName = superhero[0]
-    stateUpdate.superheroContributionPercent = formatNumber((superhero[1].revenue / currentOmzet) * 100)
+    stateUpdate.superheroContributionPercent = formatNumberUtil((superhero[1].revenue / currentOmzet) * 100)
     stateUpdate.superheroContributionNominal = formatCurrency(superhero[1].revenue)
   }
 
@@ -4814,11 +4972,11 @@ function updatePdfData(currentData: any[], lastPeriodData: any[]): void {
     stateUpdate.top5RevenueDrink = drinkByMenu.slice(0, 5).map(([name, data]) => ({
       name: name,
       revenue: formatCurrency(data.revenue),
-      percent: formatNumber((data.revenue / totalDrinkRevenue) * 100),
+      percent: formatNumberUtil((data.revenue / totalDrinkRevenue) * 100),
     }))
     const sidekick = drinkByMenu[0]
     stateUpdate.sidekickName = sidekick[0]
-    stateUpdate.sidekickContributionPercent = formatNumber((sidekick[1].revenue / currentOmzet) * 100)
+    stateUpdate.sidekickContributionPercent = formatNumberUtil((sidekick[1].revenue / currentOmzet) * 100)
     stateUpdate.sidekickContributionNominal = formatCurrency(sidekick[1].revenue)
   }
 
@@ -4928,7 +5086,7 @@ function calculateAndDisplayGrowth(elementId: string, currentValue: number, prev
 
   config?.alsoStore?.(growth, (v) => ({
     [`${elementId}_growth`]:
-    `${sign}${formatPercent(v)}`,
+    `${sign}${formatDecimalBasedPercentage(v)}`,
   }))
 
   element.textContent = `${sign}${growth.toFixed(1)}% vs comparison period`
@@ -5670,7 +5828,16 @@ function generateTcHarianJamChart(data: any[]): void {
       borderColor: '#F97316',
       tension: 0.1,
     }],
-  })
+  }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value, 1)}`;
+            }
+        })
+    ))
 }
 
 /**
@@ -5722,13 +5889,16 @@ function generateCabangAnalysis(data: any[]): void {
       data: processedStats.map((s) => s.totalRevenue),
       backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
     }],
-  }, {
-    plugins: {
-      legend: {
-        display: false,
-      },
-    },
-  })
+  }, mergeChartOptions(
+        {
+            plugins: {
+                legend: {
+                    display: false,
+                },
+            },
+        },
+        chartTooltip({ label: currencyTooltipCallback })
+    ))
 
   // --- Populate Stat Cards ---
   const formatCurrency = (value) => `Rp${value.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`
@@ -5782,23 +5952,24 @@ function generateCabangAnalysis(data: any[]): void {
         yAxisID: 'y-check',
       },
     ],
-  }, {
-    scales: {
-      'y-omzet': {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        title: { display: true, text: 'Total Omzet (Rp)' },
-      },
-      'y-check': {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        title: { display: true, text: 'Total Check' },
-        grid: { drawOnChartArea: false },
+  }, mergeChartOptions(
+    {
+      scales: {
+        'y-omzet': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
+        'y-check': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
       },
     },
-  })
+    chartTooltip({
+        label: (context) => {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            if (context.dataset.yAxisID === 'y-omzet') {
+                return `${label}: ${formatCurrency(value)}`;
+            }
+            return `${label}: ${formatNumber(value)}`;
+        }
+    })
+  ))
 
   // APC Chart
   const sortedByApc = [...processedStats].toSorted((a, b) => b.avgCheck - a.avgCheck)
@@ -5810,17 +5981,18 @@ function generateCabangAnalysis(data: any[]): void {
       data: sortedByApc.map((s) => s.avgCheck),
       backgroundColor: '#10B981',
     }],
-  }, {
-    plugins: { legend: { display: false } },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: function (value) { return formatCurrency(value) },
+  }, mergeChartOptions(
+    {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: shortenCurrency },
         },
       },
     },
-  })
+    chartTooltip({ label: currencyTooltipCallback })
+  ))
 
   // --- Populate Detail Table ---
   const tbody = document.getElementById('cabang-detail-tbody')
@@ -5864,8 +6036,11 @@ function generateCabangProdukChannelSection() {
 
     const alsoStore = createAlsoStoreFn($store, 'cabang-produk-channel');
 
+    const branchAData = periodData.filter(s => s.branches.includes(branchA));
+    const branchBData = periodData.filter(s => s.branches.includes(branchB));
+
     setupBranchMenuTrendChart(periodData, branchA, branchB, { alsoStore });
-    generateBranchCategoryComparisonChart(periodData, branchA, branchB, 'cabang-category-comparison-chart', { alsoStore });
+    generateOrderCompositionChart(branchAData, branchBData, branchA, branchB, 'cabang-category-comparison-chart', { alsoStore });
     generateBranchChannelComparisonChart(periodData, branchA, branchB, 'cabang-channel-comparison-chart', { alsoStore });
 }
 
@@ -5933,30 +6108,33 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
     if (!cabangMenuSelect) return;
 
     const selectedMenus = cabangMenuSelect.getSelected() as string[];
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
-    // Helper function to get daily sales quantity for a specific menu at a specific branch
-    const getDailyMenuDataForBranch = (data: any[], branchName: string, menuName: string) => {
-        const dailyQuantities = Array(31).fill(null);
+    // Helper function to get WEEKLY sales quantity for a specific menu at a specific branch
+    const getWeeklyMenuDataForBranch = (data: any[], branchName: string, menuName: string) => {
+        const weeklyQuantities = Array(5).fill(null);
         const branchData = data.filter(s => s.revenueByBranch?.[branchName] !== undefined);
 
         branchData.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            let qty = 0;
-            // Sum quantity from all categories in case menu name exists in multiple
-            if (s.menuItemQuantities) {
-                for (const category in s.menuItemQuantities) {
-                    if (s.menuItemQuantities[category][menuName]) {
-                        qty += s.menuItemQuantities[category][menuName];
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+            if (weekIndex < 5) {
+                let qty = 0;
+                if (s.menuItemQuantities) {
+                    for (const category in s.menuItemQuantities) {
+                        if (s.menuItemQuantities[category][menuName]) {
+                            qty += s.menuItemQuantities[category][menuName];
+                        }
                     }
                 }
-            }
-            if (qty > 0) {
-                 dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
+                if (qty > 0) {
+                    if (weeklyQuantities[weekIndex] === null) weeklyQuantities[weekIndex] = 0;
+                    weeklyQuantities[weekIndex] += qty;
+                }
             }
         });
-        return dailyQuantities;
+        return weeklyQuantities;
     };
 
     // Create a pair of datasets (Branch A and Branch B) for each selected menu
@@ -5965,7 +6143,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         return [
             {
                 label: `${menuName} (${branchA})`,
-                data: getDailyMenuDataForBranch(periodData, branchA, menuName),
+                data: getWeeklyMenuDataForBranch(periodData, branchA, menuName),
                 borderColor: color,
                 borderDash: [5, 5], // Dashed line for Branch A
                 tension: 0.1,
@@ -5973,7 +6151,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
             },
             {
                 label: `${menuName} (${branchB})`,
-                data: getDailyMenuDataForBranch(periodData, branchB, menuName),
+                data: getWeeklyMenuDataForBranch(periodData, branchB, menuName),
                 borderColor: color,
                 borderDash: [], // Solid line for Branch B
                 tension: 0.1,
@@ -5982,7 +6160,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
         ];
     });
 
-    // Store menu trend comparison data for AI
+    // Store menu trend comparison data for AI in a WEEKLY format
     config?.alsoStore?.(datasets, (v) => {
         const branchADatasets = v.filter(d => d.label.includes(`(${branchA})`));
         const branchBDatasets = v.filter(d => d.label.includes(`(${branchB})`));
@@ -5992,12 +6170,12 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
                 branches: {
                     [branchA]: deepmerge(...branchADatasets.map(d => ({
                         [d.label.replace(` (${branchA})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [`Day ${index + 1}`]: formatNumber(value),
+                            [labels[index]]: formatNumberUtil(value),
                         }))),
                     }))),
                     [branchB]: deepmerge(...branchBDatasets.map(d => ({
                         [d.label.replace(` (${branchB})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [`Day ${index + 1}`]: formatNumber(value),
+                            [labels[index]]: formatNumberUtil(value),
                         }))),
                     })))
                 }
@@ -6008,18 +6186,23 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
     createChart('cabang-menu-trend-chart', 'line', {
         labels,
         datasets
-    }, {
-        plugins: {
-            tooltip: {
-                mode: 'index',
-                intersect: false
+    }, mergeChartOptions(
+        {
+            plugins: { tooltip: { mode: 'index', intersect: false } },
+            scales: {
+                x: { title: { display: true, text: 'Week of Month' } },
+                y: { title: { display: true, text: 'Quantity Sold' } }
             }
         },
-        scales: {
-            x: { title: { display: true, text: 'Day of Month' } },
-            y: { title: { display: true, text: 'Quantity Sold' } }
-        }
-    });
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 /**
@@ -6046,8 +6229,8 @@ function generateBranchCategoryComparisonChart(periodData: any[], branchA: strin
                     ...data.allCategories.map((category, index) => ({
                         [category]: {
                             branches: {
-                                [branchA]: formatNumber(data.branchAValues[index]),
-                                [branchB]: formatNumber(data.branchBValues[index]),
+                                [branchA]: formatNumberUtil(data.branchAValues[index]),
+                                [branchB]: formatNumberUtil(data.branchBValues[index]),
                             },
                             leader: data.branchAValues[index] > data.branchBValues[index] ? branchA :
                                    data.branchBValues[index] > data.branchAValues[index] ? branchB : 'Equal'
@@ -6064,7 +6247,16 @@ function generateBranchCategoryComparisonChart(periodData: any[], branchA: strin
             { label: branchA, data: branchAValues, backgroundColor: '#9CA3AF' },
             { label: branchB, data: branchBValues, backgroundColor: '#4F46E5' }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 /**
@@ -6109,7 +6301,10 @@ function generateBranchChannelComparisonChart(periodData: any[], branchA: string
             { label: branchA, data: branchAValues, backgroundColor: '#9CA3AF' },
             { label: branchB, data: branchBValues, backgroundColor: '#4F46E5' }
         ]
-    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+    }, mergeChartOptions(
+        { scales: { y: { ticks: { callback: shortenCurrency } } } },
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 // Add these two new functions to main.ts
@@ -6193,7 +6388,22 @@ function generateMultiWeekTrendChart(data: any[], canvasId: string, metric: stri
     };
   }).slice(-5); // Only show the last 5 weeks for clarity
 
-  createChart(canvasId, 'line', { labels, datasets });
+  createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
+      chartYTicks((value) => {
+          if (metric === 'TC') return shortenNumber(Number(value));
+          if (metric === 'APC' || metric === 'Sales') return shortenCurrency(Number(value));
+          return value;
+      }),
+      chartTooltip({
+          label: (context) => {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y;
+              if (metric === 'TC') return `${label}: ${formatNumber(value)}`;
+              if (metric === 'APC' || metric === 'Sales') return `${label}: ${formatCurrency(value)}`;
+              return `${label}: ${value}`;
+          }
+      })
+  ));
 }
 
 
@@ -6419,7 +6629,7 @@ function generateDailyRecap(data: any[], fileName: string) {
             trafficHtml = daySummary.trafficByHour
                 .map((count, hour) => ({ hour, count }))
                 .filter(item => item.count > 0)
-                .map(item => `<li><span class="font-semibold w-16 inline-block">${String(item.hour).padStart(2, '0')}:00 :</span> ${item.count} bills</li>`)
+                .map(item => `<li><span class="font-semibold w-16 inline-block">${String(item.hour).padStart(2, '0')}:00 :</span> ${item.count} checks</li>`)
                 .join('');
         }
 
@@ -6560,7 +6770,7 @@ function generateMonthlySummary(dailySummaries: any[], fileName: string) {
     document.getElementById('monthly-top-makanan').innerHTML = topMakanan.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
     document.getElementById('monthly-top-minuman').innerHTML = topMinuman.map(([name, qty]) => `<li>${name} (${qty})</li>`).join('');
     document.getElementById('monthly-revenue-by-branch').innerHTML = Object.entries(monthly.revenueByBranch).map(([name, rev]) => `<li>${name}: ${formatCurrency(rev)}</li>`).join('');
-    document.getElementById('monthly-bills-by-channel').innerHTML = Object.entries(monthly.billsByChannel).map(([name, count]) => `<li>${name}: ${count} bills</li>`).join('');
+    document.getElementById('monthly-bills-by-channel').innerHTML = Object.entries(monthly.billsByChannel).map(([name, count]) => `<li>${name}: ${count} checks</li>`).join('');
 
     // --- 4. Show Modal ---
     document.getElementById('monthly-summary-modal').classList.remove('hidden');
@@ -7365,7 +7575,10 @@ function generateApcPerJamChart(data: any[]): void {
       borderColor: '#3B82F6',
       tension: 0.1,
     }],
-  })
+  }, mergeChartOptions(
+      chartYTicks(shortenCurrency),
+      chartTooltip({ label: currencyTooltipCallback })
+  ))
 }
 
 /**
@@ -8362,8 +8575,8 @@ function generateAvgPurchaseValueChart(data: any[]): void {
          popularMenu2: popularMenu[1]?.[0] || '',
          popularMenu3: popularMenu[2]?.[0] || '',
          popularMenu4: popularMenu[3]?.[0] || '',
-         avgCheckPeak1Min: formatNumber(minCheck, 0),
-         avgCheckPeak1Max: formatNumber(maxCheck, 0),
+         avgCheckPeak1Min: formatNumberUtil(minCheck, 0),
+         avgCheckPeak1Max: formatNumberUtil(maxCheck, 0),
      });
  }
 
@@ -8617,8 +8830,8 @@ function generateApcTrendHourChart(data: any[]): void {
 
      // 4. Update the store
      $store.setStorePartial({
-         avgCheckPeakDayMin: formatNumber(minCheck, 0),
-         avgCheckPeakDayMax: formatNumber(maxCheck, 0),
+         avgCheckPeakDayMin: formatNumberUtil(minCheck, 0),
+         avgCheckPeakDayMax: formatNumberUtil(maxCheck, 0),
          peakDaysText: peakDays.map(d => d.name).join(', '),
          apcWeekdayBreakfast: formatCurrency(weekdayBreakfastApc, 'Rp ', 0),
          popularMenuWeekdayBreakfast: getTopMenu(weekdayBreakfastData),
@@ -9933,9 +10146,9 @@ function generateCustomerSpendingInsights(data: any[]): void {
 
   // 4. Update the central store with all the calculated values
   $store.setStorePartial({
-    avgSpendLower: formatNumber(avgSpendLower),
-    avgSpendUpper: formatNumber(avgSpendUpper),
-    highestSingleTransaction: formatNumber(highestSingleTransaction),
+    avgSpendLower: formatNumberUtil(avgSpendLower),
+    avgSpendUpper: formatNumberUtil(avgSpendUpper),
+    highestSingleTransaction: formatNumberUtil(highestSingleTransaction),
     busiestTimeRange: busiestTimeRange,
     busiestDay: busiestDay,
     upsellingTips: 'Rancang program upselling dengan bundling produk atau promosi untuk meningkatkan nilai belanja per transaksi.',
@@ -9987,11 +10200,11 @@ function generateWeekendSalesInsights(data: any[]): void {
   const potentialBonusOmzet = apcIncrease * weekendBills.size;
 
   $store.setStorePartial({
-    weekendSalesPercentage: formatNumber(weekendSalesPercentage, 0),
+    weekendSalesPercentage: formatNumberUtil(weekendSalesPercentage, 0),
     mainSalesInsight: 'Sales kamu terjadi di hari Sabtu dan Minggu',
-    apcIncrease: formatNumber(apcIncrease),
+    apcIncrease: formatNumberUtil(apcIncrease),
     // Format the bonus omzet to millions ('juta')
-    potentialBonusOmzet: formatNumber(potentialBonusOmzet / 1000000, 0),
+    potentialBonusOmzet: formatNumberUtil(potentialBonusOmzet / 1000000, 0),
     motivationalMessage: 'Cieee, ada yang bisa buka cabang baru tiap bulan nih sekarang!',
   });
 }
@@ -10219,10 +10432,10 @@ function generateHourlySalesInsights(data: any[]): void {
 
   $store.setStorePartial({
     peakHoursInsight: 'Puncak penjualan konsisten terjadi pada jam 10.00-14.00 dan jam 17.00 - 19.00.',
-    mainHourPercentage: formatNumber(mainHourPercentage, 0),
+    mainHourPercentage: formatNumberUtil(mainHourPercentage, 0),
     mainHourInsight: `Sales kamu terjadi di jam ${peakStartHour}.00 - ${peakEndHour}.00.`,
-    apcIncreaseAmount: formatNumber(apcIncreaseAmount),
-    potentialBonusAmount: formatNumber(potentialBonusAmount / 1000000, 0),
+    apcIncreaseAmount: formatNumberUtil(apcIncreaseAmount),
+    potentialBonusAmount: formatNumberUtil(potentialBonusAmount / 1000000, 0),
     proTip1: 'Meningkatkan service dan memaksimalkan layanan secara maksimum.',
     proTip2: 'Meningkatkan kapasitas bisnis dengan menggunakan sistem antrian atau pre-order.',
   });
@@ -10354,7 +10567,7 @@ function generateDineInMonthlyIncreaseChart(data: any[]): void {
 
     const percentageIncrease = prevMonthTc > 0 ? ((currentMonthTc - prevMonthTc) / prevMonthTc) * 100 : 0;
 
-    $store.setStorePartial({ monthlyIncreasePercentage: formatNumber(percentageIncrease, 0) });
+    $store.setStorePartial({ monthlyIncreasePercentage: formatNumberUtil(percentageIncrease, 0) });
 
     const monthNames = ["November", "December"];
 
@@ -10530,33 +10743,33 @@ function generateChannelComparisonInsights(data: any[]): void {
     const topGrowth = [...comparison].toSorted((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
     $store.setStorePartial({
         growthChan1Name: topGrowth[0]?.name || '',
-        growthChan1TC: formatNumber(topGrowth[0]?.currentTC),
-        growthChan1APC: formatNumber(topGrowth[0]?.currentAPC),
-        growthChan1Percent: formatNumber(topGrowth[0]?.tcGrowth, 0),
+        growthChan1TC: formatNumberUtil(topGrowth[0]?.currentTC),
+        growthChan1APC: formatNumberUtil(topGrowth[0]?.currentAPC),
+        growthChan1Percent: formatNumberUtil(topGrowth[0]?.tcGrowth, 0),
         growthChan2Name: topGrowth[1]?.name || '',
-        growthChan2TC: formatNumber(topGrowth[1]?.currentTC),
-        growthChan2APC: formatNumber(topGrowth[1]?.currentAPC),
-        growthChan2Percent: formatNumber(topGrowth[1]?.tcGrowth, 0),
+        growthChan2TC: formatNumberUtil(topGrowth[1]?.currentTC),
+        growthChan2APC: formatNumberUtil(topGrowth[1]?.currentAPC),
+        growthChan2Percent: formatNumberUtil(topGrowth[1]?.tcGrowth, 0),
     });
 
     // 2. Top Sales Channels
     const topSales = [...comparison].toSorted((a, b) => b.currentSales - a.currentSales).slice(0, 2);
     $store.setStorePartial({
         topSalesChan1Name: topSales[0]?.name || '',
-        topSalesChan1Nominal: formatNumber(topSales[0]?.currentSales),
+        topSalesChan1Nominal: formatNumberUtil(topSales[0]?.currentSales),
         topSalesChan2Name: topSales[1]?.name || '',
-        topSalesChan2Nominal: formatNumber(topSales[1]?.currentSales),
+        topSalesChan2Nominal: formatNumberUtil(topSales[1]?.currentSales),
     });
 
     // 3. Top Monthly Increase Channels
     const topIncrease = [...comparison].toSorted((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
     $store.setStorePartial({
         monthlyIncreaseChan1Name: topIncrease[0]?.name || '',
-        monthlyIncreaseChan1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
-        monthlyIncreaseChan1Nominal: formatNumber(topIncrease[0]?.salesIncreaseNominal),
+        monthlyIncreaseChan1Percent: formatNumberUtil(topIncrease[0]?.salesGrowth, 0),
+        monthlyIncreaseChan1Nominal: formatNumberUtil(topIncrease[0]?.salesIncreaseNominal),
         monthlyIncreaseChan2Name: topIncrease[1]?.name || '',
-        monthlyIncreaseChan2Percent: formatNumber(topIncrease[1]?.salesGrowth, 0),
-        monthlyIncreaseChan2Nominal: formatNumber(topIncrease[1]?.salesIncreaseNominal),
+        monthlyIncreaseChan2Percent: formatNumberUtil(topIncrease[1]?.salesGrowth, 0),
+        monthlyIncreaseChan2Nominal: formatNumberUtil(topIncrease[1]?.salesIncreaseNominal),
     });
 }
 
@@ -10612,8 +10825,8 @@ function generateFoodAnalysisInsights(data: any[]): void {
     const top5Data = {};
     topByRevenue.forEach((item, i) => {
         top5Data[`top5_${i+1}_name`] = item.name;
-        top5Data[`top5_${i+1}_percent`] = formatNumber((item.revenue / totalFoodRevenue) * 100, 0);
-        top5Data[`top5_${i+1}_revenue`] = formatNumber(item.revenue);
+        top5Data[`top5_${i+1}_percent`] = formatNumberUtil((item.revenue / totalFoodRevenue) * 100, 0);
+        top5Data[`top5_${i+1}_revenue`] = formatNumberUtil(item.revenue);
     });
 
     // 3. Superhero Item
@@ -10652,8 +10865,8 @@ function generateFoodAnalysisInsights(data: any[]): void {
         ...top5Data,
         superheroTitle: `Kalau ini kisah superhero, ${superhero.name} lah superhero utama di bisnis kamu.`,
         superheroName: superhero.name,
-        superheroContributionPercent: formatNumber((superhero.revenue / totalOverallOmzet) * 100, 0),
-        superheroContributionNominal: formatNumber(superhero.revenue),
+        superheroContributionPercent: formatNumberUtil((superhero.revenue / totalOverallOmzet) * 100, 0),
+        superheroContributionNominal: formatNumberUtil(superhero.revenue),
         timelineTitle: 'Tapi seperti Marvel misalnya, tokoh utama superhero setiap waktu bisa saja berbeda-beda.',
         hero_time1_name: getTopItemInSlot(timeSlots.time1),
         hero_time2_name: getTopItemInSlot(timeSlots.time2),
@@ -10714,8 +10927,8 @@ function generateDrinkAnalysisInsights(data: any[]): void {
     const top5Data = {};
     topByRevenue.forEach((item, i) => {
         top5Data[`top5_drink_${i+1}_name`] = item.name;
-        top5Data[`top5_drink_${i+1}_percent`] = formatNumber((item.revenue / totalDrinkRevenue) * 100, 0);
-        top5Data[`top5_drink_${i+1}_revenue`] = formatNumber(item.revenue);
+        top5Data[`top5_drink_${i+1}_percent`] = formatNumberUtil((item.revenue / totalDrinkRevenue) * 100, 0);
+        top5Data[`top5_drink_${i+1}_revenue`] = formatNumberUtil(item.revenue);
     });
 
     // 3. Sidekick Item (Top Drink)
@@ -10754,8 +10967,8 @@ function generateDrinkAnalysisInsights(data: any[]): void {
         ...top5Data,
         sidekickTitle: `Kalau ini kisah superhero, ${sidekick.name} lah sidekick utama di bisnis kamu.`,
         sidekickName: sidekick.name,
-        sidekickContributionPercent: formatNumber((sidekick.revenue / totalOverallOmzet) * 100, 0),
-        sidekickContributionNominal: formatNumber(sidekick.revenue),
+        sidekickContributionPercent: formatNumberUtil((sidekick.revenue / totalOverallOmzet) * 100, 0),
+        sidekickContributionNominal: formatNumberUtil(sidekick.revenue),
         hero_drink_time1_name: getTopItemInSlot(timeSlots.time1),
         hero_drink_time2_name: getTopItemInSlot(timeSlots.time2),
         hero_drink_time3_name: getTopItemInSlot(timeSlots.time3),
@@ -10885,33 +11098,33 @@ function generateOutletComparisonInsights(data: any[]): void {
     const topGrowth = [...comparison].toSorted((a, b) => b.tcGrowth - a.tcGrowth).slice(0, 2);
     $store.setStorePartial({
         outletGrowth1Name: topGrowth[0]?.name || '',
-        outletGrowth1TC: formatNumber(topGrowth[0]?.currentTC),
-        outletGrowth1APC: formatNumber(topGrowth[0]?.currentAPC),
-        outletGrowth1Percent: formatNumber(topGrowth[0]?.tcGrowth, 0),
+        outletGrowth1TC: formatNumberUtil(topGrowth[0]?.currentTC),
+        outletGrowth1APC: formatNumberUtil(topGrowth[0]?.currentAPC),
+        outletGrowth1Percent: formatNumberUtil(topGrowth[0]?.tcGrowth, 0),
         outletGrowth2Name: topGrowth[1]?.name || '',
-        outletGrowth2TC: formatNumber(topGrowth[1]?.currentTC),
-        outletGrowth2APC: formatNumber(topGrowth[1]?.currentAPC),
-        outletGrowth2Percent: formatNumber(topGrowth[1]?.tcGrowth, 0),
+        outletGrowth2TC: formatNumberUtil(topGrowth[1]?.currentTC),
+        outletGrowth2APC: formatNumberUtil(topGrowth[1]?.currentAPC),
+        outletGrowth2Percent: formatNumberUtil(topGrowth[1]?.tcGrowth, 0),
     });
 
     // 2. Top Sales Outlets
     const topSales = [...comparison].toSorted((a, b) => b.currentSales - a.currentSales).slice(0, 2);
     $store.setStorePartial({
         topOutlet1Name: topSales[0]?.name || '',
-        topOutlet1Nominal: formatNumber(topSales[0]?.currentSales),
+        topOutlet1Nominal: formatNumberUtil(topSales[0]?.currentSales),
         topOutlet2Name: topSales[1]?.name || '',
-        topOutlet2Nominal: formatNumber(topSales[1]?.currentSales),
+        topOutlet2Nominal: formatNumberUtil(topSales[1]?.currentSales),
     });
 
     // 3. Top Monthly Increase Outlets
     const topIncrease = [...comparison].toSorted((a, b) => b.salesIncreaseNominal - a.salesIncreaseNominal).slice(0, 2);
     $store.setStorePartial({
         monthlyOutletIncrease1Name: topIncrease[0]?.name || '',
-        monthlyOutletIncrease1Percent: formatNumber(topIncrease[0]?.salesGrowth, 0),
-        monthlyOutletIncrease1Nominal: formatNumber(topIncrease[0]?.salesIncreaseNominal),
+        monthlyOutletIncrease1Percent: formatNumberUtil(topIncrease[0]?.salesGrowth, 0),
+        monthlyOutletIncrease1Nominal: formatNumberUtil(topIncrease[0]?.salesIncreaseNominal),
         monthlyOutletIncrease2Name: topIncrease[1]?.name || '',
-        monthlyOutletIncrease2Percent: formatNumber(topIncrease[1]?.salesGrowth, 0),
-        monthlyOutletIncrease2Nominal: formatNumber(topIncrease[1]?.salesIncreaseNominal),
+        monthlyOutletIncrease2Percent: formatNumberUtil(topIncrease[1]?.salesGrowth, 0),
+        monthlyOutletIncrease2Nominal: formatNumberUtil(topIncrease[1]?.salesIncreaseNominal),
     });
 }
 
@@ -10983,9 +11196,9 @@ function generateHppAnalysis(currentData: any[], lastPeriodData: any[]): void {
     $store.setStorePartial({
         pageTitle: 'Tinjauan Penggunaan Bahan Baku',
         pageSubtitle: 'Memahami detil komponen penggunaan bahan baku adalah yang sebenarnya membuat kamu benar-benar cuan.',
-        totalHPP: formatNumber(currentTotalHpp),
-        hppTrendPercent: formatNumber(Math.abs(hppTrendPercent), 0),
-        hppTrendNominal: formatNumber(Math.abs(hppDifference)),
+        totalHPP: formatNumberUtil(currentTotalHpp),
+        hppTrendPercent: formatNumberUtil(Math.abs(hppTrendPercent), 0),
+        hppTrendNominal: formatNumberUtil(Math.abs(hppDifference)),
         hppTrendArrow: hppTrendArrow,
         hppTrendSign: hppTrendSign,
         highlight1: 'Puncak penjualan cabang A terjadi pada tanggal 6 Des 2021 disusul oleh tanggal 26 Des 2021.',
@@ -11101,16 +11314,16 @@ function generateFoodCostAnalysis(data: any[]): void {
     const listUpdate = {};
     topCost.forEach((item, i) => {
         listUpdate[`costOutlet${i+1}`] = item.name;
-        listUpdate[`costOutlet${i+1}Value`] = `${formatNumber(item.costPercent, 1)}%`;
+        listUpdate[`costOutlet${i+1}Value`] = `${formatNumberUtil(item.costPercent, 1)}%`;
     });
     topVariance.forEach((item, i) => {
         listUpdate[`varianceOutlet${i+1}`] = item.name;
-        listUpdate[`varianceOutlet${i+1}Value`] = `${formatNumber(item.variance, 1)}%`;
+        listUpdate[`varianceOutlet${i+1}Value`] = `${formatNumberUtil(item.variance, 1)}%`;
     });
 
     $store.setStorePartial({
         foodCostTip: 'Pencatatan penggunaan bahan baku yang detil dapat membantu anda menurunkan Food Cost anda !',
-        foodCostAlertPercentage: formatNumber(alertPercentage, 0),
+        foodCostAlertPercentage: formatNumberUtil(alertPercentage, 0),
         ...listUpdate,
     });
 }
@@ -11211,12 +11424,12 @@ function generateCustomerAnalysisInsights(currentData: any[], allData: any[], pe
     // 4. Update the store
     $store.setStorePartial({
         topCustomerNames: topCustomers.map(p => p.name).join(', '),
-        newCustomerCount: formatNumber(newCustomers.length),
-        newCustomerAvgSpend: formatNumber(calculateAvgSpend(newCustomers)),
-        highSpenderCount: formatNumber(highSpenders.length),
-        highSpenderAvgSpend: formatNumber(calculateAvgSpend(highSpenders)),
-        loyalCustomerCount: formatNumber(loyalCustomers.length),
-        loyalCustomerAvgSpend: formatNumber(calculateAvgSpend(loyalCustomers)),
+        newCustomerCount: formatNumberUtil(newCustomers.length),
+        newCustomerAvgSpend: formatNumberUtil(calculateAvgSpend(newCustomers)),
+        highSpenderCount: formatNumberUtil(highSpenders.length),
+        highSpenderAvgSpend: formatNumberUtil(calculateAvgSpend(highSpenders)),
+        loyalCustomerCount: formatNumberUtil(loyalCustomers.length),
+        loyalCustomerAvgSpend: formatNumberUtil(calculateAvgSpend(loyalCustomers)),
         ...newestMemberUpdate,
     });
 }
@@ -11286,7 +11499,10 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
             data: Object.values(revenueByBranch),
             backgroundColor: colors,
         }]
-    }, { plugins: { legend: { display: false } } });
+    }, mergeChartOptions(
+        { plugins: { legend: { display: false } } },
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 
     const legendContainer = document.getElementById('branch-sales-donut-legend');
     legendContainer.innerHTML = Object.keys(revenueByBranch).map((branch, i) => `
@@ -11323,17 +11539,17 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     // 7. Update Store
     $store.setStorePartial({
         branchName: topBranchName,
-        totalOmzetFormatted: formatNumber(currentStats.revenue),
+        totalOmzetFormatted: formatNumberUtil(currentStats.revenue),
         omzetUpOrDown: omzetComparison.upOrDown,
         omzetPercentage: omzetComparison.percentage,
         omzetPlusOrMinus: omzetComparison.plusOrMinus,
         omzetDifference: omzetComparison.difference,
-        trafficCountFormatted: formatNumber(currentStats.traffic),
+        trafficCountFormatted: formatNumberUtil(currentStats.traffic),
         trafficUpOrDown: trafficComparison.upOrDown,
         trafficPercentage: trafficComparison.percentage,
         trafficPlusOrMinus: trafficComparison.plusOrMinus,
         trafficDifference: trafficComparison.difference,
-        avgSaleFormatted: formatNumber(currentStats.avgSale, 0),
+        avgSaleFormatted: formatNumberUtil(currentStats.avgSale, 0),
         avgSaleUpOrDown: avgSaleComparison.upOrDown,
         avgSalePercentage: avgSaleComparison.percentage,
         avgSalePlusOrMinus: avgSaleComparison.plusOrMinus,
@@ -11454,19 +11670,19 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
     // 5. Update Store
     $store.setStorePartial({
         branchName: topBranchName,
-        salesCurrent: formatNumber(currentPeriodStats.sales),
-        sales30Day: formatNumber(thirtyDayStats.sales),
-        salesYoY: formatNumber(yoyStats.sales),
-        checkCurrent: formatNumber(currentPeriodStats.checks),
-        check30Day: formatNumber(thirtyDayStats.checks),
+        salesCurrent: formatNumberUtil(currentPeriodStats.sales),
+        sales30Day: formatNumberUtil(thirtyDayStats.sales),
+        salesYoY: formatNumberUtil(yoyStats.sales),
+        checkCurrent: formatNumberUtil(currentPeriodStats.checks),
+        check30Day: formatNumberUtil(thirtyDayStats.checks),
         check30DayPercentage: check30DayComp.percentage,
         check30DayDiff: `${check30DayComp.plusOrMinus}${check30DayComp.difference}`,
-        checkYoY: formatNumber(yoyStats.checks),
+        checkYoY: formatNumberUtil(yoyStats.checks),
         checkYoYPercentage: checkYoYComp.percentage,
         checkYoYDiff: `${checkYoYComp.plusOrMinus}${checkYoYComp.difference}`,
-        trafficCurrent: formatNumber(currentPeriodStats.traffic),
-        traffic30Day: formatNumber(thirtyDayStats.traffic),
-        trafficYoY: formatNumber(yoyStats.traffic),
+        trafficCurrent: formatNumberUtil(currentPeriodStats.traffic),
+        traffic30Day: formatNumberUtil(thirtyDayStats.traffic),
+        trafficYoY: formatNumberUtil(yoyStats.traffic),
         tipToolName: 'Analiso',
     });
 
@@ -11551,8 +11767,8 @@ function generateTopBranchAnalysis(currentData: any[], lastPeriodData: any[]): v
         popularMenuDinner2: popularDinnerMenu[1] || '',
         popularMenuDinner3: popularDinnerMenu[2] || '',
         popularMenuDinner4: popularDinnerMenu[3] || '',
-        avgSpendingPeak1Min: formatNumber(minSpend, 0),
-        avgSpendingPeak1Max: formatNumber(maxSpend, 0),
+        avgSpendingPeak1Min: formatNumberUtil(minSpend, 0),
+        avgSpendingPeak1Max: formatNumberUtil(maxSpend, 0),
         apcBreakfast: formatCurrency(getApc(breakfastData), 'Rp ', 0),
         popularMenuBreakfast: getTopMenu(breakfastData, 1),
         apcPostLunch: formatCurrency(getApc(postLunchData), 'Rp ', 0),
@@ -11602,8 +11818,8 @@ function generatePeakDayAnalysis(data: any[]): void {
     $store.setStorePartial({
         // Note: The mainHourPercentage and mainHourInsight values are reused from the
         // generateHourlySalesInsights function, which is already being called.
-        apcIncreaseAmount: formatNumber(apcIncrease),
-        bonusOmzetAmount: formatNumber(bonusOmzet / 1000000, 0), // Format as millions ('juta')
+        apcIncreaseAmount: formatNumberUtil(apcIncrease),
+        bonusOmzetAmount: formatNumberUtil(bonusOmzet / 1000000, 0), // Format as millions ('juta')
     });
 }
 
@@ -12292,9 +12508,6 @@ async function showPnlTargetModal(targetData: any, reportId: string, config?: { 
                     <td class="px-6 py-4 text-sm text-gray-500">
 
                         <div class="flex items-center hidden">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold">${achievement.toFixed(1)}%</span>
                         </div>
 
@@ -12333,7 +12546,13 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
             data: Object.values(channelSales),
             backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B'],
         }],
-    });
+    }, chartTooltip({
+        label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: ${formatNumber(value)} items`;
+        }
+    }));
 
     // --- START: NEW CHART ADDED ---
 
@@ -12387,23 +12606,24 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
                 order: 2,
             },
         ],
-    }, {
-        scales: {
-            'y-omzet': {
-                type: 'linear',
-                position: 'left',
-                title: { display: true, text: 'Total Omzet (Rp)' },
-                ticks: { callback: shortenCurrency }
-            },
-            'y-check': {
-                type: 'linear',
-                position: 'right',
-                title: { display: true, text: 'Total Check' },
-                grid: { drawOnChartArea: false }, // Avoid cluttering with two sets of grid lines
-                ticks: { callback: shortenNumber }
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-omzet': { type: 'linear', position: 'left', title: { display: true, text: 'Total Omzet (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-check': { type: 'linear', position: 'right', title: { display: true, text: 'Total Check' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenNumber } },
             },
         },
-    });
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-omzet') {
+                    return `${label}: ${formatCurrency(value)}`;
+                }
+                return `${label}: ${formatNumber(value)}`;
+            }
+        })
+    ));
 
     // --- END: NEW CHART ADDED ---
 
@@ -12432,7 +12652,13 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
             data: Object.values(aggregatedData.categoryQuantities),
             backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6', '#EC4899', '#F59E0B']
         }],
-    });
+    }, chartTooltip({
+        label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: ${formatNumber(value)} items`;
+        }
+    }));
 
     // --- Chart 4 & 5: Top 5 Makanan & Minuman ---
     const createTop5Chart = (containerId: string, categoryName: string, color: string) => {
@@ -12450,7 +12676,13 @@ function generateAnalisaPenjualanCharts(summaries: any[]) {
                     data: top5.map(item => item[1]),
                     backgroundColor: color,
                 }],
-            }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+            }, mergeChartOptions(
+                { indexAxis: 'y', plugins: { legend: { display: false } } },
+                chartXTicks(shortenNumber), // Format the horizontal axis (now the value axis)
+                chartTooltip({
+                    label: (context) => `Quantity Sold: ${formatNumber(context.parsed.x)}`
+                })
+            ));
         }
     };
 
@@ -12523,23 +12755,24 @@ function generate24MonthTcApcTrend(summaries: any[]) {
                 tension: 0.1
             }
         ]
-    }, {
-        scales: {
-            'y-tc': {
-                type: 'linear',
-                position: 'left',
-                title: { display: true, text: 'Total Check' },
-                ticks: { callback: shortenNumber }
-            },
-            'y-apc': {
-                type: 'linear',
-                position: 'right',
-                title: { display: true, text: 'Average Check (Rp)' },
-                grid: { drawOnChartArea: false },
-                ticks: { callback: shortenCurrency }
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-tc': { type: 'linear', position: 'left', title: { display: true, text: 'Total Check' }, ticks: { callback: shortenNumber } },
+                'y-apc': { type: 'linear', position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenCurrency } }
             }
-        }
-    });
+        },
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-apc') {
+                    return `${label}: ${formatCurrency(value)}`;
+                }
+                return `${label}: ${formatNumber(value)}`;
+            }
+        })
+    ));
 }
 
 /**
@@ -12599,7 +12832,16 @@ function draw24MonthMenuTrendChart(summaries: any[]) {
     createChart('menu-trend-24-bulan-chart', 'line', {
         labels: chartLabels,
         datasets: datasets
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 /**
@@ -12717,14 +12959,17 @@ function generate24MonthChannelTrendChart(summaries: any[]) {
     createChart('channel-trend-24-bulan-chart', 'line', {
         labels: chartLabels,
         datasets: datasets
-    }, {
-        scales: {
-            y: {
-                stacked: true, // This stacks the datasets
-                ticks: { callback: shortenCurrency }
+    }, mergeChartOptions(
+        {
+            scales: {
+                y: {
+                    stacked: true, // This stacks the datasets
+                    ticks: { callback: shortenCurrency }
+                }
             }
-        }
-    });
+        },
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 /**
@@ -12786,14 +13031,23 @@ function generate24MonthCategoryTrendChart(summaries: any[]) {
     createChart('category-trend-24-bulan-chart', 'line', {
         labels: chartLabels,
         datasets: datasets
-    }, {
-        scales: {
-            y: {
-                stacked: true, // This stacks the datasets
-                ticks: { callback: shortenNumber } // Use number formatter for quantity
+    }, mergeChartOptions(
+        {
+            scales: {
+                y: {
+                    stacked: true, // This stacks the datasets
+                    ticks: { callback: shortenNumber } // Use number formatter for quantity
+                }
             }
-        }
-    });
+        },
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 async function generateGeneralPenjualanSection() {
@@ -12883,14 +13137,20 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, c
 
     config?.alsoStore?.(byMenuCategory, (v) => ({
       totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
-        [category, formatNumber(totalOrder)],
+        [category, formatNumberUtil(totalOrder)],
       ))),
     }));
 
     createChart(canvasId, 'doughnut', {
         labels: Object.keys(byMenuCategory),
         datasets: [{ data: Object.values(byMenuCategory), backgroundColor: ['#10B981', '#3B82F6', '#F97316', '#8B5CF6'] }],
-    });
+    }, chartTooltip({
+        label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: ${formatNumber(value)} items`;
+        }
+    }));
 }
 
 /**
@@ -12925,7 +13185,13 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
     createChart(canvasId, 'doughnut', {
         labels,
         datasets: [{ data, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
-    });
+    }, chartTooltip({
+        label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: ${formatNumber(value)} items`;
+        }
+    }));
 }
 
 /**
@@ -13141,10 +13407,9 @@ function generateWaktuProdukChannelSection() {
     const periodBData = branchData.filter(s => s.date.toISOString().startsWith(periodB));
 
     setupWaktuMenuTrendChart(periodAData, periodBData, { alsoStore });
-    generateCategoryComparisonChart(periodAData, periodBData, 'waktu-category-comparison-chart', { alsoStore });
+    generateOrderCompositionChart(periodAData, periodBData, 'Period A', 'Period B', 'waktu-category-comparison-chart', { alsoStore });
     generateChannelComparisonChart(periodAData, periodBData, 'waktu-channel-comparison-chart', { alsoStore });
 }
-
 
 async function updatePeriodSelectorsForGeneralKeuangan(selectedBranch: string) {
     if (!currentUser) return;
@@ -13260,42 +13525,42 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
     if (!waktuMenuSelect) return;
 
     const selectedMenus = waktuMenuSelect.getSelected() as string[];
-    const labels = Array.from({ length: 31 }, (_, i) => i + 1); // Days 1-31
+    const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
     const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
 
-    // Helper function to get daily sales quantity for a specific menu
-    const getDailyMenuData = (data, menuName) => {
-        const dailyQuantities = Array(31).fill(null);
-        const menuData = data.filter(s => {
-            // Check if the menu exists in any category for this summary
-            return s.menuItemQuantities && Object.values(s.menuItemQuantities).some(cat => cat[menuName] !== undefined);
-        });
+    // Helper function to get WEEKLY sales quantity for a specific menu
+    const getWeeklyMenuData = (data, menuName) => {
+        const weeklyQuantities = Array(5).fill(null);
 
-        menuData.forEach(s => {
-            const dayIndex = s.date.getDate() - 1;
-            let qty = 0;
-            // Sum quantity from all categories in case menu name exists in multiple
-            for (const category in s.menuItemQuantities) {
-                if (s.menuItemQuantities[category][menuName]) {
-                    qty += s.menuItemQuantities[category][menuName];
+        data.forEach(s => {
+            const dayOfMonth = s.date.getDate();
+            const weekIndex = Math.floor((dayOfMonth - 1) / 7);
+
+            if (weekIndex < 5) {
+                let qty = 0;
+                if (s.menuItemQuantities) {
+                    for (const category in s.menuItemQuantities) {
+                        if (s.menuItemQuantities[category][menuName]) {
+                            qty += s.menuItemQuantities[category][menuName];
+                        }
+                    }
+                }
+                if (qty > 0) {
+                    if (weeklyQuantities[weekIndex] === null) weeklyQuantities[weekIndex] = 0;
+                    weeklyQuantities[weekIndex] += qty;
                 }
             }
-            dailyQuantities[dayIndex] = (dailyQuantities[dayIndex] || 0) + qty;
         });
-        return dailyQuantities;
+        return weeklyQuantities;
     };
 
     // Create a pair of datasets (Period A and Period B) for each selected menu
     const datasets = selectedMenus.flatMap((menuName, index) => {
         const color = colors[index % colors.length];
-
-        const periodAMenuValue = getDailyMenuData(periodAData, menuName);
-        const periodBMenuValue = getDailyMenuData(periodBData, menuName);
-
         return [
             {
                 label: `${menuName} (Period A)`,
-                data: periodAMenuValue,
+                data: getWeeklyMenuData(periodAData, menuName),
                 borderColor: color,
                 borderDash: [5, 5], // Dashed line for Period A
                 tension: 0.1,
@@ -13304,7 +13569,7 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
             },
             {
                 label: `${menuName} (Period B)`,
-                data: periodBMenuValue,
+                data: getWeeklyMenuData(periodBData, menuName),
                 borderColor: color,
                 borderDash: [], // Solid line for Period B
                 tension: 0.1,
@@ -13321,12 +13586,12 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
             menuTrend: {
                 periodA: deepmerge(...periodADatasets.map(d => ({
                     [d.label.replace(' (Period A)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [`Day ${index + 1}`]: formatNumber(value),
+                        [labels[index]]: formatNumberUtil(value),
                     }))),
                 }))),
                 periodB: deepmerge(...periodBDatasets.map(d => ({
                     [d.label.replace(' (Period B)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [`Day ${index + 1}`]: formatNumber(value),
+                        [labels[index]]: formatNumberUtil(value),
                     }))),
                 })))
             }
@@ -13336,18 +13601,23 @@ function drawWaktuMenuTrendChart(periodAData: any[], periodBData: any[], config?
     createChart('waktu-menu-trend-chart', 'line', {
         labels,
         datasets
-    }, {
-        plugins: {
-            tooltip: {
-                mode: 'index',
-                intersect: false
+    }, mergeChartOptions(
+        {
+            plugins: { tooltip: { mode: 'index', intersect: false } },
+            scales: {
+                x: { title: { display: true, text: 'Week of Month' } },
+                y: { title: { display: true, text: 'Quantity Sold' } }
             }
         },
-        scales: {
-            x: { title: { display: true, text: 'Day of Month' } },
-            y: { title: { display: true, text: 'Quantity Sold' } }
-        }
-    });
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 /**
@@ -13368,10 +13638,10 @@ function generateCategoryComparisonChart(periodAData: any[], periodBData: any[],
         (v) => ({
             categoryComparison: {
                 periodA: deepmerge(...v.allCategories.map((category, index) => ({
-                    [category]: formatNumber(v.periodAValues[index])
+                    [category]: formatNumberUtil(v.periodAValues[index])
                 }))),
                 periodB: deepmerge(...v.allCategories.map((category, index) => ({
-                    [category]: formatNumber(v.periodBValues[index])
+                    [category]: formatNumberUtil(v.periodBValues[index])
                 })))
             }
         })
@@ -13383,7 +13653,16 @@ function generateCategoryComparisonChart(periodAData: any[], periodBData: any[],
             { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
             { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' }
         ]
-    });
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} items`;
+            }
+        })
+    ));
 }
 
 /**
@@ -13419,7 +13698,10 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
             { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
             { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' }
         ]
-    }, { scales: { y: { ticks: { callback: shortenCurrency } } } });
+    }, mergeChartOptions(
+        { scales: { y: { ticks: { callback: shortenCurrency } } } },
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 /**
@@ -13520,9 +13802,6 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
                     <td class="px-6 py-4 text-sm text-gray-500 text-right font-mono">${formatCurrency(valueB)}</td>
                     <td class="px-6 py-4 text-sm text-gray-500 text-right">
                         <div class="flex items-center justify-end">
-                            <div class="w-20 bg-gray-200 rounded-full h-2.5 mr-3">
-                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${Math.min(achievement, 100)}%"></div>
-                            </div>
                             <span class="font-semibold ${changeColor} w-20 text-right">${changeText}</span>
                         </div>
                     </td>
@@ -13572,8 +13851,8 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
     }));
     config?.alsoStore?.([percentA, percentB] as const, ([a, b]) => ({
       [`${config.title} Chart`]: {
-        periodA: { inPercentage: formatPercent(a) },
-        periodB: { inPercentage: formatPercent(b) },
+        periodA: { inPercentage: formatDecimalBasedPercentage(a) },
+        periodB: { inPercentage: formatDecimalBasedPercentage(b) },
       },
     }));
 
@@ -13588,12 +13867,29 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
             { type: 'bar', label: `${config.title} (Rp)`, data: [valueA, valueB], backgroundColor: '#60A5FA', yAxisID: 'y-rp' },
             { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
         ]
-    }, {
-        scales: {
-            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
-        }
-    });
+    }, mergeChartOptions(
+        { // The original scales options go here
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    label += formatCurrencyUtil(value);
+                } else {
+                    label += formatIntBasedPercentage(value, 2);
+                }
+                return label;
+            }
+        })
+    ));
 }
 
 function generateAnalisaPenjualanSection(summaries: any[]) {
@@ -13727,15 +14023,18 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
                 tension: 0.1,
             }
         ]
-    }, {
-        scales: {
-            y: {
-                beginAtZero: true,
-                title: { display: true, text: 'Total Akumulasi (Rp)' },
-                ticks: { callback: shortenCurrency }
+    }, mergeChartOptions(
+        {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Total Akumulasi (Rp)' },
+                    ticks: { callback: shortenCurrency }
+                }
             }
-        }
-    });
+        },
+        chartTooltip({ label: currencyTooltipCallback })
+    ));
 }
 
 
@@ -13896,12 +14195,25 @@ function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: numb
                 tension: 0.1,
             }
         ]
-    }, {
-        scales: {
-            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
-        }
-    });
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    return `${label}: ${formatCurrency(value)}`;
+                }
+                // Use the new formatPercentage helper
+                return `${label}: ${formatPercentage(value, 2)}`;
+            }
+        })
+    ));
 }
 
 /**
@@ -13945,12 +14257,27 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
                 tension: 0.1,
             }
         ]
-    }, {
-        scales: {
-            'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
-            'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
-        }
-    });
+    }, mergeChartOptions(
+        {
+            scales: {
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
+            }
+        },
+        chartTooltip({
+            label: (context) => {
+                let label = context.dataset.label || '';
+                if (label) { label += ': '; }
+                const value = context.parsed.y;
+                if (context.dataset.yAxisID === 'y-rp') {
+                    label += formatCurrencyUtil(value);
+                } else {
+                    label += formatIntBasedPercentage(value, 2);
+                }
+                return label;
+            }
+        })
+    ));
 }
 
 async function setupCabangInvestasiSelectors() {
@@ -14334,12 +14661,12 @@ function generateCabangInvestorYieldComparisonChart(dataA, dataB, config?: { als
                 investmentDetails: {
                     [dataA.investment.branchName]: {
                         totalInvestment: formatCurrencyUtil(dataA.investment.investmentAmount),
-                        slots: formatNumber(dataA.investment.investmentSlots),
+                        slots: formatNumberUtil(dataA.investment.investmentSlots),
                         perSlot: formatCurrencyUtil(data.investmentPerSlotA)
                     },
                     [dataB.investment.branchName]: {
                         totalInvestment: formatCurrencyUtil(dataB.investment.investmentAmount),
-                        slots: formatNumber(dataB.investment.investmentSlots),
+                        slots: formatNumberUtil(dataB.investment.investmentSlots),
                         perSlot: formatCurrencyUtil(data.investmentPerSlotB)
                     }
                 },
@@ -14521,6 +14848,277 @@ async function createGeneralFinanceBreakdown(viewData: any): Promise<object> {
         keyFinancialRatios
     };
 }
+
+/**
+ * Generates a grouped bar chart comparing the composition of orders (Food Only, Drink Only, Mixed)
+ * between two datasets (e.g., Period A vs Period B, or Branch A vs Branch B).
+ */
+function generateOrderCompositionChart(
+    dataA: any[],
+    dataB: any[],
+    labelA: string,
+    labelB: string,
+    canvasId: string,
+    config?: { alsoStore?: AlsoStoreFn }
+) {
+    const aggregateComposition = (summaries: any[]) => {
+        return summaries.reduce((acc, s) => {
+            if (s.orderComposition) {
+                acc.foodOnly += s.orderComposition.foodOnly?.count || 0;
+                acc.drinkOnly += s.orderComposition.drinkOnly?.count || 0;
+                acc.mixed += s.orderComposition.mixed?.count || 0;
+            }
+            return acc;
+        }, { foodOnly: 0, drinkOnly: 0, mixed: 0 });
+    };
+
+    const compositionA = aggregateComposition(dataA);
+    const compositionB = aggregateComposition(dataB);
+
+    const labels = ['Food Only Checks', 'Drink Only Checks', 'Mixed Checks'];
+    const valuesA = [compositionA.foodOnly, compositionA.drinkOnly, compositionA.mixed];
+    const valuesB = [compositionB.foodOnly, compositionB.drinkOnly, compositionB.mixed];
+
+    // Store the aggregated data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { labels, valuesA, valuesB },
+        (v) => ({
+            orderComposition: {
+                [labelA]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesA[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesA[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesA[2]),
+                },
+                [labelB]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesB[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesB[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesB[2]),
+                }
+            }
+        })
+    );
+
+    createChart(canvasId, 'bar', {
+        labels,
+        datasets: [
+            { label: labelA, data: valuesA, backgroundColor: '#9CA3AF' },
+            { label: labelB, data: valuesB, backgroundColor: '#4F46E5' }
+        ]
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} checks`;
+            }
+        })
+    ));
+}
+
+
+/**
+ * Generates a grouped bar chart comparing the composition of orders (Food Only, Drink Only, Mixed)
+ * between two datasets (e.g., Period A vs Period B, or Branch A vs Branch B).
+ */
+function generateOrderCompositionChart(
+    dataA: any[],
+    dataB: any[],
+    labelA: string,
+    labelB: string,
+    canvasId: string,
+    config?: { alsoStore?: AlsoStoreFn }
+) {
+    const aggregateComposition = (summaries: any[]) => {
+        return summaries.reduce((acc, s) => {
+            if (s.orderComposition) {
+                acc.foodOnly += s.orderComposition.foodOnly?.count || 0;
+                acc.drinkOnly += s.orderComposition.drinkOnly?.count || 0;
+                acc.mixed += s.orderComposition.mixed?.count || 0;
+            }
+            return acc;
+        }, { foodOnly: 0, drinkOnly: 0, mixed: 0 });
+    };
+
+    const compositionA = aggregateComposition(dataA);
+    const compositionB = aggregateComposition(dataB);
+
+    const labels = ['Food Only Checks', 'Drink Only Checks', 'Mixed Checks'];
+    const valuesA = [compositionA.foodOnly, compositionA.drinkOnly, compositionA.mixed];
+    const valuesB = [compositionB.foodOnly, compositionB.drinkOnly, compositionB.mixed];
+
+    // Store the aggregated data for AI analysis
+    maybeAlsoStore(
+        config?.alsoStore,
+        { labels, valuesA, valuesB },
+        (v) => ({
+            orderComposition: {
+                [labelA]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesA[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesA[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesA[2]),
+                },
+                [labelB]: {
+                    [v.labels[0]]: formatNumberUtil(v.valuesB[0]),
+                    [v.labels[1]]: formatNumberUtil(v.valuesB[1]),
+                    [v.labels[2]]: formatNumberUtil(v.valuesB[2]),
+                }
+            }
+        })
+    );
+
+    createChart(canvasId, 'bar', {
+        labels,
+        datasets: [
+            { label: labelA, data: valuesA, backgroundColor: '#9CA3AF' },
+            { label: labelB, data: valuesB, backgroundColor: '#4F46E5' }
+        ]
+    }, mergeChartOptions(
+        chartYTicks(shortenNumber),
+        chartTooltip({
+            label: (context) => {
+                const label = context.dataset.label || '';
+                const value = context.parsed.y;
+                return `${label}: ${formatNumber(value)} checks`;
+            }
+        })
+    ));
+}
+
+
+/**
+ * Extracts the period (YYYY-MM) from a Moka sales data file.
+ * It finds the earliest date in the 'Date' column to determine the correct period.
+ */
+function getPeriodFromMokaData(worksheet): string {
+    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    if (json.length < 2) {
+        throw new Error("Moka file is empty or has no data rows.");
+    }
+    
+    const headers = json[0] as string[];
+    const dateIndex = headers.findIndex(h => h === 'Date');
+    if (dateIndex === -1) {
+        throw new Error("Column 'Date' not found in Moka file.");
+    }
+
+    let earliestDate: Date | null = null;
+
+    // Start from the first data row (index 1)
+    for (let i = 1; i < json.length; i++) {
+        const row = json[i] as any[];
+        const dateString = row[dateIndex];
+
+        if (dateString && typeof dateString === 'string') {
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+                const year = parseInt(parts[2], 10);
+                
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                    const currentDate = new Date(year, month, day);
+                    if (!earliestDate || currentDate < earliestDate) {
+                        earliestDate = currentDate;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!earliestDate) {
+        throw new Error("Could not find any valid dates in the 'Date' column.");
+    }
+    
+    const year = earliestDate.getFullYear();
+    const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0');
+    
+    return `${year}-${month}`;
+}
+
+// Add this event listener for the new Moka upload button
+document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
+    const fileInput = document.getElementById('moka-file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+        alert('Please select a Moka file to upload.');
+        return;
+    }
+    if (!currentUser) return;
+
+    const uploadButton = document.getElementById('upload-moka-btn') as HTMLButtonElement;
+    uploadButton.disabled = true;
+
+    // Show your main progress UI here...
+    const progressContainer = document.getElementById('upload-progress-container');
+    const statusText = document.getElementById('upload-status-text');
+
+    progressContainer.classList.remove('hidden');
+    setTimeout(() => progressContainer.classList.add('show'), 10);
+    statusText.textContent = 'Analyzing Moka file...';
+
+    try {
+        const fileData = await file.arrayBuffer();
+        // CORRECTED: Uses XLSX (uppercase)
+        const workbook = XLSX.read(fileData);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const period = getPeriodFromMokaData(worksheet);
+
+        statusText.textContent = `Period ${period} found. Uploading...`;
+
+        const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        
+        const metadata = {
+            customMetadata: {
+                userId: currentUser.uid,
+                period: period,
+                format: 'MOKA'
+            }
+        };
+
+        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+        
+        uploadTask.on('state_changed', 
+          (snapshot) => { 
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              document.getElementById('upload-progress-bar').style.width = `${progress}%`;
+              document.getElementById('upload-progress-percent').textContent = `${Math.round(progress)}%`;
+           },
+          (error) => { 
+              console.error("Moka upload failed:", error);
+              statusText.textContent = 'Upload Failed!';
+              uploadButton.disabled = false;
+           },
+          async () => {
+              const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
+              await setDoc(docRef, {
+                  fileName: file.name,
+                  status: 'uploaded',
+                  period: period,
+                  storagePath: storagePath,
+                  uploadedAt: new Date(),
+                  format: 'MOKA'
+              });
+
+              listenForProcessingStatus(period);
+              uploadButton.disabled = false;
+              fileInput.value = '';
+          }
+        );
+
+    } catch (error) {
+        statusText.textContent = `Error: ${error.message}`;
+        setTimeout(() => {
+            progressContainer.classList.remove('show');
+            setTimeout(() => progressContainer.classList.add('hidden'), 300);
+        }, 5000);
+        alert(`Error processing Moka file: ${error.message}`);
+        uploadButton.disabled = false;
+    }
+});
 
 /**
  * Extracts the period (YYYY-MM) from a Moka sales data file.

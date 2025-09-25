@@ -313,7 +313,7 @@ function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
                 .map((count, hour) => ({ hour, count }))
                 .filter(item => item.count > 0)
                 .reduce((acc, item) => {
-                    acc[`${String(item.hour).padStart(2, '0')}:00`] = `${item.count} bills`;
+                    acc[`${String(item.hour).padStart(2, '0')}:00`] = `${item.count} checks`;
                     return acc;
                 }, {}),
             "Menu Category Summary": Object.entries(s.menuCategories || {}).reduce((acc, [name, data]) => {
