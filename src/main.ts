@@ -14986,7 +14986,6 @@ function generateOrderCompositionChart(
     ));
 }
 
-
 /**
  * Extracts the period (YYYY-MM) from a Moka sales data file.
  * It finds the earliest date in the 'Date' column to determine the correct period.
@@ -14996,7 +14995,7 @@ function getPeriodFromMokaData(worksheet): string {
     if (json.length < 2) {
         throw new Error("Moka file is empty or has no data rows.");
     }
-    
+
     const headers = json[0] as string[];
     const dateIndex = headers.findIndex(h => h === 'Date');
     if (dateIndex === -1) {
@@ -15016,7 +15015,7 @@ function getPeriodFromMokaData(worksheet): string {
                 const day = parseInt(parts[0], 10);
                 const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
                 const year = parseInt(parts[2], 10);
-                
+
                 if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
                     const currentDate = new Date(year, month, day);
                     if (!earliestDate || currentDate < earliestDate) {
@@ -15030,16 +15029,16 @@ function getPeriodFromMokaData(worksheet): string {
     if (!earliestDate) {
         throw new Error("Could not find any valid dates in the 'Date' column.");
     }
-    
+
     const year = earliestDate.getFullYear();
     const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0');
-    
+
     return `${year}-${month}`;
 }
 
 // Add this event listener for the new Moka upload button
 document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
-    const fileInput = document.getElementById('moka-file-input') as HTMLInputElement;
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
     const file = fileInput.files?.[0];
 
     if (!file) {
@@ -15070,7 +15069,7 @@ document.getElementById('upload-moka-btn')?.addEventListener('click', async () =
 
         const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
         const storageRef = ref(storage, storagePath);
-        
+
         const metadata = {
             customMetadata: {
                 userId: currentUser.uid,
@@ -15080,147 +15079,14 @@ document.getElementById('upload-moka-btn')?.addEventListener('click', async () =
         };
 
         const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-        
-        uploadTask.on('state_changed', 
-          (snapshot) => { 
+
+        uploadTask.on('state_changed',
+          (snapshot) => {
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
               document.getElementById('upload-progress-bar').style.width = `${progress}%`;
               document.getElementById('upload-progress-percent').textContent = `${Math.round(progress)}%`;
            },
-          (error) => { 
-              console.error("Moka upload failed:", error);
-              statusText.textContent = 'Upload Failed!';
-              uploadButton.disabled = false;
-           },
-          async () => {
-              const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
-              await setDoc(docRef, {
-                  fileName: file.name,
-                  status: 'uploaded',
-                  period: period,
-                  storagePath: storagePath,
-                  uploadedAt: new Date(),
-                  format: 'MOKA'
-              });
-
-              listenForProcessingStatus(period);
-              uploadButton.disabled = false;
-              fileInput.value = '';
-          }
-        );
-
-    } catch (error) {
-        statusText.textContent = `Error: ${error.message}`;
-        setTimeout(() => {
-            progressContainer.classList.remove('show');
-            setTimeout(() => progressContainer.classList.add('hidden'), 300);
-        }, 5000);
-        alert(`Error processing Moka file: ${error.message}`);
-        uploadButton.disabled = false;
-    }
-});
-
-/**
- * Extracts the period (YYYY-MM) from a Moka sales data file.
- * It finds the earliest date in the 'Date' column to determine the correct period.
- */
-function getPeriodFromMokaData(worksheet): string {
-    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-    if (json.length < 2) {
-        throw new Error("Moka file is empty or has no data rows.");
-    }
-    
-    const headers = json[0] as string[];
-    const dateIndex = headers.findIndex(h => h === 'Date');
-    if (dateIndex === -1) {
-        throw new Error("Column 'Date' not found in Moka file.");
-    }
-
-    let earliestDate: Date | null = null;
-
-    // Start from the first data row (index 1)
-    for (let i = 1; i < json.length; i++) {
-        const row = json[i] as any[];
-        const dateString = row[dateIndex];
-
-        if (dateString && typeof dateString === 'string') {
-            const parts = dateString.split('/');
-            if (parts.length === 3) {
-                const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
-                const year = parseInt(parts[2], 10);
-                
-                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-                    const currentDate = new Date(year, month, day);
-                    if (!earliestDate || currentDate < earliestDate) {
-                        earliestDate = currentDate;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!earliestDate) {
-        throw new Error("Could not find any valid dates in the 'Date' column.");
-    }
-    
-    const year = earliestDate.getFullYear();
-    const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0');
-    
-    return `${year}-${month}`;
-}
-
-// Add this event listener for the new Moka upload button
-document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
-    const fileInput = document.getElementById('moka-file-input') as HTMLInputElement;
-    const file = fileInput.files?.[0];
-
-    if (!file) {
-        alert('Please select a Moka file to upload.');
-        return;
-    }
-    if (!currentUser) return;
-
-    const uploadButton = document.getElementById('upload-moka-btn') as HTMLButtonElement;
-    uploadButton.disabled = true;
-
-    // Show your main progress UI here...
-    const progressContainer = document.getElementById('upload-progress-container');
-    const statusText = document.getElementById('upload-status-text');
-
-    progressContainer.classList.remove('hidden');
-    setTimeout(() => progressContainer.classList.add('show'), 10);
-    statusText.textContent = 'Analyzing Moka file...';
-
-    try {
-        const fileData = await file.arrayBuffer();
-        // CORRECTED: Uses XLSX (uppercase)
-        const workbook = XLSX.read(fileData);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const period = getPeriodFromMokaData(worksheet);
-
-        statusText.textContent = `Period ${period} found. Uploading...`;
-
-        const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
-        const storageRef = ref(storage, storagePath);
-        
-        const metadata = {
-            customMetadata: {
-                userId: currentUser.uid,
-                period: period,
-                format: 'MOKA'
-            }
-        };
-
-        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-        
-        uploadTask.on('state_changed', 
-          (snapshot) => { 
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              document.getElementById('upload-progress-bar').style.width = `${progress}%`;
-              document.getElementById('upload-progress-percent').textContent = `${Math.round(progress)}%`;
-           },
-          (error) => { 
+          (error) => {
               console.error("Moka upload failed:", error);
               statusText.textContent = 'Upload Failed!';
               uploadButton.disabled = false;
