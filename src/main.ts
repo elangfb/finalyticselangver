@@ -15038,7 +15038,7 @@ function getPeriodFromMokaData(worksheet): string {
 
 // Add this event listener for the new Moka upload button
 document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
-    const fileInput = document.getElementById('moka-file-input') as HTMLInputElement;
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
     const file = fileInput.files?.[0];
 
     if (!file) {
