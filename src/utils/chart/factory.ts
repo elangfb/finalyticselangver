@@ -1,6 +1,7 @@
 import Chart from 'chart.js/auto';
+import type { Chart as ChartTypeInstance, ChartData, ChartOptions, ChartType } from 'chart.js';
 import * as $store from '@/store';
-import { mergeChartOptions, chartTooltip, chartXTicks, chartYTicks } from '../chart-formatter';
+import { mergeChartOptions } from '../chart-formatter';
 
 // Chart.js types
 export type { Chart } from 'chart.js/auto';
@@ -35,7 +36,12 @@ export function destroyCharts(): void {
  * @param options - Additional Chart.js configuration options to merge with defaults.
  * @returns The created Chart.js instance, or null if canvas not found.
  */
-export function createChart(canvasId: string, type: string, data: any, options: any = {}): Chart | null {
+export function createChart<TType extends ChartType = ChartType>(
+  canvasId: string,
+  type: TType,
+  data: ChartData<TType>,
+  options?: ChartOptions<TType>
+): ChartTypeInstance<TType> | null {
   const existingChart = $store.getChartProperty(canvasId);
   if (existingChart) existingChart.destroy();
 
@@ -55,8 +61,9 @@ export function createChart(canvasId: string, type: string, data: any, options: 
   const isPDF = canvasId.includes('-pdf');
 
   // Apply enhanced default options
-  const defaultOptions = getDefaultOptions(isPDF);
-  const finalOptions = mergeChartOptions(defaultOptions, options);
+  const defaultOptions = getDefaultOptions(isPDF) as ChartOptions<TType>;
+  const userOptions = (options ?? {}) as ChartOptions<TType>;
+  const finalOptions = mergeChartOptions(defaultOptions as unknown as object, userOptions as unknown as object) as ChartOptions<TType>;
 
   const newChart = new Chart(ctx, { type, data, options: finalOptions });
   $store.setChartProperty(canvasId, newChart);
@@ -94,21 +101,18 @@ export function createChart(canvasId: string, type: string, data: any, options: 
  * @param isPDF - Whether this chart is intended for PDF export.
  * @returns Default Chart.js options object.
  */
-function getDefaultOptions(isPDF: boolean = false) {
-  const baseOptions = {
+function getDefaultOptions(isPDF: boolean = false): ChartOptions<ChartType> {
+  const baseOptions: ChartOptions<ChartType> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
         display: true,
-        position: 'top' as const
+        position: 'top',
       },
-      tooltip: chartTooltip
+      // Use default tooltip behavior; specific tooltip callbacks should be merged via helpers
     },
-    scales: {
-      x: chartXTicks,
-      y: chartYTicks
-    }
+    // Scales will be customized via mergeChartOptions using chartXTicks/chartYTicks helpers
   };
 
   if (isPDF) {
@@ -117,7 +121,7 @@ function getDefaultOptions(isPDF: boolean = false) {
       responsive: false,
       maintainAspectRatio: true,
       aspectRatio: 2,
-      animation: false
+      animation: false,
     };
   }
 

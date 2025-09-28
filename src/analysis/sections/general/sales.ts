@@ -6,9 +6,20 @@ import { currentUser } from '@/core/state';
 import { doc, getDoc } from 'firebase/firestore';
 import { createChart, destroyCharts } from '../../helpers';
 import { chartTooltip, chartXTicks, chartYTicks, currencyTooltipCallback, mergeChartOptions, shortenCurrency, shortenDateTickCallback, shortenNumber } from '../../utils/chart-formatters';
-import { AlsoStoreFn, createAlsoStoreFn } from '../../utils/store-helpers';
+import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';
 import { formatCurrencyUtil, formatDecimalBasedPercentage, formatMachineYearMonthDay, formatNumberUtil } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';
+import type { ChartDataset, TickOptions } from 'chart.js';
+
+// Local shape for sales summaries used across this module
+type SalesSummary = {
+  date: Date;
+  totalOmzet: number;
+  totalTransactions: number;
+  apc: number;
+  hourlyRevenue?: number[];
+  branches: string[];
+};
 
 /**
  * A local helper to calculate and display growth percentages in the KPI cards.
@@ -36,7 +47,7 @@ function calculateAndDisplayGrowth(elementId: string, currentValue: number, prev
 /**
  * Generates the main KPI cards for the General Sales section.
  */
-function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSummaries: any[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }, config?: { alsoStore?: AlsoStoreFn }) {
+function generateRingkasanFromSummaries(currentSummaries: SalesSummary[], lastPeriodSummaries: SalesSummary[], ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string }, config?: { alsoStore?: AlsoStoreFn }) {
     const adjustFontSize = (elementId: string, text: string) => {
         const element = document.getElementById(elementId);
         if (!element) return;
@@ -50,7 +61,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
         }
     };
 
-    const calculateTotals = (summaries: any[]) => summaries.reduce((acc, summary) => {
+  const calculateTotals = (summaries: SalesSummary[]) => summaries.reduce((acc, summary) => {
         acc.omzet += summary.totalOmzet || 0;
         acc.checks += summary.totalTransactions || 0;
         return acc;
@@ -84,7 +95,7 @@ function generateRingkasanFromSummaries(currentSummaries: any[], lastPeriodSumma
     }
 }
 
-function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+function generateOmzetHarianChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     // This uses .toSorted() which is great because it doesn't mutate the original array.
     const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
@@ -95,7 +106,7 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     const averageOmzet = sortedSummaries.length > 0 ? totalOmzet / sortedSummaries.length : 0;
     // --- END: New code to calculate the average ---
 
-    const datasets = [{
+    const datasets: ChartDataset<'line', number[]>[] = [{
         label: 'Total Omzet Harian',
         data: maybeAlsoStore(
           config?.alsoStore,
@@ -114,9 +125,9 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
     // This part for the Target line remains unchanged.
     const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
     if (salesTarget && salesTarget['Omzet Harian']) {
-        datasets.push({
+    datasets.push({
             label: 'Target Omzet Harian',
-            data: Array(labels.length).fill(maybeAlsoStore(
+      data: Array(labels.length).fill(maybeAlsoStore(
               config?.alsoStore,
               salesTarget['Omzet Harian'],
               (v) => ({ targetOmzetHarian: formatCurrencyUtil(v) }),
@@ -127,14 +138,14 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
             pointRadius: 0,
             tension: 0,
             type: 'line'
-        });
+    } as ChartDataset<'line', number[]>);
     }
 
     // --- START: New code to add the average line to the chart ---
     if (averageOmzet > 0) {
-        datasets.push({
+    datasets.push({
             label: 'Average Omzet',
-            data: Array(labels.length).fill(maybeAlsoStore(
+      data: Array(labels.length).fill(maybeAlsoStore(
               config?.alsoStore,
               averageOmzet,
               (v) => ({ avgOmzet: formatCurrencyUtil(v) }),
@@ -145,40 +156,40 @@ function generateOmzetHarianChartFromSummaries(summaries: any[], canvasId: strin
             pointRadius: 0,
             tension: 0,
             type: 'line'
-        });
+    } as ChartDataset<'line', number[]>);
     }
     // --- END: New code to add the average line ---
 
-    createChart(canvasId, 'line', {
+  createChart(canvasId, 'line', {
         labels: labels,
-        datasets: datasets, // This now contains all three datasets
+    datasets: datasets, // This now contains all three datasets
     }, mergeChartOptions(
       chartTooltip({ label: currencyTooltipCallback }),
-      chartYTicks(shortenCurrency),
+      chartYTicks((value: string | number) => shortenCurrency(Number(value))),
       chartXTicks(shortenDateTickCallback),
     ));
 }
 
-function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: string, type: 'line' | 'bar' = 'bar', config?: { alsoStore?: AlsoStoreFn }) {
-    const weeklyOmzet = summaries.reduce((acc, summary) => {
+function generateOmzetMingguanChartFromSummaries(summaries: SalesSummary[], canvasId: string, type: 'line' | 'bar' = 'bar', config?: { alsoStore?: AlsoStoreFn }) {
+  const weeklyOmzet: Record<string, number> = summaries.reduce((acc: Record<string, number>, summary) => {
         const d = summary.date;
         const firstDayOfWeek = new Date(d);
         firstDayOfWeek.setDate(d.getDate() - d.getDay());
-        const weekLabel = firstDayOfWeek.toISOString().split('T')[0];
-        acc[weekLabel] = (acc[weekLabel] || 0) + summary.totalOmzet;
-        return acc;
-    }, {});
+    const weekLabel = firstDayOfWeek.toISOString().split('T')[0]!;
+    acc[weekLabel] = ((acc[weekLabel] as number | undefined) || 0) + summary.totalOmzet;
+    return acc;
+  }, {} as Record<string, number>);
 
     const sortedWeeks = Object.keys(weeklyOmzet).toSorted();
 
-    const datasets = [{
+    const datasets: ChartDataset<'bar' | 'line', number[]>[] = [{
         label: 'Total Omzet Mingguan',
         data: maybeAlsoStore(
           config?.alsoStore,
-          sortedWeeks.map((week) => weeklyOmzet[week]),
+          sortedWeeks.map((week) => weeklyOmzet[week] ?? 0),
           (v) => ({
             omzetMingguan: deepmerge(...v.map((v, index) => ({
-              [`Week ${index + 1}`]: formatCurrencyUtil(v),
+              [`Week ${index + 1}`]: formatCurrencyUtil(v as number),
             }))),
           }),
         ),
@@ -202,28 +213,28 @@ function generateOmzetMingguanChartFromSummaries(summaries: any[], canvasId: str
             pointRadius: 0,
             tension: 0,
             fill: false
-        });
+        } as ChartDataset<'line', number[]>);
     }
 
     // FIX: The chart type is now explicitly set to 'bar' in this call.
-    createChart(canvasId, 'bar', {
+  createChart(canvasId, 'bar', {
         labels: sortedWeeks,
         datasets: datasets,
     }, mergeChartOptions(
-        chartYTicks(shortenCurrency),
+    chartYTicks((value: string | number) => shortenCurrency(Number(value))),
         chartXTicks(shortenDateTickCallback),
         chartTooltip({ label: currencyTooltipCallback })
     ));
 }
 
-function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+function generateTcApcHarianChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
     const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0]);
     const tcData = sortedSummaries.map(s => s.totalTransactions);
     const apcData = sortedSummaries.map(s => s.apc);
 
     // --- FIX START: Add target lines for both TC and APC ---
-    const datasets = [
+    const datasets: ChartDataset<'bar' | 'line', number[]>[] = [
         {
             type: 'bar',
             label: 'Total Check (TC)',
@@ -262,7 +273,7 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
     const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
     if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
       config?.alsoStore?.(salesTarget['Total Transaksi Per Hari'], (v) => ({ targetTotalCheckHarian: formatNumberUtil(v) }))
-        datasets.push({
+    datasets.push({
             type: 'line',
             label: 'Target TC Harian',
             data: Array(labels.length).fill(salesTarget['Total Transaksi Per Hari']),
@@ -271,13 +282,13 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
             borderWidth: 2,
             pointRadius: 0,
             yAxisID: 'y-tc', // Ensure it uses the left axis
-        });
+    } as ChartDataset<'line', number[]>);
     }
 
     // Add Target Line for "Average Check" (APC)
     if (salesTarget && salesTarget['Average Check']) {
       config?.alsoStore?.(salesTarget['Average Check'], (v) => ({ targetAvgPerCheckHarian: formatCurrencyUtil(v) }))
-        datasets.push({
+    datasets.push({
             type: 'line',
             label: 'Target Average Check',
             data: Array(labels.length).fill(salesTarget['Average Check']),
@@ -286,35 +297,35 @@ function generateTcApcHarianChartFromSummaries(summaries: any[], canvasId: strin
             borderWidth: 2,
             pointRadius: 0,
             yAxisID: 'y-apc', // Ensure it uses the right axis
-        });
+    } as ChartDataset<'line', number[]>);
     }
     // --- FIX END ---
 
-    createChart(canvasId, 'bar', {
+  createChart(canvasId, 'bar', {
         labels: labels,
         datasets: datasets, // Use the new datasets array
     }, mergeChartOptions(
-        {
+    ({
             scales: {
-                'y-tc': { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Check' }, ticks: { callback: shortenNumber } },
-                'y-apc': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, ticks: { callback: shortenCurrency } },
+        'y-tc': { type: 'linear' as const, display: true, position: 'left', title: { display: true, text: 'Total Check' }, ticks: { callback: shortenNumber as unknown as TickOptions['callback'] } },
+        'y-apc': { type: 'linear' as const, display: true, position: 'right', title: { display: true, text: 'Average Check (Rp)' }, grid: { drawOnChartArea: false }, ticks: { callback: ((tickValue: string | number) => shortenCurrency(typeof tickValue === 'number' ? tickValue : Number(tickValue))) as unknown as TickOptions['callback'] } },
             }
-        },
-        chartXTicks(shortenDateTickCallback),
+    } as any),
+    chartXTicks(shortenDateTickCallback),
         chartTooltip({
             label: (context) => {
                 const label = context.dataset.label || '';
-                const value = context.parsed.y;
+        const value = context.parsed.y as number;
                 if (context.dataset.yAxisID === 'y-apc') {
-                    return `${label}: ${formatCurrency(value)}`;
+          return `${label}: ${formatCurrencyUtil(value)}`;
                 }
-                return `${label}: ${formatNumber(value)}`;
+        return `${label}: ${formatNumberUtil(value)}`;
             }
         })
     ));
 }
 
-function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: string = 'daily-omzet-heatmap-container', config?: { alsoStore?: AlsoStoreFn }) {
+function generateDailyOmzetHeatmapFromSummaries(summaries: SalesSummary[], containerId: string = 'daily-omzet-heatmap-container', config?: { alsoStore?: AlsoStoreFn }) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -326,14 +337,14 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
     return;
   }
 
-  const dailyTotals = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
+  const dailyTotals: Record<string, number> = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]));
   $store.setChartDataForAIProperty('dailyOmzetHeatmap', dailyTotals);
 
   const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet));
 
   // Determine the start and end date from the filtered data, NOT from the DOM
-  const startDate = summaries.reduce((min, s) => s.date < min ? s.date : min, summaries[0].date);
-  const endDate = summaries.reduce((max, s) => s.date > max ? s.date : max, summaries[0].date);
+  const startDate = summaries.reduce((min, s) => s.date < min ? s.date : min, summaries[0]!.date);
+  const endDate = summaries.reduce((max, s) => s.date > max ? s.date : max, summaries[0]!.date);
   // --- FIX END ---
 
   let currentMonth = -1;
@@ -358,7 +369,7 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
     }
 
     const dateStr = d.toISOString().split('T')[0];
-    const omzet = dailyTotals[dateStr] || 0;
+  const omzet = dailyTotals[dateStr as string] || 0;
     const opacity = maxOmzet > 0 ? (omzet / maxOmzet) : 0;
     const color = `rgba(79, 70, 229, ${opacity})`;
     const title = `${dateStr}: Rp${omzet.toLocaleString('id-ID')}`;
@@ -371,21 +382,22 @@ function generateDailyOmzetHeatmapFromSummaries(summaries: any[], containerId: s
   container.innerHTML = calendarHTML;
 }
 
-function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
-    const container = document.getElementById(containerId);
+function generateOmzetHeatmapFromSummaries(summaries: SalesSummary[], containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const hours = Array.from({ length: 24 }, (_, i) => i);
 
-    const heatmapData = Array(7).fill(0).map(() => Array(24).fill(0));
+  const heatmapData: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
     let maxOmzet = 0;
 
     summaries.forEach(summary => {
         if (summary.hourlyRevenue && summary.hourlyRevenue.length === 24) {
             const dayIndex = summary.date.getDay();
-            summary.hourlyRevenue.forEach((revenue, hourIndex) => {
-                heatmapData[dayIndex][hourIndex] += revenue;
-                if (heatmapData[dayIndex][hourIndex] > maxOmzet) {
-                    maxOmzet = heatmapData[dayIndex][hourIndex];
+      summary.hourlyRevenue.forEach((revenue: number, hourIndex: number) => {
+        heatmapData[dayIndex]![hourIndex]! += revenue;
+        if (heatmapData[dayIndex]![hourIndex]! > maxOmzet) {
+          maxOmzet = heatmapData[dayIndex]![hourIndex]!;
                 }
             });
         }
@@ -398,8 +410,8 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
     tableHTML += '</tr></thead><tbody>';
     days.forEach((day, dayIndex) => {
         tableHTML += `<tr><td class="day-label">${day}</td>`;
-        hours.forEach(hour => {
-            const omzet = heatmapData[dayIndex][hour];
+    hours.forEach(hour => {
+      const omzet = heatmapData[dayIndex]![hour]!;
             const opacity = maxOmzet > 0 ? (omzet / maxOmzet) : 0;
             const color = `rgba(79, 70, 229, ${opacity})`;
             const title = `Rp${omzet.toLocaleString('id-ID')}`;
@@ -415,15 +427,15 @@ function generateOmzetHeatmapFromSummaries(summaries: any[], containerId: string
     container.innerHTML = tableHTML;
 }
 
-function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+function generateSalesTrendHourlyDailyChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
 
-    const dailyData = Array(7).fill(0).map(() => Array(24).fill(0));
+  const dailyData: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
 
     summaries.forEach(s => {
         if (s.hourlyRevenue && s.hourlyRevenue.length === 24) {
             const dayIndex = s.date.getDay(); // Sunday = 0, Monday = 1, etc.
-            s.hourlyRevenue.forEach((rev, hourIndex) => {
-                dailyData[dayIndex][hourIndex] += rev;
+      s.hourlyRevenue.forEach((rev: number, hourIndex: number) => {
+        dailyData[dayIndex]![hourIndex]! += rev;
             });
         }
     });
@@ -432,26 +444,26 @@ function generateSalesTrendHourlyDailyChartFromSummaries(summaries: any[], canva
     const dayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const colors = ['#EF4444', '#F97316', '#F59E0B', '#84CC16', '#22C55E', '#14B8A6', '#3B82F6'];
 
-    const datasets = dayLabels.map((label, dayIndex) => ({
+    const datasets: ChartDataset<'line', number[]>[] = dayLabels.map((label, dayIndex) => ({
         label: label,
-        data: maybeAlsoStore(config?.alsoStore, dailyData[dayIndex], (v) => ({
+        data: maybeAlsoStore(config?.alsoStore, dailyData[dayIndex]!, (v) => ({
           salesTrendHourlyDaily: {
             [`Day ${label}`]: deepmerge({}, ...v!.map((val, hr) => ({
               [`Hour ${hr}:00 to ${hr}:59`]: formatCurrencyUtil(val),
             }))),
           },
         })),
-        borderColor: colors[dayIndex % colors.length],
-        backgroundColor: colors[dayIndex % colors.length],
+        borderColor: colors[dayIndex % colors.length]!,
+        backgroundColor: colors[dayIndex % colors.length]!,
         tension: 0.2,
         fill: false,
     }));
 
-    $store.setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [ds.label]: ds.data })));
+  $store.setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [String(ds.label)]: ds.data })));
 
     // --- FIX: Use the 'canvasId' parameter instead of a hardcoded string ---
-    createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
-        chartYTicks(shortenCurrency),
+  createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
+        chartYTicks((value: string | number) => shortenCurrency(Number(value))),
         chartTooltip({ label: currencyTooltipCallback })
     ));
 }
@@ -490,9 +502,9 @@ async function generateGeneralSales() {
         }
     }
 
-    let currentData = $store.getAllSalesData().filter(s => s.date >= startDate && s.date <= endDate);
+  let currentData: SalesSummary[] = $store.getAllSalesData().filter((s: SalesSummary) => s.date >= startDate && s.date <= endDate);
     if (selectedBranch !== 'ALL') {
-        currentData = currentData.filter(s => s.branches.includes(selectedBranch));
+    currentData = currentData.filter(s => s.branches.includes(selectedBranch));
     }
 
     $store.clearViewData('general-penjualan');
