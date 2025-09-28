@@ -1,8 +1,8 @@
 // Handles real-time feedback for backend file processing.
 
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../core/firebase';
-import { currentUser } from '../core/state';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 import { populateCompiledDataTable } from '../data-hub/table';
 
 /**

@@ -1,6 +1,6 @@
 // Contains all logic for the "Analisis Perbandingan Cabang > Aspek Penjualan" section.
 
-import * as $store from '../../../store';
+import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, shortenCurrency, currencyTooltipCallback } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';

@@ -1,7 +1,7 @@
 // Contains all logic for the "Analisis Perbandingan Waktu > Aspek Produk & Channel" section.
 
-import * as $store from '../../../store';
-import { currentUser } from '../../../core/state';
+import * as $store from '@/store';
+import { currentUser } from '@/core/state';
 import { createChart } from '../../helpers';
 import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, currencyTooltipCallback } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';

@@ -1,10 +1,10 @@
 // Contains functions for displaying and managing all modals related to the data hub.
 
 import { collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../core/firebase';
-import { currentUser } from '../core/state';
-import { hideLoading } from '../core/ui';
-import { calculateAllPnlMetrics } from '../analysis/pnl-general';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
+import { hideLoading } from '@/core/ui';
+import { calculateAllPnlMetrics } from '@/analysis/sections/general/finance';
 import { AlsoStoreFn, createMaybeAlsoStoreFn } from '@/utils/also-store';
 import * as $store from '@/store';
 

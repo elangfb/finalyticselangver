@@ -4,9 +4,9 @@ import { populateCompiledDataTable } from '../data-hub/table';
 import { uploadSalesFile } from './sales';
 import { uploadAndProcessPnlFile } from './pnl';
 import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from './targets';
-import { showLoading, hideLoading, quickUploadModal } from '../core/ui';
-import { generateGeneralKeuanganSection } from '../analysis/pnl-general';
-import { currentUser } from '../core/state';
+import { showLoading, hideLoading, quickUploadModal } from '@/core/ui';
+import { generateGeneralFinance } from '@/analysis/sections/general/finance';
+import { currentUser } from '@/core/state';
 
 /**
  * Attaches all event listeners for upload buttons, template downloads, and the quick upload modal.
@@ -149,7 +149,7 @@ export function initializeUploadListeners(): void {
             if (generalKeuanganSection?.classList.contains('active')) {
                 await generateGeneralKeuanganSection();
             }
-            setTimeout(() => quickUploadModal.classList.add('hidden'), 2000);
+            setTimeout(() => quickUploadModal?.classList.add('hidden'), 2000);
 
         } catch (error: any) {
             console.error("Quick upload failed:", error);
@@ -163,6 +163,6 @@ export function initializeUploadListeners(): void {
     });
 
     // Close modal listeners
-    quickUploadModal?.querySelector('#quick-upload-modal-close')?.addEventListener('click', () => quickUploadModal.classList.add('hidden'));
-    quickUploadModal?.querySelector('#quick-upload-cancel-btn')?.addEventListener('click', () => quickUploadModal.classList.add('hidden'));
+    quickUploadModal?.querySelector('#quick-upload-modal-close')?.addEventListener('click', () => quickUploadModal?.classList.add('hidden'));
+    quickUploadModal?.querySelector('#quick-upload-cancel-btn')?.addEventListener('click', () => quickUploadModal?.classList.add('hidden'));
 }

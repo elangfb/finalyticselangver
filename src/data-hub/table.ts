@@ -1,8 +1,8 @@
 // Manages populating the main data hub table with an aggregated view of all user data.
 
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../core/firebase';
-import { currentUser } from '../core/state';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 
 /**
  * Fetches all user data (sales, targets, P&L) and populates the main data hub table.

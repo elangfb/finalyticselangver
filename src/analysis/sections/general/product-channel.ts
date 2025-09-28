@@ -1,6 +1,6 @@
 // Contains all logic for the "Analisis General > Aspek Produk & Channel" section.
 
-import * as $store from '../../../store';
+import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { chartTooltip, currencyTooltipCallback, chartXTicks, chartYTicks, mergeChartOptions, shortenDateTickCallback, shortenNumber } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn } from '../../utils/store-helpers';
@@ -242,7 +242,7 @@ function generateGeneralProductChannel() {
 /**
  * Sets up the filters (Branch selector) for the General Product & Channel section.
  */
-export async function setupGeneralProductChannelSelectors() {
+export async function setupGeneralProductChannel() {
     if ($store.getInitFlag('generalProdukChannelSelectorInitialized')) return;
 
     const branchSelect = document.getElementById('general-produk-channel-branch-select') as HTMLSelectElement;

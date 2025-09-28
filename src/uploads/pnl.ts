@@ -3,8 +3,8 @@
 declare const XLSX: any;
 
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../core/firebase';
-import { currentUser } from '../core/state';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 import { getPeriodFromFile } from './utils';
 
 /**

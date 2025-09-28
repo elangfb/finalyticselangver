@@ -2,12 +2,12 @@
 
 import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../core/firebase';
-import { showView } from '../core/views';
-import { setCurrentUser, setCurrentUserRole, adminCredentials, setAdminCredentials, currentUserRole } from '../core/state';
+import { auth, db } from '@/core/firebase';
+import { showView } from '@/core/views';
+import { setCurrentUser, setCurrentUserRole, adminCredentials, setAdminCredentials, currentUserRole } from '@/core/state';
 import { populateCompiledDataTable } from '../data-hub/table';
-import { loadGeminiConfig } from '../config/gemini';
-import { authError, signupError } from '../core/ui';
+import { loadGeminiConfig } from '@/config/gemini';
+import { authError, signupError } from '@/core/ui';
 
 /**
  * Ensures a user document exists in Firestore with basic profile information.

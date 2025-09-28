@@ -1,5 +1,11 @@
 // @ts-nocheck
 
+// ONLY BE KEEP HERE FOR LEGACY PURPOSES. REFERENCE ONLY.
+//
+// The main application logic has been moved to `src/main.ts`
+// and the legacy code will be removed in future versions.
+// Please avoid adding new code here.
+
 declare const XLSX: any;
 declare const SlimSelect: any;
 
@@ -4218,7 +4224,7 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
 
     config?.alsoStore?.(channelSales, (v) => ({
       channelSales: Object.fromEntries(Object.entries(v).map(([channel, sales]) => (
-        [channel, formatCurrencyUtil(sales)],
+        [channel, formatCurrencyUtil(sales)]
       ))),
     }));
 
@@ -13137,7 +13143,7 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, c
 
     config?.alsoStore?.(byMenuCategory, (v) => ({
       totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
-        [category, formatNumberUtil(totalOrder)],
+        [category, formatNumberUtil(totalOrder)]
       ))),
     }));
 

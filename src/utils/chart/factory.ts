@@ -1,5 +1,5 @@
 import Chart from 'chart.js/auto';
-import * as $store from '../../store';
+import * as $store from '@/store';
 import { mergeChartOptions, chartTooltip, chartXTicks, chartYTicks } from '../chart-formatter';
 
 // Chart.js types

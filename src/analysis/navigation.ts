@@ -1,8 +1,8 @@
 // Handles all user navigation within the analysis view, including sidebar clicks and section initialization.
 
-import * as $store from '../store';
-import { setupPageSummary } from '../components/PageSummary';
-import { getGeminiAnalysis } from '../config/gemini';
+import * as $store from '@/store';
+import { setupPageSummary } from '@/components/PageSummary';
+import { getGeminiAnalysis } from '@/config/gemini';
 
 // Import setup functions from their new, organized locations
 import { setupGeneralFinance, setupAnalisaPnl, generateAllTimePnlTable } from './sections/general/finance';

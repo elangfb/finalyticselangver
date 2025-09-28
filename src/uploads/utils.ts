@@ -5,7 +5,7 @@ import type { WorkSheet } from "xlsx";
 declare const XLSX: any;
 
 /**
- * Extracts the period (YYYY-MM) from a template file's "B2" cell.
+ * Extracts the period (YYYY-MM) from a standard template file's "B2" cell.
  * Handles both string and Excel serial number date formats.
  * @param worksheet The XLSX worksheet object.
  * @returns The period string in "YYYY-MM" format.
@@ -18,9 +18,7 @@ export function getPeriodFromFile(worksheet: WorkSheet): string {
 
     let dateString: string;
 
-    // Check if Excel stored the date as a number (serial date) or a string
     if (periodCell.t === 'n') {
-        // Note: XLSX.SSF is a utility from the xlsx.full.min.js library
         dateString = XLSX.SSF.format('dd/mm/yyyy', periodCell.v);
     } else {
         dateString = periodCell.v.toString();
@@ -37,13 +35,11 @@ export function getPeriodFromFile(worksheet: WorkSheet): string {
         throw new Error(`Could not correctly parse the date from "${dateString}".`);
     }
 
-    // Return in the required "YYYY-MM" format
     return `${year}-${month.padStart(2, '0')}`;
 }
 
 /**
- * Extracts the period (YYYY-MM) from a Moka or standard sales data file.
- * It finds the date in the specified cell to determine the correct period.
+ * Extracts the period (YYYY-MM) from a standard sales data file (from cell B5).
  * @param worksheet The XLSX worksheet object.
  * @returns The period string in "YYYY-MM" format.
  */
@@ -72,3 +68,54 @@ export function getPeriodFromSalesData(worksheet: WorkSheet): string {
 
     return `${year}-${month}`;
 }
+
+/**
+ * Extracts the period (YYYY-MM) from a Moka sales data file by finding the earliest date.
+ * @param worksheet The XLSX worksheet object.
+ * @returns The period string in "YYYY-MM" format.
+ */
+export function getPeriodFromMokaData(worksheet: any): string {
+    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    if (json.length < 2) {
+        throw new Error("Moka file is empty or has no data rows.");
+    }
+
+    const headers = json[0] as string[];
+    const dateIndex = headers.findIndex(h => h === 'Date');
+    if (dateIndex === -1) {
+        throw new Error("Column 'Date' not found in Moka file.");
+    }
+
+    let earliestDate: Date | null = null;
+
+    for (let i = 1; i < json.length; i++) {
+        const row = json[i] as any[];
+        const dateString = row[dateIndex];
+
+        if (dateString && typeof dateString === 'string') {
+            const parts = dateString.split('/') as [string, string, string];
+            if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+                const year = parseInt(parts[2], 10);
+
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                    const currentDate = new Date(year, month, day);
+                    if (!earliestDate || currentDate < earliestDate) {
+                        earliestDate = currentDate;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!earliestDate) {
+        throw new Error("Could not find any valid dates in the 'Date' column.");
+    }
+
+    const year = earliestDate.getFullYear();
+    const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0');
+
+    return `${year}-${month}`;
+}
+

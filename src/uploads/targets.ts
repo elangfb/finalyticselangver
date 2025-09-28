@@ -4,9 +4,9 @@ declare const XLSX: any;
 
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../core/firebase';
-import { currentUser } from '../core/state';
-import { showLoading, hideLoading } from '../core/ui';
+import { db, storage } from '@/core/firebase';
+import { currentUser } from '@/core/state';
+import { showLoading, hideLoading } from '@/core/ui';
 import { getPeriodFromFile } from './utils';
 
 /**

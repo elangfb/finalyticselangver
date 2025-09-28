@@ -2,9 +2,9 @@
 
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../core/firebase';
-import { currentUser, currentUserRole, setAdminCredentials } from '../core/state';
-import { userListError, createUserFeedback } from '../core/ui';
+import { auth, db } from '@/core/firebase';
+import { currentUser, currentUserRole, setAdminCredentials } from '@/core/state';
+import { userListError, createUserFeedback } from '@/core/ui';
 
 /**
  * Ensures a user document exists in Firestore.

@@ -1,11 +1,11 @@
 // src/analysis/sections/branch-comparison/finance.ts
 // Contains all logic for the "Analisis Perbandingan Cabang > Aspek Keuangan" section.
 
-import * as $store from '../../../store';
-import { db } from '../../../core/firebase';
-import { currentUser } from '../../../core/state';
+import * as $store from '@/store';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { showLoading, hideLoading } from '../../../core/ui';
+import { showLoading, hideLoading } from '@/core/ui';
 import { createChart } from '../../helpers';
 import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';

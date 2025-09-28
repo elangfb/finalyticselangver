@@ -1,13 +1,13 @@
 // This file contains the core view-switching logic for the single-page application.
 
-import * as $store from '../store';
+import * as $store from '@/store';
 import {
   authView, analysisView, userManagementView, konfigurasiView,
   plAnalysisView, mainMenuview, salesDashboardView, pnlHistoryView, pnlComparisonView
 } from './ui';
 import { currentView, setCurrentView, currentUserRole } from './state';
-import { loadUsersForAdmin } from '../admin/user-management';
-import { setupConfigurationTab } from '../config/gemini';
+import { loadUsersForAdmin } from '@/admin/user-management';
+import { setupConfigurationTab } from '@/config/gemini';
 
 /**
  * Displays a specific application view while hiding all others.

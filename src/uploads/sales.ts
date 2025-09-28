@@ -4,8 +4,8 @@ declare const XLSX: any;
 
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
-import { db, storage } from '../core/firebase';
-import { currentUser } from '../core/state';
+import { db, storage } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 import { getPeriodFromSalesData, getPeriodFromMokaData } from './utils';
 import { listenForProcessingStatus } from './processing';
 

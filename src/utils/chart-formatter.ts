@@ -108,7 +108,7 @@ export const shortenDateTickCallback = function (_, index) {
  * @param callbacks - An object containing callback functions for the tooltip.
  * @returns A Chart.js plugins configuration object for tooltips.
  */
-export function chartTooltip<TCallback extends TooltipCallbacks>(callbacks: TCallback) {
+export function chartTooltip<TCallback extends Partial<TooltipCallbacks>>(callbacks: TCallback) {
     return { plugins: { tooltip: { callbacks } } }
 }
 

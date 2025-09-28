@@ -1,8 +1,8 @@
 // Contains all logic for the "Analisis General > Aspek Penjualan" section.
 
-import * as $store from '../../../store';
-import { db } from '../../../core/firebase';
-import { currentUser } from '../../../core/state';
+import * as $store from '@/store';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
 import { doc, getDoc } from 'firebase/firestore';
 import { createChart, destroyCharts } from '../../helpers';
 import { chartTooltip, chartXTicks, chartYTicks, currencyTooltipCallback, mergeChartOptions, shortenCurrency, shortenDateTickCallback, shortenNumber } from '../../utils/chart-formatters';
@@ -522,7 +522,7 @@ async function generateGeneralSales() {
 /**
  * Sets up the filters (Branch and Date Range) for the General Sales section.
  */
-export async function setupGeneralSalesSelectors() {
+export async function setupGeneralSales() {
     if ($store.getInitFlag('generalPenjualanSelectorInitialized')) return;
 
     const branchSelect = document.getElementById('general-penjualan-branch-select') as HTMLSelectElement;

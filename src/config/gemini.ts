@@ -1,8 +1,8 @@
 // Manages AI configuration, API key handling, and communication with the Gemini API.
 
-import { currentUser, currentUserRole } from '../core/state';
-import { prompts } from '../prompt';
-import { globalConfigService } from '../services/globalConfigService';
+import { currentUser, currentUserRole } from '@/core/state';
+import { prompts } from '@/prompt';
+import { globalConfigService } from '@/services/globalConfigService';
 import { User } from 'firebase/auth';
 
 const defaultGeminiConfig = Object.freeze({

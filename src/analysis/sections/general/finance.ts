@@ -2,10 +2,10 @@
 // Contains all logic for the "Analisis General > Aspek Keuangan" view.
 
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { db } from '../../../core/firebase';
-import { currentUser } from '../../../core/state';
-import { showLoading, hideLoading } from '../../../core/ui';
-import * as $store from '../../../store';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
+import { showLoading, hideLoading } from '@/core/ui';
+import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from '../../utils/store-helpers';
 import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
@@ -393,7 +393,7 @@ function generateSpecificSubCategoryRatioChart(
  * It fetches data based on the selected period and calls the specific
  * functions to generate each table and chart.
  */
-async function generateGeneralFinance() {
+export async function generateGeneralFinance() {
     if (!currentUser) return;
     const branchSelect = document.getElementById('general-keuangan-branch-select') as HTMLSelectElement;
     const periodSelect = document.getElementById('general-keuangan-period-select') as HTMLSelectElement;

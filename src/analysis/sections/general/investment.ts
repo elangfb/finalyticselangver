@@ -1,13 +1,13 @@
 // Contains all logic for the "Analisis General > Aspek Investasi" section.
 
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where } from 'firebase/firestore';
-import { db } from '../../../core/firebase';
-import { currentUser } from '../../../core/state';
-import { showLoading, hideLoading } from '../../../core/ui';
-import * as $store from '../../../store';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
+import { showLoading, hideLoading } from '@/core/ui';
+import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn } from '../../utils/store-helpers';
-import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatter';
+import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
 import { currencyTooltipCallback } from '../../utils/chart-formatters';
 import { formatCurrency as formatCurrencyUtil, formatIntBasedPercentage } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';

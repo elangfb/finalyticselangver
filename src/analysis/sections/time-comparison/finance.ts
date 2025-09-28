@@ -1,10 +1,10 @@
 // Contains all logic for the "Analisis Perbandingan Waktu > Aspek Keuangan" section.
 
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../../core/firebase';
-import { currentUser } from '../../../core/state';
-import { showLoading, hideLoading } from '../../../core/ui';
-import * as $store from '../../../store';
+import { db } from '@/core/firebase';
+import { currentUser } from '@/core/state';
+import { showLoading, hideLoading } from '@/core/ui';
+import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from '../../utils/store-helpers';
 import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';

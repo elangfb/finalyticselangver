@@ -234,7 +234,7 @@ export const setupPageSummary = (params: {
             await deactivateHistoricalCache(filtersHash);
             // console.log ({ data: dataForPrompt, filters });
             // return;
-            //Kalau mau liat data, uncomment ini    
+            //Kalau mau liat data, uncomment ini
             const prompt = promptCreator({ data: dataForPrompt, filters });
             // Destructure the response from the AI call
             const { summaryText, usageMetadata } = await params.analyzeUsingAI(prompt);
@@ -280,53 +280,3 @@ export const setupPageSummary = (params: {
     }
     registerSubscriber();
 };
-
-
-function createGeneralSalesDailyBreakdown(dailySummaries: any[]): object {
-    if (!dailySummaries || dailySummaries.length === 0) {
-        return { message: "No data available for this period." };
-    }
-    const breakdown = {};
-    const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
-    const sortedSummaries = [...dailySummaries].sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    sortedSummaries.forEach(s => {
-        const dateStr = s.date.toISOString().split('T')[0];
-        const getTop5 = (categoryName: string) => {
-            if (!s.menuItemQuantities || !s.menuItemQuantities[categoryName]) return {};
-            return Object.entries(s.menuItemQuantities[categoryName])
-                .filter(([name]) => !name.includes('(PACKAGE)'))
-                .sort((a, b) => (b[1] as number) - (a[1] as number))
-                .slice(0, 5)
-                .reduce((acc, [name, qty]) => {
-                    acc[`${name} (Qty)`] = qty;
-                    return acc;
-                }, {});
-        };
-        breakdown[dateStr] = {
-            "Visit Purpose": s.visitPurposes || {},
-            "Payment Method": Object.entries(s.paymentMethods || {}).reduce((acc, [name, rev]) => {
-                acc[name] = formatCurrency(rev);
-                return acc;
-            }, {}),
-            "Traffic per Hour": (s.trafficByHour || [])
-                .map((count, hour) => ({ hour, count }))
-                .filter(item => item.count > 0)
-                .reduce((acc, item) => {
-                    acc[`${String(item.hour).padStart(2, '0')}:00`] = `${item.count} checks`;
-                    return acc;
-                }, {}),
-            "Menu Category Summary": Object.entries(s.menuCategories || {}).reduce((acc, [name, data]) => {
-                acc[name] = `${formatCurrency((data as any).revenue)} (${(data as any).quantity} items)`;
-                return acc;
-            }, {}),
-            "Top 5 Makanan": getTop5('MAKANAN'),
-            "Top 5 Minuman": getTop5('MINUMAN'),
-            "Financial Summary": {
-        "Total Nett Sales": formatCurrency(s.totalOmzet || 0),
-    }
-
-        };
-    });
-    return breakdown;
-}
