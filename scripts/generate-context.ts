@@ -11,12 +11,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 import { Ignore } from 'ignore';
+import ignore from 'ignore';
 
 // --- Configuration ---
 const ROOT_DIR = process.cwd();
 const OUTPUT_FILE = path.join(ROOT_DIR, 'llms.txt');
 const SRC_DIRECTORIES = ['src']; // Primary directories to scan for source code
-const FILE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
+const FILE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.html'];
 const DOC_FILES = ['README.md', 'CONTRIBUTING.md'];
 const CODE_SNIPPET_LINE_THRESHOLD = 30; // Min lines for a function to be included as a snippet
 
@@ -82,13 +83,20 @@ async function main() {
  * Reads and parses the .gitignore file.
  */
 function getGitignorePatterns(): Ignore {
-  const ig = require('ignore')();
+  const ig = ignore();
   const gitignorePath = path.join(ROOT_DIR, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
     ig.add(fs.readFileSync(gitignorePath).toString());
   }
   // Add common ignores that might not be in .gitignore
-  ig.add(['node_modules', '.git', 'dist', 'build', '*.log', 'llms.txt']);
+  ig.add([
+    'node_modules', '.git', 'dist', 'build', '*.log', 'llms.txt',
+    '.*', 'docs',
+    'eslint.config.mjs', 'scripts/*',
+    'justfile',
+    'pdf-*.html',
+    '*-legacy.*',
+  ]);
   return ig;
 }
 

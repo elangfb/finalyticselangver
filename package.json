@@ -11,7 +11,8 @@
     "clean": "rimraf .parcel-cache dist",
     "lint": "eslint ./index.html",
     "lint:fix": "eslint ./index.html --fix",
-    "format": "pnpm run lint:fix"
+    "format": "pnpm run lint:fix",
+    "llms": "tsx scripts/generate-context.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.0",
@@ -43,6 +44,7 @@
     "parcel": "^2.16.0",
     "parcel-namer-hashless": "^1.0.7",
     "rimraf": "^6.0.1",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.2"
   },
   "browserslist": [
