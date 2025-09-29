@@ -2,7 +2,7 @@
 
 import { populateCompiledDataTable } from '../data-hub/table'
 import { uploadSalesFile } from './sales'
-import { uploadAndProcessPnlFile } from './pnl'
+import { downloadPnlTemplate, uploadAndProcessPnlFile } from './pnl'
 import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from './targets'
 import { showLoading, hideLoading, quickUploadModal } from '@/core/ui'
 import { generateGeneralFinance } from '@/analysis/sections/general/finance'
@@ -95,7 +95,7 @@ export function initializeUploadListeners(): void {
   })
 
   // --- Template Download Listeners ---
-  document.getElementById('download-pnl-template-btn')?.addEventListener('click', downloadPnlTargetTemplate)
+  document.getElementById('download-pnl-template-btn')?.addEventListener('click', downloadPnlTemplate)
   document.getElementById('download-sales-target-template-btn')?.addEventListener('click', downloadSalesTargetTemplate)
   document.getElementById('download-pnl-target-template-btn')?.addEventListener('click', downloadPnlTargetTemplate)
 
