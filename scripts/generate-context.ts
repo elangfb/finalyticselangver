@@ -37,6 +37,18 @@ interface FileAnalysis {
   lineCount: number;
 }
 
+interface ContextData {
+  projectName: string;
+  allFiles: string[];
+  analyzedFiles: FileAnalysis[];
+  externalDependencies: Record<string, string>;
+  mermaidGraph: string;
+}
+
+interface FileTree {
+  [key: string]: FileTree;
+}
+
 // --- Main Orchestrator ---
 
 async function main() {
@@ -252,9 +264,9 @@ function generateMermaidGraph(graph: Map<string, string[]>): string {
 /**
  * Takes all analyzed data and formats it into the final llms.txt string.
  */
-function formatContextFile(data: any): string {
+function formatContextFile(data: ContextData): string {
   const { projectName, allFiles, analyzedFiles, externalDependencies, mermaidGraph } = data;
-  const totalLoc = analyzedFiles.reduce((sum, f) => sum + f.lineCount, 0);
+  const totalLoc = analyzedFiles.reduce((sum: number, f: FileAnalysis) => sum + f.lineCount, 0);
 
   // Layer 0: Project Identity & Executive Summary
   let content = `# ${projectName}\n\n`;
@@ -303,7 +315,7 @@ function formatContextFile(data: any): string {
       }
       content += '\n';
 
-      const importantFunctions = file.symbols.filter(s => s.type === 'Function' && (s.endLine - s.startLine) > CODE_SNIPPET_LINE_THRESHOLD);
+  const importantFunctions = file.symbols.filter((s: SymbolInfo) => s.type === 'Function' && (s.endLine - s.startLine) > CODE_SNIPPET_LINE_THRESHOLD);
       if (importantFunctions.length > 0) {
         content += `#### Important Code Snippets\n`;
         for (const func of importantFunctions) {
@@ -318,29 +330,29 @@ function formatContextFile(data: any): string {
 }
 
 function generateFileTree(filePaths: string[]): string {
-    // A simplified file tree generator
-    const tree: any = {};
-    for (const filePath of filePaths) {
-        const parts = path.relative(ROOT_DIR, filePath).split(path.sep);
-        let currentLevel = tree;
-        for (const part of parts) {
-            currentLevel[part] = currentLevel[part] || {};
-            currentLevel = currentLevel[part];
-        }
+  // A simplified file tree generator
+  const tree: FileTree = {};
+  for (const filePath of filePaths) {
+    const parts = path.relative(ROOT_DIR, filePath).split(path.sep);
+    let currentLevel: FileTree = tree;
+    for (const part of parts) {
+      currentLevel[part] = currentLevel[part] || ({} as FileTree);
+      currentLevel = currentLevel[part];
     }
+  }
 
-    function buildTreeString(subtree: any, indent: string = ''): string {
-        let result = '';
-        const entries = Object.keys(subtree).sort();
-        for (let i = 0; i < entries.length; i++) {
-            const entry = entries[i];
-            const isLast = i === entries.length - 1;
-            result += `${indent}${isLast ? '└─' : '├─'} ${entry}\n`;
-            result += buildTreeString(subtree[entry], `${indent}${isLast ? '   ' : '│  '}`);
-        }
-        return result;
+  function buildTreeString(subtree: FileTree, indent: string = ''): string {
+    let result = '';
+    const entries = Object.keys(subtree).sort();
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const isLast = i === entries.length - 1;
+      result += `${indent}${isLast ? '└─' : '├─'} ${entry}\n`;
+      result += buildTreeString(subtree[entry], `${indent}${isLast ? '   ' : '│  '}`);
     }
-    return buildTreeString(tree);
+    return result;
+  }
+  return buildTreeString(tree);
 }
 
 // --- Execute Script ---

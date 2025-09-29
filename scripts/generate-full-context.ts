@@ -26,6 +26,18 @@ interface FileAnalysis {
   lineCount: number;
 }
 
+interface ContextData {
+  projectName: string;
+  allFiles: string[];
+  analyzedFiles: FileAnalysis[];
+  externalDependencies: Record<string, string>;
+  mermaidGraph: string;
+}
+
+interface FileTree {
+  [key: string]: FileTree;
+}
+
 // --- Main Orchestrator ---
 
 async function main() {
@@ -148,8 +160,8 @@ function analyzeCodeFile(filePath: string): FileAnalysis | null {
       imports,
       lineCount: fileContent.split('\n').length,
     };
-  } catch (error) {
-    console.warn(`Could not analyze file ${filePath}: ${error}`);
+  } catch (error: unknown) {
+    console.warn(`Could not analyze file ${filePath}: ${String(error)}`);
     return null;
   }
 }
@@ -221,7 +233,7 @@ function formatWithLineNumbers(content: string): string {
 /**
  * Takes all analyzed data and formats it into the final llms-full.txt string.
  */
-function formatContextFile(data: any): string {
+function formatContextFile(data: ContextData): string {
   const { projectName, allFiles, analyzedFiles, externalDependencies, mermaidGraph } = data;
   const totalLoc = analyzedFiles.reduce((sum: number, f: FileAnalysis) => sum + f.lineCount, 0);
 
@@ -281,17 +293,17 @@ function formatContextFile(data: any): string {
 
 function generateFileTree(filePaths: string[]): string {
   // A simplified file tree generator
-  const tree: any = {};
+  const tree: FileTree = {};
   for (const filePath of filePaths) {
     const parts = path.relative(ROOT_DIR, filePath).split(path.sep);
-    let currentLevel = tree;
+    let currentLevel: FileTree = tree;
     for (const part of parts) {
-      currentLevel[part] = currentLevel[part] || {};
+      currentLevel[part] = currentLevel[part] || ({} as FileTree);
       currentLevel = currentLevel[part];
     }
   }
 
-  function buildTreeString(subtree: any, indent: string = ''): string {
+  function buildTreeString(subtree: FileTree, indent: string = ''): string {
     let result = '';
     const entries = Object.keys(subtree).sort();
     for (let i = 0; i < entries.length; i++) {
