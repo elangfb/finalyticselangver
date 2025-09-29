@@ -3,7 +3,7 @@
 import * as $store from '@/store';
 import { currentUser } from '@/core/state';
 import { createChart } from '../../helpers';
-import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, currencyTooltipCallback } from '../../utils/chart-formatters';
+import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, currencyTooltipCallback, shortenCurrency } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';
 import { formatNumber, formatCurrencyUtil, formatNumberUtil } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';
@@ -60,12 +60,12 @@ function drawTimeMenuTrendChart(periodAData: any[], periodBData: any[], config?:
             menuTrend: {
                 periodA: deepmerge(...periodADatasets.map(d => ({
                     [d.label.replace(' (Period A)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [labels[index]]: formatNumberUtil(value),
+                        [String(labels[index])]: formatNumberUtil(value as number),
                     }))),
                 }))),
                 periodB: deepmerge(...periodBDatasets.map(d => ({
                     [d.label.replace(' (Period B)', '')]: deepmerge(...d.data.map((value, index) => ({
-                        [labels[index]]: formatNumberUtil(value),
+                        [String(labels[index])]: formatNumberUtil(value as number),
                     }))),
                 })))
             }
@@ -164,7 +164,7 @@ function generateChannelComparisonChart(periodAData: any[], periodBData: any[], 
             { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
             { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' }
         ]
-    }, mergeChartOptions({ scales: { y: { ticks: { callback: shortenCurrency } } } }, chartTooltip({ label: currencyTooltipCallback })));
+    }, mergeChartOptions(chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })));
 }
 
 

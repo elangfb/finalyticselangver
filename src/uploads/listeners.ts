@@ -95,7 +95,7 @@ export function initializeUploadListeners(): void {
     });
 
     // --- Template Download Listeners ---
-    document.getElementById('download-pnl-template-btn')?.addEventListener('click', downloadPnlTemplate);
+    document.getElementById('download-pnl-template-btn')?.addEventListener('click', downloadPnlTargetTemplate);
     document.getElementById('download-sales-target-template-btn')?.addEventListener('click', downloadSalesTargetTemplate);
     document.getElementById('download-pnl-target-template-btn')?.addEventListener('click', downloadPnlTargetTemplate);
 
@@ -147,7 +147,7 @@ export function initializeUploadListeners(): void {
 
             const generalKeuanganSection = document.getElementById('general-keuangan-section');
             if (generalKeuanganSection?.classList.contains('active')) {
-                await generateGeneralKeuanganSection();
+                await generateGeneralFinance();
             }
             setTimeout(() => quickUploadModal?.classList.add('hidden'), 2000);
 

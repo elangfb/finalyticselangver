@@ -2,7 +2,7 @@
 
 import * as $store from '@/store';
 import { createChart } from '../../helpers';
-import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, currencyTooltipCallback } from '../../utils/chart-formatters';
+import { chartTooltip, mergeChartOptions, chartYTicks, shortenNumber, currencyTooltipCallback, shortenCurrency } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';
 import { formatNumber, formatNumberUtil, formatCurrencyUtil } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';
@@ -58,14 +58,14 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
             menuTrend: {
                 branches: {
                     [branchA]: deepmerge(...branchADatasets.map(d => ({
-                        [d.label.replace(` (${branchA})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [labels[index]]: formatNumberUtil(value),
-                        }))),
+                            [d.label.replace(` (${branchA})`, '')]: deepmerge(...d.data.map((value, index) => ({
+                                [String(labels[index])]: formatNumberUtil(value as number),
+                            }))),
                     }))),
                     [branchB]: deepmerge(...branchBDatasets.map(d => ({
-                        [d.label.replace(` (${branchB})`, '')]: deepmerge(...d.data.map((value, index) => ({
-                            [labels[index]]: formatNumberUtil(value),
-                        }))),
+                            [d.label.replace(` (${branchB})`, '')]: deepmerge(...d.data.map((value, index) => ({
+                                [String(labels[index])]: formatNumberUtil(value as number),
+                            }))),
                     })))
                 }
             }
@@ -130,14 +130,14 @@ function generateOrderCompositionChart(dataA: any[], dataB: any[], labelA: strin
         (v) => ({
             orderComposition: {
                 [labelA]: {
-                    [v.labels[0]]: formatNumberUtil(v.valuesA[0]),
-                    [v.labels[1]]: formatNumberUtil(v.valuesA[1]),
-                    [v.labels[2]]: formatNumberUtil(v.valuesA[2]),
+                    [String(v.labels[0])]: formatNumberUtil(v.valuesA[0] as number),
+                    [String(v.labels[1])]: formatNumberUtil(v.valuesA[1] as number),
+                    [String(v.labels[2])]: formatNumberUtil(v.valuesA[2] as number),
                 },
                 [labelB]: {
-                    [v.labels[0]]: formatNumberUtil(v.valuesB[0]),
-                    [v.labels[1]]: formatNumberUtil(v.valuesB[1]),
-                    [v.labels[2]]: formatNumberUtil(v.valuesB[2]),
+                    [String(v.labels[0])]: formatNumberUtil(v.valuesB[0] as number),
+                    [String(v.labels[1])]: formatNumberUtil(v.valuesB[1] as number),
+                    [String(v.labels[2])]: formatNumberUtil(v.valuesB[2] as number),
                 }
             }
         })
@@ -185,7 +185,7 @@ function generateBranchChannelComparisonChart(periodData: any[], branchA: string
     createChart(canvasId, 'bar', {
         labels: allChannels,
         datasets: [ { label: branchA, data: branchAValues, backgroundColor: '#9CA3AF' }, { label: branchB, data: branchBValues, backgroundColor: '#4F46E5' } ]
-    }, mergeChartOptions({ scales: { y: { ticks: { callback: shortenCurrency } } } }, chartTooltip({ label: currencyTooltipCallback })));
+    }, mergeChartOptions(chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })));
 }
 
 /**
@@ -228,8 +228,8 @@ export async function setupBranchProductChannel() {
     branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
     branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
-    branchASelect.value = branches[0];
-    branchBSelect.value = branches[1];
+    branchASelect.value = branches[0] || '';
+    branchBSelect.value = branches[1] || branches[0] || '';
 
     const handler = () => generateBranchProductChannel();
     periodSelect.addEventListener('change', handler);

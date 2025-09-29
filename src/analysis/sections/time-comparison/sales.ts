@@ -18,9 +18,11 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
         data.forEach(s => {
             const dayOfMonth = s.date.getDate();
             const weekIndex = Math.floor((dayOfMonth - 1) / 7);
-            if (weekIndex < 5) {
-                weeklyTotals[weekIndex].revenue += s.totalOmzet;
-                weeklyTotals[weekIndex].transactions += s.totalTransactions;
+            if (weekIndex >= 0 && weekIndex < 5) {
+                const bucket = weeklyTotals[weekIndex];
+                if (!bucket) return; // guard against undefined
+                bucket.revenue += s.totalOmzet;
+                bucket.transactions += s.totalTransactions;
             }
         });
 
@@ -40,10 +42,10 @@ function generatePeriodComparisonLineChart(periodAData: any[], periodBData: any[
             return {
                 [`${config.title}_Comparison`]: {
                     periodA: deepmerge(...v.periodAWeekly.map((value, index) =>
-                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
+                        value !== null ? { [String(v.labels[index])]: formatValue(value as number) } : {}
                     )),
                     periodB: deepmerge(...v.periodBWeekly.map((value, index) =>
-                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
+                        value !== null ? { [String(v.labels[index])]: formatValue(value as number) } : {}
                     )),
                 }
             };

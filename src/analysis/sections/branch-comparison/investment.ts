@@ -1,4 +1,3 @@
-// src/analysis/sections/branch-comparison/investment.ts
 // Contains all logic for the "Analisis Perbandingan Cabang > Aspek Investasi" section.
 
 import * as $store from '@/store';
@@ -7,7 +6,7 @@ import { currentUser } from '@/core/state';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { showLoading, hideLoading } from '@/core/ui';
 import { createChart } from '../../helpers';
-import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
+import { chartTooltip, mergeChartOptions, shortenCurrency, chartYTicks } from '../../utils/chart-formatters';
 import { AlsoStoreFn, createAlsoStoreFn, maybeAlsoStore } from '../../utils/store-helpers';
 import { formatCurrencyUtil, formatNumberUtil } from '../../utils/string-formatters';
 import { calculateAllPnlMetrics } from '../general/finance';
@@ -18,16 +17,18 @@ import { deepmerge } from 'deepmerge-ts';
  */
 function generateCabangBusinessYieldComparisonChart(dataA: any, dataB: any, config?: { alsoStore?: AlsoStoreFn }) {
     const allMonths = [...new Set([...dataA.monthlyProfits.map((p: any) => p.period), ...dataB.monthlyProfits.map((p: any) => p.period)])].sort();
-    const profitMapA = new Map(dataA.monthlyProfits.map((p: any) => [p.period, p.profit]));
-    const profitMapB = new Map(dataB.monthlyProfits.map((p: any) => [p.period, p.profit]));
+    const profitMapA: Map<string, number> = new Map(dataA.monthlyProfits.map((p: any) => [p.period as string, Number(p.profit) || 0]));
+    const profitMapB: Map<string, number> = new Map(dataB.monthlyProfits.map((p: any) => [p.period as string, Number(p.profit) || 0]));
 
     const yieldDataA = allMonths.map(month => {
-        const profit = profitMapA.get(month) || 0;
-        return dataA.investment.investmentAmount > 0 ? (profit / dataA.investment.investmentAmount) * 100 : 0;
+        const profit = Number(profitMapA.get(month)) || 0;
+        const denom = Number(dataA.investment.investmentAmount) || 0;
+        return denom > 0 ? (profit / denom) * 100 : 0;
     });
     const yieldDataB = allMonths.map(month => {
-        const profit = profitMapB.get(month) || 0;
-        return dataB.investment.investmentAmount > 0 ? (profit / dataB.investment.investmentAmount) * 100 : 0;
+        const profit = Number(profitMapB.get(month)) || 0;
+        const denom = Number(dataB.investment.investmentAmount) || 0;
+        return denom > 0 ? (profit / denom) * 100 : 0;
     });
 
     const chartLabels = allMonths.map(m => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
@@ -79,18 +80,18 @@ function generateCabangBusinessYieldComparisonChart(dataA: any, dataB: any, conf
  * Renders the Investor Yield comparison chart between two branches.
  */
 function generateCabangInvestorYieldComparisonChart(dataA: any, dataB: any, config?: { alsoStore?: AlsoStoreFn }) {
-    const investmentPerSlotA = dataA.investment.investmentSlots > 0 ? dataA.investment.investmentAmount / dataA.investment.investmentSlots : 0;
-    const investmentPerSlotB = dataB.investment.investmentSlots > 0 ? dataB.investment.investmentAmount / dataB.investment.investmentSlots : 0;
+    const investmentPerSlotA = Number(dataA.investment.investmentSlots) > 0 ? Number(dataA.investment.investmentAmount) / Number(dataA.investment.investmentSlots) : 0;
+    const investmentPerSlotB = Number(dataB.investment.investmentSlots) > 0 ? Number(dataB.investment.investmentAmount) / Number(dataB.investment.investmentSlots) : 0;
     const allMonths = [...new Set([...dataA.monthlyProfits.map((p: any) => p.period), ...dataB.monthlyProfits.map((p: any) => p.period)])].sort();
     const profitMapA = new Map(dataA.monthlyProfits.map((p: any) => [p.period, p.profit]));
     const profitMapB = new Map(dataB.monthlyProfits.map((p: any) => [p.period, p.profit]));
 
     const yieldDataA = allMonths.map(month => {
-        const profit = profitMapA.get(month) || 0;
+        const profit = Number(profitMapA.get(month)) || 0;
         return investmentPerSlotA > 0 ? (profit / investmentPerSlotA) * 100 : 0;
     });
     const yieldDataB = allMonths.map(month => {
-        const profit = profitMapB.get(month) || 0;
+        const profit = Number(profitMapB.get(month)) || 0;
         return investmentPerSlotB > 0 ? (profit / investmentPerSlotB) * 100 : 0;
     });
 
@@ -159,8 +160,8 @@ function generateBranchCumulativeComparisonChart(dataA: any, dataB: any, startPe
         currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
-    const profitMapA = new Map(dataA.monthlyProfits.map((p: any) => [p.period, p.profit]));
-    const profitMapB = new Map(dataB.monthlyProfits.map((p: any) => [p.period, p.profit]));
+    const profitMapA: Map<string, number> = new Map(dataA.monthlyProfits.map((p: any) => [p.period as string, Number(p.profit) || 0]));
+    const profitMapB: Map<string, number> = new Map(dataB.monthlyProfits.map((p: any) => [p.period as string, Number(p.profit) || 0]));
 
     const calculateCumulative = (profitMap: Map<string, number>, investmentData: any) => {
         let cumulativeShare = 0;
@@ -213,7 +214,7 @@ function generateBranchCumulativeComparisonChart(dataA: any, dataB: any, startPe
             { label: `Akumulasi ${dataA.investment.branchName}`, data: cumulativeDataA, borderColor: '#4F46E5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.1 },
             { label: `Akumulasi ${dataB.investment.branchName}`, data: cumulativeDataB, borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.1 }
         ]
-    }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Akumulasi (Rp)' }, ticks: { callback: shortenCurrency } } } });
+    }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Akumulasi (Rp)' }, ticks: { callback: (v: string | number) => shortenCurrency(Number(v)) } } } });
 }
 
 /**
@@ -282,7 +283,10 @@ async function generateBranchInvestment() {
         generateCabangInvestorYieldComparisonChart(dataA, dataB, { alsoStore });
         generateBranchCumulativeComparisonChart(dataA, dataB, startPeriod, endPeriod, { alsoStore });
     } catch (error: any) {
-        clearAndShowError(error.message);
+        const message = error?.message || 'Unknown error';
+        if (containerA) containerA.innerHTML = `<p class="text-center text-red-500 p-4">${message}</p>`;
+        if (containerB) containerB.innerHTML = '';
+        if (containerC) containerC.innerHTML = '';
     } finally {
         hideLoading();
     }

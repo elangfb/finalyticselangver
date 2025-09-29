@@ -7,10 +7,11 @@ import { showLoading, hideLoading } from '@/core/ui';
 import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn } from '../../utils/store-helpers';
-import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
+import { chartTooltip, mergeChartOptions, chartYTicks, shortenCurrency } from '../../utils/chart-formatters';
 import { currencyTooltipCallback } from '../../utils/chart-formatters';
 import { formatCurrency as formatCurrencyUtil, formatIntBasedPercentage } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';
+import { calculateAllPnlMetrics } from '../general/finance';
 
 /**
  * Saves new or updated investment data for a branch to Firestore.
@@ -84,9 +85,9 @@ function generateBusinessYieldChart(monthlyProfits: any[], totalInvestment: numb
             { type: 'line', label: 'Yield (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
         ]
     }, mergeChartOptions({ scales: {
-        'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
-        'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
-    }}, chartTooltip({ label: (ctx:any) => `${ctx.dataset.label}: ${ctx.dataset.yAxisID === 'y-rp' ? formatCurrencyUtil(ctx.parsed.y) : formatIntBasedPercentage(ctx.parsed.y, 2)}` })));
+        'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' } },
+        'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(2)}%` } }
+    }}, chartYTicks(shortenCurrency), chartTooltip({ label: (ctx:any) => `${ctx.dataset.label}: ${ctx.dataset.yAxisID === 'y-rp' ? formatCurrencyUtil(ctx.parsed.y) : formatIntBasedPercentage(ctx.parsed.y, 2)}` })));
 }
 
 /**
@@ -108,9 +109,9 @@ function generateInvestorYieldChart(monthlyProfits: any[], totalInvestment: numb
             { type: 'line', label: 'Yield per Slot (%)', data: yieldData, borderColor: '#F97316', yAxisID: 'y-percent', tension: 0.1 }
         ]
     }, mergeChartOptions({ scales: {
-        'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' }, ticks: { callback: shortenCurrency } },
-        'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(2)}%` } }
-    }}, chartTooltip({ label: (ctx:any) => `${ctx.dataset.label}: ${ctx.dataset.yAxisID === 'y-rp' ? formatCurrencyUtil(ctx.parsed.y) : formatIntBasedPercentage(ctx.parsed.y, 2)}` })));
+        'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Profit Bulanan (Rp)' } },
+        'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Yield per Slot (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(2)}%` } }
+    }}, chartYTicks(shortenCurrency), chartTooltip({ label: (ctx:any) => `${ctx.dataset.label}: ${ctx.dataset.yAxisID === 'y-rp' ? formatCurrencyUtil(ctx.parsed.y) : formatIntBasedPercentage(ctx.parsed.y, 2)}` })));
 }
 
 /**
@@ -137,7 +138,7 @@ function generateCumulativeInvestorShareChart(monthlyProfits: any[], investorSha
             fill: true,
             tension: 0.1,
         }]
-    }, mergeChartOptions({ scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Akumulasi (Rp)' }, ticks: { callback: shortenCurrency } } } }, chartTooltip({ label: currencyTooltipCallback })));
+    }, mergeChartOptions({ scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Akumulasi (Rp)' } } } }, chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })));
 }
 
 /**

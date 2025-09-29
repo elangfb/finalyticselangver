@@ -13,14 +13,16 @@ import { deepmerge } from 'deepmerge-ts';
 function generateBranchComparisonLineChart(periodData: any[], branchA: string, branchB: string, config: { canvasId: string, metric: 'totalOmzet' | 'totalTransactions' | 'apc', title: string, alsoStore?: AlsoStoreFn }) {
     const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)'];
     const getWeeklyData = (branchName: string) => {
-        const weeklyTotals = Array(5).fill(null).map(() => ({ revenue: 0, transactions: 0 }));
+    const weeklyTotals: Array<{ revenue: number; transactions: number }> = Array.from({ length: 5 }, () => ({ revenue: 0, transactions: 0 }));
         const branchSummaries = periodData.filter(s => s.revenueByBranch?.[branchName] !== undefined);
         branchSummaries.forEach(s => {
             const dayOfMonth = s.date.getDate();
             const weekIndex = Math.floor((dayOfMonth - 1) / 7);
-            if (weekIndex < 5) {
-                weeklyTotals[weekIndex].revenue += s.revenueByBranch[branchName] || 0;
-                weeklyTotals[weekIndex].transactions += s.transactionCountsByBranch?.[branchName] || 0;
+            if (weekIndex >= 0 && weekIndex < 5) {
+                const bucket = weeklyTotals[weekIndex];
+                if (!bucket) return; // guard
+                bucket.revenue += s.revenueByBranch?.[branchName] || 0;
+                bucket.transactions += s.transactionCountsByBranch?.[branchName] || 0;
             }
         });
         if (config.metric === 'apc') return weeklyTotals.map(week => week.transactions > 0 ? week.revenue / week.transactions : null);
@@ -40,10 +42,10 @@ function generateBranchComparisonLineChart(periodData: any[], branchA: string, b
             return {
                 [`${v.title.toLowerCase().replace(/\s+/g, '')}BranchComparison`]: {
                     [v.branchA]: deepmerge(...v.branchAData.map((value, index) =>
-                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
+                        value !== null ? { [String(v.labels[index])]: formatValue(value as number) } : {}
                     )),
                     [v.branchB]: deepmerge(...v.branchBData.map((value, index) =>
-                        value !== null ? { [v.labels[index]]: formatValue(value) } : {}
+                        value !== null ? { [String(v.labels[index])]: formatValue(value as number) } : {}
                     )),
                     metric: v.metric
                 }
@@ -152,8 +154,8 @@ export async function setupBranchSales() {
     branchASelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
     branchBSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
 
-    branchASelect.value = branches[0];
-    branchBSelect.value = branches[1];
+    branchASelect.value = branches[0] || '';
+    branchBSelect.value = branches[1] || '';
 
     const handler = () => generateBranchSales();
     periodSelect.addEventListener('change', handler);

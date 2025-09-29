@@ -99,7 +99,7 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
 
     createChart(canvasId, 'doughnut', {
         labels,
-        datasets: [{ data, backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
+        datasets: [{ data: data as number[], backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444', '#9CA3AF'] }]
     }, chartTooltip({
         label: (context: any) => {
             const label = context.label || '';

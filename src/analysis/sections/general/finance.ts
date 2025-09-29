@@ -1,4 +1,3 @@
-// src/analysis/sections/general/finance.ts
 // Contains all logic for the "Analisis General > Aspek Keuangan" view.
 
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
@@ -8,22 +7,23 @@ import { showLoading, hideLoading } from '@/core/ui';
 import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from '../../utils/store-helpers';
-import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
+import { chartTooltip, chartYTicks, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
 import { formatCurrency as formatCurrencyUtil, formatDecimalBasedPercentage, formatIntBasedPercentage, formatMachineYearMonth } from '../../utils/string-formatters';
 import { deepmerge } from 'deepmerge-ts';
 import { showPnlTargetModal } from '../../../data-hub/modals';
+import type { ChartDataset } from 'chart.js';
 
 /**
  * Calculates all primary and derived P&L metrics from a raw pnlData object.
  * @param pnlData The P&L data object from Firestore.
  * @returns An object with calculated totals for all P&L metrics.
  */
-export function calculateAllPnlMetrics(pnlData: any): { [key: string]: number } {
+export function calculateAllPnlMetrics(pnlData: Record<string, Record<string, number>>): { [key: string]: number } {
     const results: { [key: string]: number } = {};
     const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
 
     categoryOrder.forEach(cat => {
-        results[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: any) => sum + val, 0);
+        results[cat] = Object.values(pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
     });
 
     results["Laba Kotor (Gross Profit)"] = (results["Pendapatan (Revenue)"] || 0) - (results["Harga Pokok Produksi"] || 0);
@@ -67,7 +67,8 @@ async function generatePnlTargetComparisonTable(period: string, branch: string, 
 /**
  * Generates a historical P&L table with expandable rows for sub-categories.
  */
-function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: string, config?: { alsoStore?: AlsoStoreFn }) {
+type PnlReport = { period: string; pnlData?: Record<string, Record<string, number>> };
+function generateHistoricalPnlTable(reports: PnlReport[], theadId: string, tbodyId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const thead = document.getElementById(theadId);
     const tbody = document.getElementById(tbodyId);
     if (!thead || !tbody) return;
@@ -86,7 +87,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
     const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
     allMetrics.forEach(metricName => {
-        const metrics = reports.map(report => calculateAllPnlMetrics(report.pnlData || {}));
+    const metrics = reports.map(report => calculateAllPnlMetrics(report.pnlData || {}));
         const isSubtotal = !reports[0]?.pnlData?.[metricName];
         const mainRow = document.createElement('tr');
         let mainRowHtml = '';
@@ -103,7 +104,7 @@ function generateHistoricalPnlTable(reports: any[], theadId: string, tbodyId: st
 
         metrics.forEach((metricSet, index) => {
             const value = metricSet[metricName] || 0;
-            alsoStore(value, (v) => ({ historicalPnl: { [formatMachineYearMonth(reports[index].period)]: { [metricName]: formatCurrencyUtil(v) } } }));
+            alsoStore(value, (v) => ({ historicalPnl: { [formatMachineYearMonth(reports[index]!.period)]: { [metricName]: formatCurrencyUtil(v) } } }));
             mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`;
         });
         mainRow.innerHTML = mainRowHtml;
@@ -211,7 +212,7 @@ function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoSto
                         const formattedValue = `Rp${Math.round(value).toLocaleString('id-ID')}`;
 
                         // The total revenue for this bar is still available from our revenueData array.
-                        const totalRevenue = revenueData[context.dataIndex];
+                        const totalRevenue = revenueData[context.dataIndex] ?? 0;
 
                         if (totalRevenue > 0) {
                             const percentage = (value / totalRevenue) * 100;
@@ -238,9 +239,7 @@ function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoSto
             },
             y: {
                 stacked: true,
-                ticks: {
-                    callback: shortenCurrency
-                }
+                ticks: { callback: (v: string | number) => shortenCurrency(Number(v)) },
             }
         }
     });
@@ -249,14 +248,14 @@ function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoSto
 /**
  * Reusable function to generate dual-axis financial ratio charts.
  */
-function generateFinancialRatioChart(reports: any[], config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
+function generateFinancialRatioChart(reports: Array<{ period: string; pnlData?: Record<string, Record<string, number>> }>, config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    const barData = []; // This will hold the absolute value (Rp)
-    const lineData = []; // This will hold the percentage of Revenue
+    const barData: number[] = []; // This will hold the absolute value (Rp)
+    const lineData: number[] = []; // This will hold the percentage of Revenue
 
     reports.forEach(r => {
         // FIX: Use the robust helper function to get all calculated metrics at once.
-        const allMetrics = calculateAllPnlMetrics(r.pnlData);
+    const allMetrics = calculateAllPnlMetrics(r.pnlData || {});
 
         const revenue = allMetrics["Pendapatan (Revenue)"] || 0;
 
@@ -267,16 +266,16 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
         lineData.push(revenue > 0 ? (absoluteValue / revenue) * 100 : 0);
     });
 
-    config.alsoStore?.(barData, (v) => ({
+        config.alsoStore?.(barData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
-        [formatMachineYearMonth(reports[index].period)]: {
+                [formatMachineYearMonth(reports[index]!.period)]: {
           inCurrency: formatCurrencyUtil(v),
         },
       }))),
     }));
-    config.alsoStore?.(lineData, (v) => ({
+        config.alsoStore?.(lineData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
-        [formatMachineYearMonth(reports[index].period)]: {
+                [formatMachineYearMonth(reports[index]!.period)]: {
           inPercentage: formatDecimalBasedPercentage(v / 100),
         },
       }))),
@@ -291,8 +290,8 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
     }, mergeChartOptions(
         {
             scales: {
-                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: (v: string | number) => shortenCurrency(Number(v)) } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(1)}%` } }
             }
         },
         chartTooltip({
@@ -317,7 +316,7 @@ function generateFinancialRatioChart(reports: any[], config: { canvasId: string,
  * Generates a dual-axis chart for a specific sub-category's value and its ratio to revenue.
  */
 function generateSpecificSubCategoryRatioChart(
-    reports: any[],
+    reports: Array<{ period: string; pnlData?: Record<string, Record<string, number>> }>,
     config: {
         canvasId: string,
         mainCategory: string,
@@ -327,12 +326,12 @@ function generateSpecificSubCategoryRatioChart(
     }
 ) {
     const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }));
-    const barData = []; // This will hold the absolute value (e.g., Rp for Wages)
-    const lineData = []; // This will hold the percentage of Revenue
+    const barData: number[] = []; // absolute values
+    const lineData: number[] = []; // percentage of revenue
 
     reports.forEach(r => {
-        const pnlData = r.pnlData || {};
-        const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
+    const pnlData = r.pnlData || {};
+    const revenue = Object.values(pnlData["Pendapatan (Revenue)"] || {}).reduce((s: number, v: number) => s + v, 0);
 
         // Directly access the specific sub-category value
         const subCategoryValue = pnlData[config.mainCategory]?.[config.subCategory] || 0;
@@ -341,16 +340,16 @@ function generateSpecificSubCategoryRatioChart(
         lineData.push(revenue > 0 ? (subCategoryValue / revenue) * 100 : 0);
     });
 
-    config.alsoStore?.(barData, (v) => ({
+        config.alsoStore?.(barData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
-        [formatMachineYearMonth(reports[index].period)]: {
+                [formatMachineYearMonth(reports[index]!.period)]: {
           inCurrency: formatCurrencyUtil(v),
         },
       }))),
     }));
-    config.alsoStore?.(lineData, (v) => ({
+        config.alsoStore?.(lineData, (v) => ({
       [`${config.title} Chart`]: deepmerge(...v.map((v, index) => ({
-        [formatMachineYearMonth(reports[index].period)]: {
+                [formatMachineYearMonth(reports[index]!.period)]: {
           inPercentage: formatDecimalBasedPercentage(v / 100),
         },
       }))),
@@ -363,12 +362,12 @@ function generateSpecificSubCategoryRatioChart(
             { type: 'line', label: `${config.title} (%)`, data: lineData, borderColor: '#F97316', yAxisID: 'y-percent', order: 1 }
         ]
     }, mergeChartOptions(
-        {
+        ({
             scales: {
-                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: chartYTicks(shortenCurrency) },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: ((v: string | number) => `${Number(v).toFixed(1)}%`) } }
             }
-        },
+        }),
         chartTooltip({
             label: (context) => {
                 let label = context.dataset.label || '';
@@ -418,9 +417,10 @@ export async function generateGeneralFinance() {
     const q = query(reportsRef, where("branchName", "==", selectedBranch));
     const reportsSnap = await getDocs(q);
 
-    const historicalReports = reportsSnap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(report => {
+    const historicalReports: PnlReport[] = reportsSnap.docs
+        .map(doc => doc.data() as PnlReport)
+        .filter((report): report is PnlReport => {
+            if (!report || typeof report.period !== 'string') return false;
             const reportDate = new Date(report.period + '-02');
             return reportDate >= startDate && reportDate <= endDate;
         })
@@ -430,13 +430,15 @@ export async function generateGeneralFinance() {
 
     // Initialize view storage with context; further insights will be merged
     $store.clearViewData('general-keuangan');
+    const periodRange = historicalReports.length > 0
+        ? `${historicalReports[0]!.period} to ${historicalReports[historicalReports.length - 1]!.period}`
+        : 'No data';
+
     $store.setActiveViewData('general-keuangan', {
             viewContext: {
                 selectedBranch,
                 selectedPeriod,
-                periodRange: historicalReports.length > 0 ?
-                    `${historicalReports[0].period} to ${historicalReports[historicalReports.length - 1].period}` :
-                    'No data'
+                periodRange
             }
     }, { selectedBranch, selectedPeriod });
 
@@ -548,6 +550,7 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
 
     const thead = document.getElementById('analisa-pnl-thead');
     const tbody = document.getElementById('analisa-pnl-tbody');
+    if (!thead || !tbody) return;
     tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Loading P&L data for the selected period...</td></tr>';
 
     try {
@@ -587,18 +590,18 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
         </tr>`;
 
         tbody.innerHTML = '';
-        const formatCurrency = (value) => (value || value === 0) ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'N/A';
-        const formatPercent = (value) => (value || value === 0) ? `${(value * 100).toFixed(1)}%` : '';
+    const formatCurrency = (value: number | null | undefined) => (value || value === 0) ? `Rp${Math.round(value as number).toLocaleString('id-ID')}` : 'N/A';
+    const formatPercent = (value: number | null | undefined) => (value || value === 0) ? `${((value as number) * 100).toFixed(1)}%` : '';
 
         const allMetrics = [ "Pendapatan (Revenue)", "Harga Pokok Produksi", "Laba Kotor (Gross Profit)", "Beban Operasional (OPEX)", "Pendapatan Bersih Operasional (Net Operating Income)", "Beban Non Operasional", "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)", "Pendapatan Bersih (Net Income)" ];
-        const subtotals = {
+        const subtotals: Record<string, (data: Record<string, number>) => number> = {
             "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => (subtotals["Laba Kotor (Gross Profit)"]?.(data) || 0) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => (subtotals["Pendapatan Bersih Operasional (Net Operating Income)"]?.(data) || 0) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => (subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"]?.(data) || 0) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
         };
 
-        const totalRevenueForPeriod = Object.values(report.pnlData["Pendapatan (Revenue)"] || {}).reduce((sum: number, val: number) => sum + val, 0);
+        const totalRevenueForPeriod = Object.values((report.pnlData?.["Pendapatan (Revenue)"] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0);
 
         allMetrics.forEach(metricName => {
             const isSubtotal = !!subtotals[metricName];
@@ -614,13 +617,13 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
 
             let mainRowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}"><div class="flex items-center">${metricName} ${hasSubcategories ? '<svg class="w-4 h-4 ml-2 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>' : ''}</div></td>`;
 
-            const categoryTotals = {};
+            const categoryTotals: Record<string, number> = {};
             if (report.pnlData) {
                 Object.keys(report.pnlData).forEach(cat => {
-                    categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum, val) => sum + val, 0);
+                    categoryTotals[cat] = Object.values((report.pnlData?.[cat] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0);
                 });
             }
-            const actualValue = isSubtotal ? subtotals[metricName](categoryTotals) : categoryTotals[metricName] || 0;
+            const actualValue = isSubtotal ? (subtotals[metricName]?.(categoryTotals) ?? 0) : (categoryTotals[metricName] || 0);
 
             const periodTargets = targetsByPeriod[report.period] || {};
             const targetRevenue = periodTargets['Pendapatan (Revenue)'];
@@ -656,8 +659,8 @@ async function generateAnalisaPnlTable(selectedPeriod: string) {
 
                     allReports.forEach(report => {
                         const actualValue = report.pnlData?.[metricName]?.[subCatName] || 0;
-                        const totalRevenueForPeriod = totalRevenuesByPeriod[report.period];
-                        const percentageOfRevenue = totalRevenueForPeriod > 0 ? actualValue / totalRevenueForPeriod : null;
+                        const totalRevenueForPeriodInner = Object.values((report.pnlData?.["Pendapatan (Revenue)"] ?? {}) as Record<string, number>).reduce((s: number, v: number) => s + v, 0);
+                        const percentageOfRevenue = totalRevenueForPeriodInner > 0 ? actualValue / totalRevenueForPeriodInner : null;
 
                         subRowHtml += `<td class="px-6 py-3 text-right text-sm text-gray-500 font-mono">${formatCurrency(actualValue)}</td>
                                        <td class="px-6 py-3"></td> <td class="px-6 py-3 text-right text-sm text-blue-600 font-mono">${formatPercent(percentageOfRevenue)}</td>`;
@@ -696,8 +699,10 @@ export async function setupAnalisaPnl() {
 
         if (periods.length === 0) {
             selectEl.innerHTML = '<option>No P&L data found</option>';
-            document.getElementById('analisa-pnl-tbody').innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
-            document.getElementById('analisa-pnl-thead').innerHTML = '';
+            const tbody = document.getElementById('analisa-pnl-tbody');
+            const thead = document.getElementById('analisa-pnl-thead');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">No P&L reports have been saved yet.</td></tr>';
+            if (thead) thead.innerHTML = '';
             return;
         }
 
@@ -730,6 +735,7 @@ export async function generateAllTimePnlTable() {
     if (!currentUser) return;
     const thead = document.getElementById('waktu-pnl-thead');
     const tbody = document.getElementById('waktu-pnl-tbody');
+    if (!thead || !tbody) return;
     tbody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">Loading P&L reports for the last 24 months...</td></tr>';
 
     try {
@@ -741,9 +747,9 @@ export async function generateAllTimePnlTable() {
         twentyFourMonthsAgo.setMonth(twentyFourMonthsAgo.getMonth() - 24);
         const twentyFourMonthsAgoPeriod = twentyFourMonthsAgo.toISOString().slice(0, 7); // "YYYY-MM"
 
-        const recentReports = reportsSnap.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter(report => report.period && typeof report.period === 'string' && report.period >= twentyFourMonthsAgoPeriod)
+        const recentReports: PnlReport[] = reportsSnap.docs
+            .map(doc => doc.data() as PnlReport)
+            .filter((report): report is PnlReport => !!report?.period && typeof report.period === 'string' && report.period >= twentyFourMonthsAgoPeriod)
             .toSorted((a, b) => a.period.localeCompare(b.period));
 
         if (recentReports.length === 0) {
@@ -764,14 +770,14 @@ export async function generateAllTimePnlTable() {
 
         // --- (Table Body rendering logic remains the same, but now uses 'recentReports') ---
         tbody.innerHTML = '';
-        const formatCurrency = (value) => value ? `Rp${Math.round(value).toLocaleString('id-ID')}` : 'Rp0';
+    const formatCurrency = (value: number | null | undefined) => value || value === 0 ? `Rp${Math.round(value as number).toLocaleString('id-ID')}` : 'Rp0';
 
         const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-        const subtotals = {
+        const subtotals: Record<string, (data: Record<string, number>) => number> = {
             "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => (subtotals["Laba Kotor (Gross Profit)"]?.(data) || 0) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => (subtotals["Pendapatan Bersih Operasional (Net Operating Income)"]?.(data) || 0) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => (subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"]?.(data) || 0) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
         };
 
         const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
@@ -786,13 +792,13 @@ export async function generateAllTimePnlTable() {
             recentReports.forEach(report => {
                 let value = 0;
                 if (isSubtotal) {
-                    const categoryTotals = {};
+                    const categoryTotals: Record<string, number> = {};
                     categoryOrder.forEach(cat => {
-                       categoryTotals[cat] = Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                        categoryTotals[cat] = Object.values((report.pnlData?.[cat] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0);
                     });
-                    value = subtotals[metricName](categoryTotals);
+                    value = subtotals[metricName]?.(categoryTotals) ?? 0;
                 } else {
-                    value = Object.values(report.pnlData[metricName] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                    value = Object.values((report.pnlData?.[metricName] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0);
                 }
                 rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${formatCurrency(value)}</td>`;
             });

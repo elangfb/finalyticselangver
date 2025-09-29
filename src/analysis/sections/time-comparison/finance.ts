@@ -7,9 +7,10 @@ import { showLoading, hideLoading } from '@/core/ui';
 import * as $store from '@/store';
 import { createChart } from '../../helpers';
 import { AlsoStoreFn, createAlsoStoreFn, createMaybeAlsoStoreFn } from '../../utils/store-helpers';
-import { chartTooltip, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
-import { formatCurrency as formatCurrencyUtil, formatIntBasedPercentage } from '../../utils/string-formatters';
+import { chartTooltip, chartYTicks, mergeChartOptions, shortenCurrency } from '../../utils/chart-formatters';
+import { formatCurrency as formatCurrencyUtil, formatIntBasedPercentage, formatDecimalBasedPercentage } from '../../utils/string-formatters';
 import { calculateAllPnlMetrics } from '../general/finance';
+import type { ChartDataset } from 'chart.js';
 
 /**
  * Generates a detailed P&L comparison table between two periods,
@@ -25,24 +26,24 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
         const pnlDataB = reportB?.pnlData || {};
 
         const categoryOrder = ["Pendapatan (Revenue)", "Harga Pokok Produksi", "Beban Operasional (OPEX)", "Beban Non Operasional", "Depresiasi/ Amortisasi", "Bunga", "Pajak (PB1)"];
-        const subtotals = {
+        const subtotals: Record<string, (data: Record<string, number>) => number> = {
             "Laba Kotor (Gross Profit)": (data) => (data["Pendapatan (Revenue)"] || 0) - (data["Harga Pokok Produksi"] || 0),
-            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => subtotals["Laba Kotor (Gross Profit)"](data) - (data["Beban Operasional (OPEX)"] || 0),
-            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => subtotals["Pendapatan Bersih Operasional (Net Operating Income)"](data) - (data["Beban Non Operasional"] || 0),
-            "Pendapatan Bersih (Net Income)": (data) => subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"](data) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
+            "Pendapatan Bersih Operasional (Net Operating Income)": (data) => (subtotals["Laba Kotor (Gross Profit)"]?.(data) || 0) - (data["Beban Operasional (OPEX)"] || 0),
+            "Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)": (data) => (subtotals["Pendapatan Bersih Operasional (Net Operating Income)"]?.(data) || 0) - (data["Beban Non Operasional"] || 0),
+            "Pendapatan Bersih (Net Income)": (data) => (subtotals["Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)"]?.(data) || 0) - (data["Depresiasi/ Amortisasi"] || 0) - (data["Bunga"] || 0) - (data["Pajak (PB1)"] || 0),
         };
         const allMetrics = [...categoryOrder, ...Object.keys(subtotals)];
 
-        const calculateAllMetrics = (pnlData) => {
-            const results = {};
-            const categoryTotals = {};
+        const calculateAllMetrics = (pnlData: Record<string, Record<string, number>>) => {
+            const results: Record<string, number> = {};
+            const categoryTotals: Record<string, number> = {};
             categoryOrder.forEach(cat => {
-                const total = Object.values(pnlData?.[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
+                    const total = Object.values((pnlData?.[cat] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0);
                 results[cat] = total;
                 categoryTotals[cat] = total;
             });
             Object.keys(subtotals).forEach(sub => {
-                results[sub] = subtotals[sub](categoryTotals);
+                    results[sub] = subtotals[sub]?.(categoryTotals) ?? 0;
             });
             return results;
         };
@@ -52,7 +53,7 @@ function generatePnlComparisonTable(reportA: any, reportB: any, containerId: str
 
         const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore);
 
-        const formatCurrency = (value) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
+    const formatCurrency = (value: number) => `Rp${Math.round(value).toLocaleString('id-ID')}`;
         const labelA = reportA ? new Date(reportA.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period A';
         const labelB = reportB ? new Date(reportB.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }) : 'Period B';
 
@@ -131,21 +132,21 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
     const pnlDataA = reportA?.pnlData;
     const pnlDataB = reportB?.pnlData;
 
-    const getMetricValue = (pnlData) => {
-        const revenue = Object.values(pnlData?.["Pendapatan (Revenue)"] || {}).reduce((s:number, v:number) => s + v, 0);
+    const getMetricValue = (pnlData: Record<string, Record<string, number>> | undefined) => {
+        const revenue = Object.values((pnlData?.["Pendapatan (Revenue)"] ?? {}) as Record<string, number>).reduce((s:number, v:number) => s + v, 0);
         if (!revenue) return 0;
 
         if (config.metric.includes('Profit') || config.metric.includes('Income')) {
-            const hpp = Object.values(pnlData?.["Harga Pokok Produksi"] || {}).reduce((s:number, v:number) => s + v, 0);
+            const hpp = Object.values((pnlData?.["Harga Pokok Produksi"] ?? {}) as Record<string, number>).reduce((s:number, v:number) => s + v, 0);
             return revenue - hpp;
         }
-        return Object.values(pnlData?.[config.metric] || {}).reduce((s:number, v:number) => s + v, 0);
+        return Object.values((pnlData?.[config.metric] ?? {}) as Record<string, number>).reduce((s:number, v:number) => s + v, 0);
     };
 
     const valueA = getMetricValue(pnlDataA);
     const valueB = getMetricValue(pnlDataB);
-    const revenueA = Object.values(pnlDataA?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
-    const revenueB = Object.values(pnlDataB?.["Pendapatan (Revenue)"] || {}).reduce((s:number,v:number)=>s+v,0);
+    const revenueA = Object.values((pnlDataA?.["Pendapatan (Revenue)"] ?? {}) as Record<string, number>).reduce((s:number,v:number)=>s+v,0);
+    const revenueB = Object.values((pnlDataB?.["Pendapatan (Revenue)"] ?? {}) as Record<string, number>).reduce((s:number,v:number)=>s+v,0);
     const percentA = revenueA > 0 ? (valueA / revenueA) * 100 : 0;
     const percentB = revenueB > 0 ? (valueB / revenueB) * 100 : 0;
 
@@ -174,12 +175,12 @@ function generateRatioComparisonChart(reportA: any, reportB: any, config: { canv
             { type: 'line', label: `${config.title} (%)`, data: [percentA, percentB], borderColor: '#F97316', yAxisID: 'y-percent' }
         ]
     }, mergeChartOptions(
-        { // The original scales options go here
+        ({
             scales: {
-                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+                'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: ((n: number) => shortenCurrency(n)) } },
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: ((v: string | number) => `${Number(v).toFixed(1)}%`) } }
             }
-        },
+        } as any),
         chartTooltip({
             label: (context) => {
                 let label = context.dataset.label || '';

@@ -1,4 +1,3 @@
-// src/analysis/sections/branch-comparison/finance.ts
 // Contains all logic for the "Analisis Perbandingan Cabang > Aspek Keuangan" section.
 
 import * as $store from '@/store';
@@ -119,7 +118,7 @@ function generateBranchRatioComparisonChart(reportA: any, reportB: any, config: 
         {
             scales: {
                 'y-rp': { type: 'linear', position: 'left', title: { display: true, text: 'Value (Rp)' }, ticks: { callback: shortenCurrency } },
-                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${Number(v).toFixed(1)}%` } }
+                'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(1)}%` } }
             }
         },
         chartTooltip({
