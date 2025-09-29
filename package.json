@@ -39,6 +39,7 @@
     "buffer": "^6.0.3",
     "eslint": "^9.36.0",
     "globals": "^16.4.0",
+    "ignore": "^7.0.5",
     "parcel": "^2.16.0",
     "parcel-namer-hashless": "^1.0.7",
     "rimraf": "^6.0.1",

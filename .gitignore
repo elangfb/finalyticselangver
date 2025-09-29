@@ -2,3 +2,7 @@
 .parcel-cache/
 dist/
 node_modules/
+.env*
+!.env*.example
+llms.txt
+llms-full.txt
