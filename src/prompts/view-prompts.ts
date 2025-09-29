@@ -8,4 +8,4 @@ export const viewPromptCreators = Object.freeze({
   ...penjualanPrompts,
   ...produkChannelPrompts,
   ...investasiPrompts,
-});
+})

@@ -19,7 +19,7 @@ export async function updatePeriodSelectorsForGeneralFinance(selectedBranch: str
   const reportsSnap = await getDocs(q)
 
   const periods = reportsSnap.docs
-    .map(doc => doc.data().period)
+    .map((doc) => doc.data().period)
     .filter(Boolean)
     .toSorted()
     .reverse()
@@ -30,7 +30,7 @@ export async function updatePeriodSelectorsForGeneralFinance(selectedBranch: str
   }
 
   const periodOptionsHtml = periods
-    .map(p => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`)
+    .map((p) => `<option value="${p}">${new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</option>`)
     .join('')
   periodSelect.innerHTML = periodOptionsHtml
   periodSelect.value = periods[0]
@@ -49,14 +49,14 @@ export async function setupGeneralFinance() {
 
   const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
   const reportsSnap = await getDocs(reportsRef)
-  const branches = [...new Set(reportsSnap.docs.map(doc => doc.data().branchName))].toSorted()
+  const branches = [...new Set(reportsSnap.docs.map((doc) => doc.data().branchName))].toSorted()
 
   if (branches.length === 0) {
     branchSelect.innerHTML = '<option>No branches with P&L data</option>'
     return
   }
 
-  branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('')
+  branchSelect.innerHTML = branches.map((b) => `<option value="${b}">${b}</option>`).join('')
   branchSelect.value = branches[0]
 
   branchSelect.addEventListener('change', async () => await updatePeriodSelectorsForGeneralFinance(branchSelect.value))

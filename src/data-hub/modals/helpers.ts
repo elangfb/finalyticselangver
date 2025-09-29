@@ -32,12 +32,14 @@ export function renderPnlResults(pnlData: any, container: HTMLElement) {
       </div>
     `).join('')
 
-    const totalHtml = Object.keys(data).length > 0 ? `
+    const totalHtml = Object.keys(data).length > 0
+      ? `
       <div class="flex justify-between font-semibold pt-1 border-t mt-1">
         <span>Total ${categoryName}</span>
         <span class="font-mono">${formatCurrency(categoryTotal)}</span>
       </div>
-    ` : ''
+    `
+      : ''
 
     return `
       <div class="mb-4">

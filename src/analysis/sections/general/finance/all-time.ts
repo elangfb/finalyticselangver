@@ -20,9 +20,9 @@ export async function generateAllTimePnlTable() {
     const twentyFourMonthsAgo = new Date()
     twentyFourMonthsAgo.setMonth(twentyFourMonthsAgo.getMonth() - 24)
     const twentyFourMonthsAgoPeriod = twentyFourMonthsAgo.toISOString().slice(0, 7)
-    type PnlReport = { period: string; pnlData?: Record<string, Record<string, number>> }
+    interface PnlReport { period: string, pnlData?: Record<string, Record<string, number>> }
     const recentReports: PnlReport[] = reportsSnap.docs
-      .map(doc => doc.data() as PnlReport)
+      .map((doc) => doc.data() as PnlReport)
       .filter((report): report is PnlReport => !!report?.period && typeof report.period === 'string' && report.period >= twentyFourMonthsAgoPeriod)
       .toSorted((a, b) => a.period.localeCompare(b.period))
 
@@ -32,7 +32,7 @@ export async function generateAllTimePnlTable() {
       return
     }
 
-    const periodHeaders = recentReports.map(r => {
+    const periodHeaders = recentReports.map((r) => {
       const date = new Date(r.period + '-02')
       return `<th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${date.toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`
     }).join('')
@@ -53,16 +53,16 @@ export async function generateAllTimePnlTable() {
     }
 
     const allMetrics = [...categoryOrder, ...Object.keys(subtotals)]
-    allMetrics.forEach(metricName => {
+    allMetrics.forEach((metricName) => {
       const isSubtotal = !!subtotals[metricName]
       const tr = document.createElement('tr')
       tr.className = isSubtotal ? 'bg-gray-50 font-semibold' : ''
       let rowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm ${isSubtotal ? 'text-gray-900' : 'text-gray-700'}">${metricName}</td>`
-      recentReports.forEach(report => {
+      recentReports.forEach((report) => {
         let value = 0
         if (isSubtotal) {
           const categoryTotals: Record<string, number> = {}
-          categoryOrder.forEach(cat => {
+          categoryOrder.forEach((cat) => {
             categoryTotals[cat] = Object.values((report.pnlData?.[cat] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0)
           })
           value = subtotals[metricName]?.(categoryTotals) ?? 0

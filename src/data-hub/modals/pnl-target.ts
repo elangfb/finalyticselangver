@@ -63,12 +63,12 @@ export async function showPnlTargetModal(targetData: any, reportId: string, conf
       'Pendapatan (Revenue)', 'Harga Pokok Produksi', 'Laba Kotor (Gross Profit)',
       'Beban Operasional (OPEX)', 'Pendapatan Bersih Operasional (Net Operating Income)',
       'Beban Non Operasional', 'Pendapatan Bersih Sebelum Deprisiasi/Amortisasi, Bunga & Pajak (EBITDA)',
-      'Depresiasi/ Amortisasi', 'Bunga', 'Pajak (PB1)', 'Pendapatan Bersih (Net Income)'
+      'Depresiasi/ Amortisasi', 'Bunga', 'Pajak (PB1)', 'Pendapatan Bersih (Net Income)',
     ]
 
     const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore)
 
-    metricOrder.forEach(metric => {
+    metricOrder.forEach((metric) => {
       const targetRevenue = targets['Pendapatan (Revenue)']
       let targetValue = 0
 

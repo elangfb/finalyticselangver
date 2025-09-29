@@ -33,8 +33,8 @@ export function trimMultiline(value: string): string {
  * // => 1.23
  */
 export function truncateToFixed(value: number, decimals: number) {
-  const multiplier = Math.pow(10, decimals);
-  return Math.trunc(value * multiplier) / multiplier;
+  const multiplier = Math.pow(10, decimals)
+  return Math.trunc(value * multiplier) / multiplier
 }
 
 export const html = String.raw

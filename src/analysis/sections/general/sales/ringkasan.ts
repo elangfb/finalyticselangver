@@ -26,7 +26,7 @@ export function generateRingkasanFromSummaries(
   currentSummaries: SalesSummary[],
   lastPeriodSummaries: SalesSummary[],
   ids: { omzet: string, check: string, avgCheck: string, omzetGrowth: string, checkGrowth: string, avgCheckGrowth: string },
-  config?: { alsoStore?: AlsoStoreFn }
+  config?: { alsoStore?: AlsoStoreFn },
 ) {
   const adjustFontSize = (elementId: string, text: string) => {
     const element = document.getElementById(elementId)

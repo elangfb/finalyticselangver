@@ -43,7 +43,7 @@ async function generateGeneralSales() {
 
   let currentData: SalesSummary[] = $store.getAllSalesData().filter((s: SalesSummary) => s.date >= startDate && s.date <= endDate)
   if (selectedBranch !== 'ALL') {
-    currentData = currentData.filter(s => s.branches.includes(selectedBranch))
+    currentData = currentData.filter((s) => s.branches.includes(selectedBranch))
   }
 
   $store.clearViewData('general-penjualan')
@@ -80,11 +80,11 @@ export async function setupGeneralSales() {
   if (!branchSelect || !applyBtn || !startDateInput || !endDateInput) return
 
   const branches = [...new Set($store.getAllSalesData().flatMap((s: SalesSummary) => s.branches))].sort()
-  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('')
+  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
 
   if ($store.getAllSalesData().length > 0) {
     const allDates = $store.getAllSalesData().map((s: SalesSummary) => s.date)
-    const lastDate = new Date(Math.max.apply(null, allDates.map(d => d.getTime())))
+    const lastDate = new Date(Math.max.apply(null, allDates.map((d) => d.getTime())))
     const firstDate = new Date(lastDate)
     firstDate.setDate(lastDate.getDate() - 29)
     endDateInput.value = lastDate.toISOString().split('T')[0]!

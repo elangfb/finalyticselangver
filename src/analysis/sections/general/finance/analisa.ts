@@ -32,7 +32,7 @@ export async function generateAnalisaPnlTable(selectedPeriod: string) {
     const allReports = [report]
 
     let periodHeaders = ''
-    allReports.forEach(r => {
+    allReports.forEach((r) => {
       const date = new Date(r.period + '-02')
       const headerDate = date.toLocaleString('default', { month: 'short', year: 'numeric' })
       periodHeaders += `
@@ -61,7 +61,7 @@ export async function generateAnalisaPnlTable(selectedPeriod: string) {
       'Depresiasi/ Amortisasi',
       'Bunga',
       'Pajak (PB1)',
-      'Pendapatan Bersih (Net Income)'
+      'Pendapatan Bersih (Net Income)',
     ]
     const subtotals: Record<string, (data: Record<string, number>) => number> = {
       'Laba Kotor (Gross Profit)': (data) => (data['Pendapatan (Revenue)'] || 0) - (data['Harga Pokok Produksi'] || 0),
@@ -72,7 +72,7 @@ export async function generateAnalisaPnlTable(selectedPeriod: string) {
 
     const totalRevenueForPeriod = Object.values((report.pnlData?.['Pendapatan (Revenue)'] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0)
 
-    allMetrics.forEach(metricName => {
+    allMetrics.forEach((metricName) => {
       const isSubtotal = !!subtotals[metricName]
       const hasSubcategories = !isSubtotal
       const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '')
@@ -88,7 +88,7 @@ export async function generateAnalisaPnlTable(selectedPeriod: string) {
 
       const categoryTotals: Record<string, number> = {}
       if (report.pnlData) {
-        Object.keys(report.pnlData).forEach(cat => {
+        Object.keys(report.pnlData).forEach((cat) => {
           categoryTotals[cat] = Object.values((report.pnlData?.[cat] ?? {}) as Record<string, number>).reduce((sum: number, val: number) => sum + val, 0)
         })
       }
@@ -114,16 +114,16 @@ export async function generateAnalisaPnlTable(selectedPeriod: string) {
 
       if (hasSubcategories) {
         const subCategoryNames = new Set<string>()
-        allReports.forEach(report => {
+        allReports.forEach((report) => {
           if (report.pnlData && report.pnlData[metricName]) {
-            Object.keys(report.pnlData[metricName]).forEach(subCat => subCategoryNames.add(subCat))
+            Object.keys(report.pnlData[metricName]).forEach((subCat) => subCategoryNames.add(subCat))
           }
         })
-        subCategoryNames.forEach(subCatName => {
+        subCategoryNames.forEach((subCatName) => {
           const subRow = document.createElement('tr')
           subRow.className = `pnl-subcategory hidden sub-category-of-${sanitizedMetricName}`
           let subRowHtml = `<td class="pl-10 pr-6 py-3 whitespace-nowrap text-sm text-gray-600">${subCatName}</td>`
-          allReports.forEach(report => {
+          allReports.forEach((report) => {
             const actualValue = report.pnlData?.[metricName]?.[subCatName] || 0
             const totalRevenueForPeriodInner = Object.values((report.pnlData?.['Pendapatan (Revenue)'] ?? {}) as Record<string, number>).reduce((s: number, v: number) => s + v, 0)
             const percentageOfRevenue = totalRevenueForPeriodInner > 0 ? actualValue / totalRevenueForPeriodInner : null
@@ -154,7 +154,7 @@ export async function setupAnalisaPnl() {
     const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
     const reportsSnap = await getDocs(reportsRef)
     const periods = reportsSnap.docs
-      .map(doc => doc.data().period)
+      .map((doc) => doc.data().period)
       .filter(Boolean)
       .toSorted()
       .reverse()
@@ -166,7 +166,7 @@ export async function setupAnalisaPnl() {
       if (thead) thead.innerHTML = ''
       return
     }
-    selectEl.innerHTML = periods.map(period => {
+    selectEl.innerHTML = periods.map((period) => {
       const [year, month] = (period as string).split('-') as [string, string]
       const dateLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
       return `<option value="${period}">${dateLabel}</option>`

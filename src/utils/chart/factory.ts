@@ -1,10 +1,10 @@
-import Chart from 'chart.js/auto';
-import type { Chart as ChartTypeInstance, ChartData, ChartOptions, ChartType } from 'chart.js';
-import * as $store from '@/store';
-import { mergeChartOptions } from '../chart-formatter';
+import Chart from 'chart.js/auto'
+import type { Chart as ChartTypeInstance, ChartData, ChartOptions, ChartType } from 'chart.js'
+import * as $store from '@/store'
+import { mergeChartOptions } from '../chart-formatter'
 
 // Chart.js types
-export type { Chart } from 'chart.js/auto';
+export type { Chart } from 'chart.js/auto'
 
 /**
  * Destroy all Chart.js instances managed by the factory.
@@ -40,33 +40,33 @@ export function createChart<TType extends ChartType = ChartType>(
   canvasId: string,
   type: TType,
   data: ChartData<TType>,
-  options?: ChartOptions<TType>
+  options?: ChartOptions<TType>,
 ): ChartTypeInstance<TType> | null {
-  const existingChart = $store.getChartProperty(canvasId);
-  if (existingChart) existingChart.destroy();
+  const existingChart = $store.getChartProperty(canvasId)
+  if (existingChart) existingChart.destroy()
 
-  const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+  const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   if (!canvas) {
-    console.warn(`Canvas element not found: ${canvasId}`);
-    return null;
+    console.warn(`Canvas element not found: ${canvasId}`)
+    return null
   }
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d')
   if (!ctx) {
-    console.warn(`Could not get 2D context for canvas: ${canvasId}`);
-    return null;
+    console.warn(`Could not get 2D context for canvas: ${canvasId}`)
+    return null
   }
 
   // Determine if this is a PDF chart
-  const isPDF = canvasId.includes('-pdf');
+  const isPDF = canvasId.includes('-pdf')
 
   // Apply enhanced default options
-  const defaultOptions = getDefaultOptions(isPDF) as ChartOptions<TType>;
-  const userOptions = (options ?? {}) as ChartOptions<TType>;
-  const finalOptions = mergeChartOptions(defaultOptions as unknown as object, userOptions as unknown as object) as ChartOptions<TType>;
+  const defaultOptions = getDefaultOptions(isPDF) as ChartOptions<TType>
+  const userOptions = (options ?? {}) as ChartOptions<TType>
+  const finalOptions = mergeChartOptions(defaultOptions as unknown as object, userOptions as unknown as object) as ChartOptions<TType>
 
-  const newChart = new Chart(ctx, { type, data, options: finalOptions });
-  $store.setChartProperty(canvasId, newChart);
+  const newChart = new Chart(ctx, { type, data, options: finalOptions })
+  $store.setChartProperty(canvasId, newChart)
 
   // TODO: See TODO.md #8 - Consider performance optimizations for large datasets
 
@@ -87,7 +87,7 @@ export function createChart<TType extends ChartType = ChartType>(
     }
   }
 
-  return newChart;
+  return newChart
 }
 
 /**
@@ -101,7 +101,7 @@ export function createChart<TType extends ChartType = ChartType>(
  * @param isPDF - Whether this chart is intended for PDF export.
  * @returns Default Chart.js options object.
  */
-function getDefaultOptions(isPDF: boolean = false): ChartOptions<ChartType> {
+function getDefaultOptions(isPDF = false): ChartOptions<ChartType> {
   const baseOptions: ChartOptions<ChartType> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -113,7 +113,7 @@ function getDefaultOptions(isPDF: boolean = false): ChartOptions<ChartType> {
       // Use default tooltip behavior; specific tooltip callbacks should be merged via helpers
     },
     // Scales will be customized via mergeChartOptions using chartXTicks/chartYTicks helpers
-  };
+  }
 
   if (isPDF) {
     return {
@@ -122,8 +122,8 @@ function getDefaultOptions(isPDF: boolean = false): ChartOptions<ChartType> {
       maintainAspectRatio: true,
       aspectRatio: 2,
       animation: false,
-    };
+    }
   }
 
-  return baseOptions;
+  return baseOptions
 }

@@ -1,6 +1,6 @@
 import type { AlsoStoreFn } from '../../../utils/store-helpers'
 
-export type SalesSummary = {
+export interface SalesSummary {
   date: Date
   totalOmzet: number
   totalTransactions: number
@@ -9,4 +9,4 @@ export type SalesSummary = {
   branches: string[]
 }
 
-export type AlsoStoreConfig = { alsoStore?: AlsoStoreFn }
+export interface AlsoStoreConfig { alsoStore?: AlsoStoreFn }

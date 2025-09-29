@@ -10,7 +10,7 @@ import { db } from '@/core/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { showPnlTargetModal } from '@/data-hub/modals'
 
-type PnlReport = { period: string; pnlData?: Record<string, Record<string, number>> }
+interface PnlReport { period: string, pnlData?: Record<string, Record<string, number>> }
 
 /**
  * Generates a P&L Target vs Actual comparison table for a single period into containerId.
@@ -56,7 +56,7 @@ export function generateHistoricalPnlTable(reports: PnlReport[], theadId: string
   }
 
   const periodHeaders = reports
-    .map(r => `<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`)
+    .map((r) => `<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">${new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' })}</th>`)
     .join('')
   thead.innerHTML = `<tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>${periodHeaders}</tr>`
 
@@ -72,12 +72,12 @@ export function generateHistoricalPnlTable(reports: PnlReport[], theadId: string
     'Depresiasi/ Amortisasi',
     'Bunga',
     'Pajak (PB1)',
-    'Pendapatan Bersih (Net Income)'
+    'Pendapatan Bersih (Net Income)',
   ]
   const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore)
 
-  allMetrics.forEach(metricName => {
-    const metrics = reports.map(report => calculateAllPnlMetrics(report.pnlData || {}))
+  allMetrics.forEach((metricName) => {
+    const metrics = reports.map((report) => calculateAllPnlMetrics(report.pnlData || {}))
     const isSubtotal = !reports[0]?.pnlData?.[metricName]
     const mainRow = document.createElement('tr')
     let mainRowHtml = ''
@@ -94,7 +94,7 @@ export function generateHistoricalPnlTable(reports: PnlReport[], theadId: string
 
     metrics.forEach((metricSet, index) => {
       const value = metricSet[metricName] || 0
-      alsoStore(value, v => ({ historicalPnl: { [formatMachineYearMonth(reports[index]!.period)]: { [metricName]: formatCurrencyUtil(v) } } }))
+      alsoStore(value, (v) => ({ historicalPnl: { [formatMachineYearMonth(reports[index]!.period)]: { [metricName]: formatCurrencyUtil(v) } } }))
       mainRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(value)}</td>`
     })
     mainRow.innerHTML = mainRowHtml
@@ -102,14 +102,14 @@ export function generateHistoricalPnlTable(reports: PnlReport[], theadId: string
 
     if (!isSubtotal) {
       const sanitizedMetricName = metricName.replace(/[^a-zA-Z0-9]/g, '')
-      const allSubKeys = new Set(reports.flatMap(r => Object.keys(r.pnlData?.[metricName] || {})))
-      allSubKeys.forEach(subKey => {
+      const allSubKeys = new Set(reports.flatMap((r) => Object.keys(r.pnlData?.[metricName] || {})))
+      allSubKeys.forEach((subKey) => {
         const subRow = document.createElement('tr')
         subRow.className = `pnl-sub-category sub-items-of-${sanitizedMetricName} hidden`
         let subRowHtml = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 pl-8">${subKey}</td>`
-        reports.forEach(report => {
+        reports.forEach((report) => {
           const subValue = report.pnlData?.[metricName]?.[subKey] || 0
-          alsoStore(subValue, v => ({ historicalPnl: { [formatMachineYearMonth(report.period)]: { [metricName]: { [subKey]: formatCurrencyUtil(v) } } } }))
+          alsoStore(subValue, (v) => ({ historicalPnl: { [formatMachineYearMonth(report.period)]: { [metricName]: { [subKey]: formatCurrencyUtil(v) } } } }))
           subRowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right font-mono">${shortenCurrency(subValue)}</td>`
         })
         subRow.innerHTML = subRowHtml
@@ -121,7 +121,7 @@ export function generateHistoricalPnlTable(reports: PnlReport[], theadId: string
 
 /** Accordion listener for history table */
 export function initializePnlAccordionListener(): void {
-  document.getElementById('general-pnl-history-tbody')?.addEventListener('click', e => {
+  document.getElementById('general-pnl-history-tbody')?.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
     const headerRow = target.closest('.pnl-main-category') as HTMLElement | null
     if (headerRow) {
@@ -129,7 +129,7 @@ export function initializePnlAccordionListener(): void {
       if (!targetClass) return
       const subRows = document.querySelectorAll(`.${targetClass}`)
       const chevron = headerRow.querySelector('.chevron-icon')
-      subRows.forEach(row => row.classList.toggle('hidden'))
+      subRows.forEach((row) => row.classList.toggle('hidden'))
       chevron?.classList.toggle('rotate-180')
     }
   })

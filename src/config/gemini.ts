@@ -1,25 +1,24 @@
 // Manages AI configuration, API key handling, and communication with the Gemini API.
 
-import { currentUser, currentUserRole } from '@/core/state';
-import { prompts } from '@/prompt';
-import { globalConfigService } from '@/services/globalConfigService';
-import { User } from 'firebase/auth';
+import { currentUser, currentUserRole } from '@/core/state'
+import { prompts } from '@/prompt'
+import { globalConfigService } from '@/services/globalConfigService'
+import { User } from 'firebase/auth'
 
 const defaultGeminiConfig = Object.freeze({
   apiKey: '',
   prompts: prompts,
-});
+})
 
 // This can be used if you need a mutable copy of the config.
-const geminiConfig = structuredClone(defaultGeminiConfig);
-
+const geminiConfig = structuredClone(defaultGeminiConfig)
 
 /**
  * Load Gemini configuration for admin users from Firestore.
  */
 export function loadGeminiConfig(): void {
   if (currentUserRole === 'admin') {
-    loadCurrentApiKey();
+    loadCurrentApiKey()
   }
 }
 
@@ -29,43 +28,42 @@ export function loadGeminiConfig(): void {
  */
 async function loadCurrentApiKey(): Promise<void> {
   try {
-    const apiKey = await globalConfigService.getGeminiApiKey();
-    const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement;
+    const apiKey = await globalConfigService.getGeminiApiKey()
+    const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
     if (apiKeyInput && apiKey) {
-      apiKeyInput.value = apiKey;
+      apiKeyInput.value = apiKey
     }
   } catch (error) {
-    console.error('Error loading current API key:', error);
+    console.error('Error loading current API key:', error)
   }
 }
-
 
 /**
  * Initializes the configuration tab UI for admins to manage the Gemini API key.
  */
 export function setupConfigurationTab(): void {
-  const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement;
+  const apiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement
   if (apiKeyInput) {
-    loadCurrentApiKey();
+    loadCurrentApiKey()
 
     apiKeyInput.addEventListener('change', async (e) => {
-      const target = e.target as HTMLInputElement;
-      const apiKey = target.value.trim();
+      const target = e.target as HTMLInputElement
+      const apiKey = target.value.trim()
 
       if (!apiKey) {
-        alert('Please enter a valid API key.');
-        return;
+        alert('Please enter a valid API key.')
+        return
       }
 
       try {
-        if (!currentUser) throw new Error("User not authenticated.");
-        await globalConfigService.setGeminiApiKey(apiKey, (currentUser as User).uid);
-        alert('API Key saved successfully!');
+        if (!currentUser) throw new Error('User not authenticated.')
+        await globalConfigService.setGeminiApiKey(apiKey, (currentUser as User).uid)
+        alert('API Key saved successfully!')
       } catch (error) {
-        console.error('Error saving API key:', error);
-        alert('Failed to save API key. Please try again.');
+        console.error('Error saving API key:', error)
+        alert('Failed to save API key. Please try again.')
       }
-    });
+    })
   }
 }
 
@@ -75,28 +73,28 @@ export function setupConfigurationTab(): void {
  * @returns Promise that resolves to an object with the AI-generated text and token usage.
  */
 export async function getGeminiAnalysis(prompt: string): Promise<{ summaryText: string, usageMetadata: any }> {
-  const apiKey = await globalConfigService.getGeminiApiKey();
+  const apiKey = await globalConfigService.getGeminiApiKey()
   if (!apiKey) {
-    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.');
+    throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.')
   }
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
-  const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+  const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] }
 
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  });
+  })
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error.message || `Request failed with status ${response.status}`);
+    const errorData = await response.json()
+    throw new Error(errorData.error.message || `Request failed with status ${response.status}`)
   }
 
-  const result = await response.json();
-  const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis could be generated. The response from the AI was empty.';
-  const usageMetadata = result.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 };
+  const result = await response.json()
+  const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis could be generated. The response from the AI was empty.'
+  const usageMetadata = result.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 }
 
-  return { summaryText, usageMetadata };
+  return { summaryText, usageMetadata }
 }

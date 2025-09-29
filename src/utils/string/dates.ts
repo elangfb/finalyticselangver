@@ -1,6 +1,6 @@
 export const shortMonths = [
   'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ] as const
 
 /**
@@ -24,23 +24,23 @@ export const shortMonths = [
  * // => '24 Jun 2024'
  */
 export function shortenDate(date: string | Date, allDates: string[] | Date[] = []) {
-  const dateObj = new Date(date);
-  const currentYear = new Date().getFullYear();
-  const dateYear = dateObj.getFullYear();
+  const dateObj = new Date(date)
+  const currentYear = new Date().getFullYear()
+  const dateYear = dateObj.getFullYear()
 
   // Cek apakah semua tanggal di tahun yang sama
-  const allYears = allDates.map(d => new Date(d).getFullYear());
-  const allSameYear = allYears.every(year => year === allYears[0]) && dateYear === allYears[0];
-  const allCurrentYear = allSameYear && dateYear === currentYear;
+  const allYears = allDates.map((d) => new Date(d).getFullYear())
+  const allSameYear = allYears.every((year) => year === allYears[0]) && dateYear === allYears[0]
+  const allCurrentYear = allSameYear && dateYear === currentYear
 
-  const day = dateObj.getDate();
-  const month = shortMonths[dateObj.getMonth()];
+  const day = dateObj.getDate()
+  const month = shortMonths[dateObj.getMonth()]
 
   // Format berdasarkan kondisi
   if (allCurrentYear) {
-    return `${day} ${month}`; // 24 Jun
+    return `${day} ${month}` // 24 Jun
   } else {
-    return `${day} ${month} ${dateYear}`; // 24 Jun 2024
+    return `${day} ${month} ${dateYear}` // 24 Jun 2024
   }
 }
 
@@ -65,16 +65,16 @@ export function shortenDate(date: string | Date, allDates: string[] | Date[] = [
  * // => '2025-01'
  */
 export function formatMachineYearMonth(date: string | Date): string {
-  const dateObj = new Date(date);
+  const dateObj = new Date(date)
 
   if (isNaN(dateObj.getTime())) {
-    throw new Error('Invalid date provided');
+    throw new Error('Invalid date provided')
   }
 
-  const year = dateObj.getFullYear();
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+  const year = dateObj.getFullYear()
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0')
 
-  return `${year}-${month}`;
+  return `${year}-${month}`
 }
 
 /**
@@ -98,15 +98,15 @@ export function formatMachineYearMonth(date: string | Date): string {
  * // => '2025-01-01'
  */
 export function formatMachineYearMonthDay(date: string | Date): string {
-  const dateObj = new Date(date);
+  const dateObj = new Date(date)
 
   if (isNaN(dateObj.getTime())) {
-    throw new Error('Invalid date provided');
+    throw new Error('Invalid date provided')
   }
 
-  const year = dateObj.getFullYear();
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const day = dateObj.getDate().toString().padStart(2, '0');
+  const year = dateObj.getFullYear()
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0')
+  const day = dateObj.getDate().toString().padStart(2, '0')
 
-  return `${year}-${month}-${day}`;
+  return `${year}-${month}-${day}`
 }

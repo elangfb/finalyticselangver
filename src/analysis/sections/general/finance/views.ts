@@ -10,7 +10,7 @@ import { generatePnlTargetComparisonTable, generateHistoricalPnlTable } from './
 import { generateFinancialRatioChart, generatePnlOverviewChart, generateSpecificSubCategoryRatioChart } from './charts'
 import { calculateAllPnlMetrics } from '../../../utils/pnl'
 
-type PnlReport = { period: string; pnlData?: Record<string, Record<string, number>> }
+interface PnlReport { period: string, pnlData?: Record<string, Record<string, number>> }
 
 export async function generateGeneralFinance() {
   if (!currentUser) return
@@ -35,7 +35,7 @@ export async function generateGeneralFinance() {
   const reportsSnap = await getDocs(q)
 
   const historicalReports: PnlReport[] = reportsSnap.docs
-    .map(doc => doc.data() as PnlReport)
+    .map((doc) => doc.data() as PnlReport)
     .filter((report): report is PnlReport => {
       if (!report || typeof report.period !== 'string') return false
       const reportDate = new Date(report.period + '-02')

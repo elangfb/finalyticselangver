@@ -9,8 +9,8 @@ import type { AlsoStoreConfig, SalesSummary } from './types'
 
 export function generateOmzetHarianChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: AlsoStoreConfig) {
   const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime())
-  const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0])
-  const data = sortedSummaries.map(s => s.totalOmzet)
+  const labels = sortedSummaries.map((s) => s.date.toISOString().split('T')[0])
+  const data = sortedSummaries.map((s) => s.totalOmzet)
 
   const totalOmzet = data.reduce((sum, value) => sum + value, 0)
   const averageOmzet = sortedSummaries.length > 0 ? totalOmzet / sortedSummaries.length : 0
@@ -110,9 +110,9 @@ export function generateOmzetMingguanChartFromSummaries(summaries: SalesSummary[
 
 export function generateTcApcHarianChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: AlsoStoreConfig) {
   const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime())
-  const labels = sortedSummaries.map(s => s.date.toISOString().split('T')[0])
-  const tcData = sortedSummaries.map(s => s.totalTransactions)
-  const apcData = sortedSummaries.map(s => s.apc)
+  const labels = sortedSummaries.map((s) => s.date.toISOString().split('T')[0])
+  const tcData = sortedSummaries.map((s) => s.totalTransactions)
+  const apcData = sortedSummaries.map((s) => s.apc)
 
   const datasets: ChartDataset<'bar' | 'line', number[]>[] = [
     {

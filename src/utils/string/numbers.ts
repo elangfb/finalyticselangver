@@ -55,14 +55,14 @@ export function formatNumber(value: number, fractionDigits = 0) {
  * // => "75,5%"
  */
 export function formatIntBasedPercentage(value: number, fractionDigits = 0): string {
-  if (typeof value !== 'number' || isNaN(value)) return '0%';
+  if (typeof value !== 'number' || isNaN(value)) return '0%'
 
   const formatted = truncateToFixed(value, fractionDigits).toLocaleString('id-ID', {
     minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits
-  });
+    maximumFractionDigits: fractionDigits,
+  })
 
-  return `${formatted}%`;
+  return `${formatted}%`
 }
 
 /**
@@ -97,11 +97,11 @@ export function formatDecimalBasedPercentage(value: number, fractionDigits = 1):
 // Mapping untuk suffix berdasarkan nilai
 const numberSuffixMap = Object.freeze({
   [1_000_000_000_000_000]: 'kd', // kuadriliun
-  [1_000_000_000_000]: 't',      // triliun
-  [1_000_000_000]: 'm',          // milyar
-  [1_000_000]: 'jt',             // juta
-  [1_000]: 'rb'                  // ribu
-});
+  [1_000_000_000_000]: 't', // triliun
+  [1_000_000_000]: 'm', // milyar
+  [1_000_000]: 'jt', // juta
+  [1_000]: 'rb', // ribu
+})
 
 /**
  * Convert a large number to a compact format with Indonesian suffixes.
@@ -121,21 +121,21 @@ export function shortenNumber(value: number) {
   // Urutkan dari nilai terbesar ke terkecil
   const sortedKeys = Object.keys(numberSuffixMap)
     .map(Number)
-    .toSorted((a, b) => b - a);
+    .toSorted((a, b) => b - a)
 
   for (const divisor of sortedKeys) {
     if (value >= divisor) {
-      const truncated = truncateToFixed(value / divisor, 1);
-      const suffix = numberSuffixMap[divisor as keyof typeof numberSuffixMap];
+      const truncated = truncateToFixed(value / divisor, 1)
+      const suffix = numberSuffixMap[divisor as keyof typeof numberSuffixMap]
       const number = truncated % 1 === 0
         ? truncated.toString()
         : truncated.toFixed(1).replace('.', ',')
 
-      return number + suffix;
+      return number + suffix
     }
   }
 
-  return value.toString();
+  return value.toString()
 }
 
 /**
@@ -155,4 +155,3 @@ export function shortenNumber(value: number) {
 export function shortenCurrency(value: number, prefix = 'Rp') {
   return prefix + shortenNumber(value)
 }
-

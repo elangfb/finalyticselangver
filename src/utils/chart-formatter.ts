@@ -1,6 +1,6 @@
-import type { Tick, TickOptions, TooltipOptions } from "chart.js";
-import { deepmerge } from "deepmerge-ts";
-import { formatCurrency, formatIntBasedPercentage, shortenDate } from "./string";
+import type { Tick, TickOptions, TooltipOptions } from 'chart.js'
+import { deepmerge } from 'deepmerge-ts'
+import { formatCurrency, formatIntBasedPercentage, shortenDate } from './string'
 
 type TooltipCallbacks = TooltipOptions['callbacks']
 type TooltipCallbackLabel = TooltipCallbacks['label']
@@ -8,10 +8,10 @@ type TickCallback = TickOptions['callback']
 
 // Internal utility: wrap a simple (number)=>string into a Chart.js tick callback signature
 function asTickCallback(fn: (n: number) => string): TickCallback {
-    return function (this: unknown, tickValue: string | number, _index: number, _ticks: Tick[]) {
-        const v = typeof tickValue === 'number' ? tickValue : Number(tickValue);
-        return fn(v);
-    } as TickCallback;
+  return function (this: unknown, tickValue: string | number, _index: number, _ticks: Tick[]) {
+    const v = typeof tickValue === 'number' ? tickValue : Number(tickValue)
+    return fn(v)
+  } as TickCallback
 }
 
 /**
@@ -34,10 +34,10 @@ function asTickCallback(fn: (n: number) => string): TickCallback {
  * const chartOptions = { ...currencyTicks };
  */
 export function chartTicks<TAxis extends string>(axis: TAxis, callback: TickCallback | ((n: number) => string)) {
-    const wrapped: TickCallback = (callback as any).length === 1
-        ? asTickCallback(callback as (n: number) => string)
-        : (callback as TickCallback);
-    return { scales: { [axis]: { ticks: { callback: wrapped } } } } as const;
+  const wrapped: TickCallback = (callback as any).length === 1
+    ? asTickCallback(callback as (n: number) => string)
+    : (callback as TickCallback)
+  return { scales: { [axis]: { ticks: { callback: wrapped } } } } as const
 }
 
 /**
@@ -59,7 +59,7 @@ export function chartTicks<TAxis extends string>(axis: TAxis, callback: TickCall
  * const chartOptions = { ...xAxisConfig };
  */
 export function chartXTicks(callback: TickCallback | ((n: number) => string)) {
-    return chartTicks('x', callback)
+  return chartTicks('x', callback)
 }
 
 /**
@@ -81,7 +81,7 @@ export function chartXTicks(callback: TickCallback | ((n: number) => string)) {
  * const currencyConfig = chartYTicks((value) => `Rp ${value.toLocaleString()}`);
  */
 export function chartYTicks(callback: TickCallback | ((n: number) => string)) {
-    return chartTicks('y', callback)
+  return chartTicks('y', callback)
 }
 
 /**
@@ -101,9 +101,9 @@ export function chartYTicks(callback: TickCallback | ((n: number) => string)) {
  * // => { scales: { x: { ticks: { callback: shortenDateTickCallback } } } }
  */
 export const shortenDateTickCallback = function (this: any, _: string | number, index: number) {
-    const labels = this.chart.data.labels as string[];
+  const labels = this.chart.data.labels as string[]
 
-    return shortenDate(labels[index]!, labels);
+  return shortenDate(labels[index]!, labels)
 } satisfies TickCallback
 
 /**
@@ -117,40 +117,40 @@ export const shortenDateTickCallback = function (this: any, _: string | number, 
  * @returns A Chart.js plugins configuration object for tooltips.
  */
 export function chartTooltip<TCallback extends Partial<TooltipCallbacks>>(callbacks: TCallback) {
-    return { plugins: { tooltip: { callbacks } } }
+  return { plugins: { tooltip: { callbacks } } }
 }
 
 /**
  * A pre-configured Chart.js tooltip callback to format the label as Indonesian currency.
  */
 export const currencyTooltipCallback = ((context) => {
-    let label = context.dataset.label || '';
-    if (label) {
-        label += ': ';
-    }
-    if (context.parsed.y) {
-        label += formatCurrency(context.parsed.y);
-    } else if (context.parsed) {
-        label += formatCurrency(context.parsed);
-    }
-    return label;
-}) satisfies TooltipCallbackLabel;
+  let label = context.dataset.label || ''
+  if (label) {
+    label += ': '
+  }
+  if (context.parsed.y) {
+    label += formatCurrency(context.parsed.y)
+  } else if (context.parsed) {
+    label += formatCurrency(context.parsed)
+  }
+  return label
+}) satisfies TooltipCallbackLabel
 
 /**
  * A pre-configured Chart.js tooltip callback to format the label as a percentage.
  */
 export const percentageTooltipCallback = ((context) => {
-    let label = context.dataset.label || '';
-    if (label) {
-        label += ': ';
-    }
-    if (context.parsed.y) {
-        label += formatIntBasedPercentage(context.parsed.y);
-    } else if (context.parsed) {
-        label += formatIntBasedPercentage(context.parsed);
-    }
-    return label;
-}) satisfies TooltipCallbackLabel;
+  let label = context.dataset.label || ''
+  if (label) {
+    label += ': '
+  }
+  if (context.parsed.y) {
+    label += formatIntBasedPercentage(context.parsed.y)
+  } else if (context.parsed) {
+    label += formatIntBasedPercentage(context.parsed)
+  }
+  return label
+}) satisfies TooltipCallbackLabel
 
 /**
  * Deeply merges multiple Chart.js option snippets into a single configuration object.
@@ -162,8 +162,8 @@ export const percentageTooltipCallback = ((context) => {
  * @param options - A series of Chart.js option objects to merge.
  * @returns A single, deeply merged Chart.js options object.
  */
-export function mergeChartOptions<Ts extends Readonly<ReadonlyArray<unknown>>>(...options: readonly [...Ts]): any {
-    // deepmerge expects objects; we trust callers to pass partial option snippets
-    // Return 'any' so callers can pass this into Chart.js options without excessive typing friction.
-    return deepmerge(...(options as unknown as object[])) as any;
+export function mergeChartOptions<Ts extends Readonly<readonly unknown[]>>(...options: readonly [...Ts]): any {
+  // deepmerge expects objects; we trust callers to pass partial option snippets
+  // Return 'any' so callers can pass this into Chart.js options without excessive typing friction.
+  return deepmerge(...(options as unknown as object[])) as any
 }

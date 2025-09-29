@@ -7,7 +7,7 @@ import { deepmerge } from 'deepmerge-ts'
 import type { AlsoStoreConfig, SalesSummary } from './types'
 import { maybeAlsoStore } from '@/utils/also-store'
 
-export function generateDailyOmzetHeatmapFromSummaries(summaries: SalesSummary[], containerId: string = 'daily-omzet-heatmap-container', config?: AlsoStoreConfig) {
+export function generateDailyOmzetHeatmapFromSummaries(summaries: SalesSummary[], containerId = 'daily-omzet-heatmap-container', config?: AlsoStoreConfig) {
   const container = document.getElementById(containerId)
   if (!container) return
 
@@ -18,10 +18,10 @@ export function generateDailyOmzetHeatmapFromSummaries(summaries: SalesSummary[]
     return
   }
 
-  const dailyTotals: Record<string, number> = Object.fromEntries(summaries.map(s => [s.date.toISOString().split('T')[0], s.totalOmzet]))
+  const dailyTotals: Record<string, number> = Object.fromEntries(summaries.map((s) => [s.date.toISOString().split('T')[0], s.totalOmzet]))
   $store.setChartDataForAIProperty('dailyOmzetHeatmap', dailyTotals)
 
-  const maxOmzet = Math.max(...summaries.map(s => s.totalOmzet))
+  const maxOmzet = Math.max(...summaries.map((s) => s.totalOmzet))
   const startDate = summaries.reduce((min, s) => s.date < min ? s.date : min, summaries[0]!.date)
   const endDate = summaries.reduce((max, s) => s.date > max ? s.date : max, summaries[0]!.date)
 
@@ -68,7 +68,7 @@ export function generateOmzetHeatmapFromSummaries(summaries: SalesSummary[], con
   const heatmapData: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
   let maxOmzet = 0
 
-  summaries.forEach(summary => {
+  summaries.forEach((summary) => {
     if (summary.hourlyRevenue && summary.hourlyRevenue.length === 24) {
       const dayIndex = summary.date.getDay()
       summary.hourlyRevenue.forEach((revenue: number, hourIndex: number) => {
@@ -83,11 +83,11 @@ export function generateOmzetHeatmapFromSummaries(summaries: SalesSummary[], con
   $store.setChartDataForAIProperty('omzetJamHariHeatmap', heatmapData)
 
   let tableHTML = '<table class="heatmap-table"><thead><tr><th></th>'
-  hours.forEach(hour => tableHTML += `<th>${hour.toString().padStart(2, '0')}</th>`)
+  hours.forEach((hour) => tableHTML += `<th>${hour.toString().padStart(2, '0')}</th>`)
   tableHTML += '</tr></thead><tbody>'
   days.forEach((day, dayIndex) => {
     tableHTML += `<tr><td class="day-label">${day}</td>`
-    hours.forEach(hour => {
+    hours.forEach((hour) => {
       const omzet = heatmapData[dayIndex]![hour]!
       const opacity = maxOmzet > 0 ? (omzet / maxOmzet) : 0
       const color = `rgba(79, 70, 229, ${opacity})`
@@ -105,7 +105,7 @@ export function generateOmzetHeatmapFromSummaries(summaries: SalesSummary[], con
 export function generateSalesTrendHourlyDailyChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: AlsoStoreConfig) {
   const dailyData: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
 
-  summaries.forEach(s => {
+  summaries.forEach((s) => {
     if (s.hourlyRevenue && s.hourlyRevenue.length === 24) {
       const dayIndex = s.date.getDay()
       s.hourlyRevenue.forEach((rev: number, hourIndex: number) => {
@@ -131,7 +131,7 @@ export function generateSalesTrendHourlyDailyChartFromSummaries(summaries: Sales
     fill: false,
   }))
 
-  $store.setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map(ds => ({ [String(ds.label)]: ds.data })))
+  $store.setChartDataForAIProperty('salesTrendHourlyDaily', datasets.map((ds) => ({ [String(ds.label)]: ds.data })))
 
   createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
     chartYTicks((value: string | number) => shortenCurrency(Number(value))),

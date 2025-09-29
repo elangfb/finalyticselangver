@@ -29,8 +29,8 @@ export async function showSalesTargetModal(data: any) {
     )
     const querySnapshot = await getDocs(summariesQuery)
 
-    const periodSummaries: { totalOmzet: number; totalTransactions: number; totalItemsSold: number }[] = []
-    querySnapshot.forEach(doc => {
+    const periodSummaries: { totalOmzet: number, totalTransactions: number, totalItemsSold: number }[] = []
+    querySnapshot.forEach((doc) => {
       const summary = doc.data()
       if (summary.date && summary.date.startsWith(period)) {
         periodSummaries.push(summary as any)
@@ -76,7 +76,7 @@ export async function showSalesTargetModal(data: any) {
           <tbody class="bg-white divide-y divide-gray-200">
     `
 
-    metricsToShow.forEach(metric => {
+    metricsToShow.forEach((metric) => {
       if (!targets[metric]) return
 
       const targetValue = targets[metric]

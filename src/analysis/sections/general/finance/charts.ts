@@ -11,12 +11,12 @@ import { formatCurrency as formatCurrencyUtil, formatDecimalBasedPercentage, for
  * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
  */
 export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoStoreFn }) {
-  const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
+  const labels = reports.map((r) => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
   const revenueData: number[] = []
   const expenseData: number[] = []
   const profitData: number[] = []
 
-  reports.forEach(r => {
+  reports.forEach((r) => {
     const pnlData = r.pnlData
     const allMetrics = calculateAllPnlMetrics(pnlData)
     const revenue = allMetrics['Pendapatan (Revenue)'] || 0
@@ -34,7 +34,7 @@ export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: 
     datasets: [
       {
         label: 'Profit',
-  data: alsoStore(profitData, (v: number[]) => ({
+        data: alsoStore(profitData, (v: number[]) => ({
           pnlOverviewChart: deepmerge(
             ...v.map((val: number, index: number) => ({ [formatMachineYearMonth(reports[index].period)]: { profit: val } })),
           ),
@@ -43,7 +43,7 @@ export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: 
       },
       {
         label: 'Expense',
-  data: alsoStore(expenseData, (v: number[]) => ({
+        data: alsoStore(expenseData, (v: number[]) => ({
           pnlOverviewChart: deepmerge(
             ...v.map((val: number, index: number) => ({ [formatMachineYearMonth(reports[index].period)]: { expense: val } })),
           ),
@@ -81,14 +81,14 @@ export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: 
  * Reusable function to generate dual-axis financial ratio charts.
  */
 export function generateFinancialRatioChart(
-  reports: Array<{ period: string; pnlData?: Record<string, Record<string, number>> }>,
-  config: { canvasId: string; metric: string; title: string; alsoStore?: AlsoStoreFn },
+  reports: { period: string, pnlData?: Record<string, Record<string, number>> }[],
+  config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn },
 ) {
-  const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
+  const labels = reports.map((r) => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
   const barData: number[] = []
   const lineData: number[] = []
 
-  reports.forEach(r => {
+  reports.forEach((r) => {
     const allMetrics = calculateAllPnlMetrics(r.pnlData || {})
     const revenue = allMetrics['Pendapatan (Revenue)'] || 0
     const absoluteValue = allMetrics[config.metric] || 0
@@ -98,12 +98,12 @@ export function generateFinancialRatioChart(
 
   config.alsoStore?.(barData, (v: number[]) => ({
     [`${config.title} Chart`]: deepmerge(
-  ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inCurrency: formatCurrencyUtil(val) } })),
+      ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inCurrency: formatCurrencyUtil(val) } })),
     ),
   }))
   config.alsoStore?.(lineData, (v: number[]) => ({
     [`${config.title} Chart`]: deepmerge(
-  ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inPercentage: formatDecimalBasedPercentage(val / 100) } })),
+      ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inPercentage: formatDecimalBasedPercentage(val / 100) } })),
     ),
   }))
 
@@ -119,7 +119,7 @@ export function generateFinancialRatioChart(
       'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(1)}%` } },
     } },
     chartTooltip({
-  label: (context: any) => {
+      label: (context: any) => {
         let label = context.dataset.label || ''
         if (label) label += ': '
         const value = context.parsed.y
@@ -134,14 +134,14 @@ export function generateFinancialRatioChart(
  * Generates a dual-axis chart for a specific sub-category's value and its ratio to revenue.
  */
 export function generateSpecificSubCategoryRatioChart(
-  reports: Array<{ period: string; pnlData?: Record<string, Record<string, number>> }>,
-  config: { canvasId: string; mainCategory: string; subCategory: string; title: string; alsoStore?: AlsoStoreFn },
+  reports: { period: string, pnlData?: Record<string, Record<string, number>> }[],
+  config: { canvasId: string, mainCategory: string, subCategory: string, title: string, alsoStore?: AlsoStoreFn },
 ) {
-  const labels = reports.map(r => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
+  const labels = reports.map((r) => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
   const barData: number[] = []
   const lineData: number[] = []
 
-  reports.forEach(r => {
+  reports.forEach((r) => {
     const pnlData = r.pnlData || {}
     const revenue = Object.values(pnlData['Pendapatan (Revenue)'] || {}).reduce((s: number, v: number) => s + v, 0)
     const subCategoryValue = pnlData[config.mainCategory]?.[config.subCategory] || 0
@@ -151,12 +151,12 @@ export function generateSpecificSubCategoryRatioChart(
 
   config.alsoStore?.(barData, (v: number[]) => ({
     [`${config.title} Chart`]: deepmerge(
-  ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inCurrency: formatCurrencyUtil(val) } })),
+      ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inCurrency: formatCurrencyUtil(val) } })),
     ),
   }))
   config.alsoStore?.(lineData, (v: number[]) => ({
     [`${config.title} Chart`]: deepmerge(
-  ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inPercentage: formatDecimalBasedPercentage(val / 100) } })),
+      ...v.map((val: number, i: number) => ({ [formatMachineYearMonth(reports[i]!.period)]: { inPercentage: formatDecimalBasedPercentage(val / 100) } })),
     ),
   }))
 
@@ -172,7 +172,7 @@ export function generateSpecificSubCategoryRatioChart(
       'y-percent': { type: 'linear', position: 'right', title: { display: true, text: 'Percentage (%)' }, grid: { drawOnChartArea: false }, ticks: { callback: (v: string | number) => `${Number(v).toFixed(1)}%` } },
     } },
     chartTooltip({
-  label: (context: any) => {
+      label: (context: any) => {
         let label = context.dataset.label || ''
         if (label) label += ': '
         const value = context.parsed.y

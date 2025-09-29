@@ -17,4 +17,4 @@ export const chartPrompts = Object.freeze({
   cabangDetail: '<EMPTY PROMPT>',
   yoyDetail: '<EMPTY PROMPT>',
   generalPdfInsights: '<EMPTY PROMPT>',
-});
+})

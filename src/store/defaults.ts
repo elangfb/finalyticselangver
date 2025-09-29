@@ -41,5 +41,5 @@ export function createDefaultAnalysisState(): AnalysisState {
       currentPnlPeriod: null,
       activeSalesTarget: {},
     },
-  };
+  }
 }
