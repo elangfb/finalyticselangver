@@ -12,7 +12,9 @@
     "lint": "eslint ./index.html",
     "lint:fix": "eslint ./index.html --fix",
     "format": "pnpm run lint:fix",
-    "llms": "tsx scripts/generate-context.ts"
+    "llms": "tsx scripts/generate-context.ts",
+    "llms:full": "pnpm run llms-full",
+    "llms-full": "tsx scripts/generate-full-context.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.0",
