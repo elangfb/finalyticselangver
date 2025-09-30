@@ -14942,7 +14942,7 @@ function getPeriodFromMokaData(worksheet): string {
         const dateString = row[dateIndex];
 
         if (dateString && typeof dateString === 'string') {
-            const parts = dateString.split('/');
+            const parts = dateString.split('-');
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
                 const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
