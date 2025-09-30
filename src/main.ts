@@ -14870,6 +14870,12 @@ declare const pako: any;
  * A unified handler for uploading sales data files (both ESB and Moka).
  * It now COMPRESSES the file before uploading for significantly faster transfers.
  */
+// REPLACE your existing handleSalesDataUpload function with this one
+
+/**
+ * A unified handler for uploading sales data files (both ESB and Moka).
+ * It now creates the job document BEFORE uploading to prevent a race condition.
+ */
 const handleSalesDataUpload = async (file: File, format: 'ESB' | 'MOKA') => {
     if (!currentUser) return;
 
@@ -14891,18 +14897,32 @@ const handleSalesDataUpload = async (file: File, format: 'ESB' | 'MOKA') => {
             : getPeriodRangeFromEsbData(worksheet);
 
         const periodRangeText = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`;
-        statusText.textContent = `Period(s) ${periodRangeText} found. Uploading compressed file...`;
+        statusText.textContent = `Period(s) ${periodRangeText} found. Preparing upload...`;
 
         const jobId = `job_${Date.now()}`;
         
+        // --- FIX START: Create the job document and start listening BEFORE the upload ---
+        const jobDocRef = doc(db, `processingJobs`, jobId);
+        await setDoc(jobDocRef, {
+            userId: currentUser.uid,
+            jobId: jobId,
+            fileName: file.name,
+            status: 'preparing', // A new initial status
+            createdAt: new Date(),
+            format: format,
+            periodRange: periodRangeText,
+        });
+
+        // Start listening for backend progress immediately
+        listenForProcessingStatus(jobId);
+        // --- FIX END ---
+
         const storagePath = `user_uploads/${currentUser.uid}/${jobId}/${file.name}.gz`;
         const storageRef = ref(storage, storagePath);
         
-        // --- THIS IS THE FIX ---
         const metadata = {
-            // We REMOVED the contentEncoding property here
+            contentEncoding: 'gzip', // Re-adding this as it's standard and the backend handles it
             customMetadata: {
-                isCompressed: 'true', // We use our own custom flag instead
                 userId: currentUser.uid,
                 jobId: jobId,
                 format: format,
@@ -14916,26 +14936,19 @@ const handleSalesDataUpload = async (file: File, format: 'ESB' | 'MOKA') => {
         uploadTask.on('state_changed', 
           (snapshot) => { 
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              document.getElementById('upload-progress-bar').style.width = `${progress}%`;
-              document.getElementById('upload-progress-percent').textContent = `${Math.round(progress)}%`;
+              // This part of the UI is now handled by listenForProcessingStatus, 
+              // but we can log progress if needed.
+              console.log(`Upload is ${progress}% done`);
            },
           (error) => { 
               console.error(`${format} upload failed:`, error);
-              statusText.textContent = 'Upload Failed!';
+              // Update the job document to show the error
+              setDoc(jobDocRef, { status: 'error', 'progress.message': 'File upload failed.' }, { merge: true });
            },
           async () => {
-              const jobDocRef = doc(db, `processingJobs`, jobId);
-              await setDoc(jobDocRef, {
-                  userId: currentUser.uid,
-                  jobId: jobId,
-                  fileName: file.name,
-                  status: 'uploaded',
-                  createdAt: new Date(),
-                  format: format,
-                  periodRange: periodRangeText,
-              });
-
-              listenForProcessingStatus(jobId);
+              // On success, the backend is already triggered. We just need to update the status.
+              console.log('File upload complete. Backend is processing...');
+              await setDoc(jobDocRef, { status: 'uploaded' }, { merge: true });
           }
         );
 
@@ -14980,5 +14993,29 @@ document.getElementById('upload-moka-btn')?.addEventListener('click', async () =
         fileInput.value = '';
     } else {
         alert('Please select a file first.');
+    }
+});
+
+// Add this event listener for the new refresh button
+document.getElementById('refresh-data-hub-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('refresh-data-hub-btn') as HTMLButtonElement;
+    const icon = btn.querySelector('svg');
+
+    if (!btn || !icon) return;
+
+    // Disable button and add spinning animation for feedback
+    btn.disabled = true;
+    icon.classList.add('animate-spin');
+
+    try {
+        // Call the existing function to re-fetch and re-populate the table
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error("Failed to refresh data hub:", error);
+        alert("There was an error refreshing the data. Please check the console.");
+    } finally {
+        // Re-enable button and remove animation when done
+        btn.disabled = false;
+        icon.classList.remove('animate-spin');
     }
 });
