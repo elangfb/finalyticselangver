@@ -93,7 +93,7 @@ export function getPeriodFromMokaData(worksheet: any): string {
     const dateString = row[dateIndex]
 
     if (dateString && typeof dateString === 'string') {
-      const parts = dateString.split('/') as [string, string, string]
+      const parts = dateString.split('-') as [string, string, string]
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10)
         const month = parseInt(parts[1], 10) - 1 // JS months are 0-indexed
