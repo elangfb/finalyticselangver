@@ -53,7 +53,7 @@ export class GlobalConfigService {
       const configData: GlobalConfig = {
         geminiApiKey: apiKey,
         updatedAt: new Date(),
-        updatedBy: adminUserId
+        updatedBy: adminUserId,
       }
 
       await setDoc(this.getConfigDocRef(), configData)
