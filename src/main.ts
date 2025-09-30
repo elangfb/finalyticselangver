@@ -14929,6 +14929,7 @@ function getPeriodFromMokaData(worksheet): string {
     }
 
     const headers = json[0] as string[];
+    // --- FIX: The column header is "Date" not "Tanggal" for the Moka file ---
     const dateIndex = headers.findIndex(h => h === 'Date');
     if (dateIndex === -1) {
         throw new Error("Column 'Date' not found in Moka file.");
@@ -14942,7 +14943,8 @@ function getPeriodFromMokaData(worksheet): string {
         const dateString = row[dateIndex];
 
         if (dateString && typeof dateString === 'string') {
-            const parts = dateString.split('-');
+            // --- FIX: Split by "/" instead of "-" ---
+            const parts = dateString.split('/'); 
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
                 const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
