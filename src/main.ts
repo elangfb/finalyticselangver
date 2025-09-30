@@ -1885,7 +1885,8 @@ async function getGeminiAnalysis(prompt: string): Promise<{ summaryText: string,
   if (!apiKey) {
     throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.');
   }
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const model = 'gemini-2.5-flash-lite';
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
 
