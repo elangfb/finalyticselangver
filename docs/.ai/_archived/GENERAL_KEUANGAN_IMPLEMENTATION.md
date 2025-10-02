@@ -10,6 +10,7 @@
 ## Section Analysis
 
 ### Before Implementation
+
 ```typescript
 // Raw data storage - MASSIVE token usage
 $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch, selectedPeriod });
@@ -22,6 +23,7 @@ $store.setActiveViewData('general-keuangan', historicalReports, { selectedBranch
 ```
 
 ### After Implementation
+
 ```typescript
 // Minimal view context
 $store.setActiveViewData('general-keuangan', {
@@ -42,6 +44,7 @@ $store.setActiveViewData('general-keuangan', {
 ## Functions Modified
 
 ### 1. Main Orchestrator Function
+
 **Function**: `generateGeneralKeuanganSection()`
 **Location**: `src/main.ts` line ~3340
 **Change**: Replaced raw `historicalReports` storage with minimal `viewContext`
@@ -64,6 +67,7 @@ $store.setActiveViewData('general-keuangan', {
 ```
 
 ### 2. Historical P&L Table Function
+
 **Function**: `generateHistoricalPnlTable()`
 **Location**: `src/main.ts` line ~3642
 **Addition**: Added comprehensive P&L trends analysis
@@ -96,10 +100,12 @@ $store.setActiveViewData('general-keuangan', { historicalPnlTrends });
 ```
 
 **Metrics Included**: ALL P&L categories shown to users
+
 - Main categories: Pendapatan, COGS, OPEX, Non-OPEX, Depresiasi, Bunga, Pajak
 - Calculated subtotals: Gross Profit, Net Operating Income, EBITDA, Net Income
 
 ### 3. P&L Overview Chart Function
+
 **Function**: `generatePnlOverviewChart()`
 **Location**: `src/main.ts` line ~3772
 **Addition**: Added stacked bar chart analysis
@@ -126,6 +132,7 @@ if (revenueData.length > 0) {
 ```
 
 ### 4. Financial Ratio Charts Function
+
 **Function**: `generateFinancialRatioChart()`
 **Location**: `src/main.ts` line ~3843
 **Addition**: Added dual-axis chart analysis for COGS, GPM, NPM
@@ -158,11 +165,13 @@ if (barData.length > 0 && lineData.length > 0) {
 ```
 
 **Charts Covered**:
+
 - `general-cogs-chartInsights`: COGS analysis
 - `general-gpm-chartInsights`: Gross Profit Margin analysis
 - `general-npm-chartInsights`: Net Profit Margin analysis
 
 ### 5. Subcategory Ratio Charts Function
+
 **Function**: `generateSpecificSubCategoryRatioChart()`
 **Location**: `src/main.ts` line ~3424
 **Addition**: Added expense subcategory analysis for Wages, Rent, Advertising
@@ -192,6 +201,7 @@ if (barData.length > 0 && lineData.length > 0) {
 ```
 
 **Charts Covered**:
+
 - `general-hr-chartInsights`: Wages expense analysis
 - `general-rent-chartInsights`: Rent expense analysis
 - `general-advertising-chartInsights`: Advertising expense analysis
@@ -199,6 +209,7 @@ if (barData.length > 0 && lineData.length > 0) {
 ## Data Structure Output
 
 ### Complete Insights Structure
+
 ```typescript
 {
     // Main view context
@@ -254,21 +265,25 @@ if (barData.length > 0 && lineData.length > 0) {
 ## Key Implementation Decisions
 
 ### 1. **Complete P&L Coverage**
+
 - **Decision**: Include ALL P&L categories, not just "key" metrics
 - **Rationale**: User requirement to match exactly what users see
 - **Impact**: Comprehensive financial analysis without data loss
 
 ### 2. **formatCurrency Usage**
+
 - **Decision**: Use `formatCurrencyUtil()` for all AI insights
 - **Rationale**: User specified full precision like "Rp 1,234,567"
 - **Impact**: Consistent, high-precision currency formatting
 
 ### 3. **Progressive Insight Addition**
+
 - **Decision**: Each function adds its own insights via merging
 - **Rationale**: Leverages existing `setActiveViewData` merging capability
 - **Impact**: Clean separation of concerns, maintainable code
 
 ### 4. **Trend Analysis Consistency**
+
 - **Decision**: Use 5% threshold for trend classification
 - **Rationale**: Balances sensitivity with noise reduction
 - **Implementation**:
@@ -280,6 +295,7 @@ if (barData.length > 0 && lineData.length > 0) {
   ```
 
 ### 5. **Chart-Specific Insight Keys**
+
 - **Decision**: Use `[chartId]Insights` pattern
 - **Rationale**: Unique identification prevents conflicts
 - **Examples**: `general-cogs-chartInsights`, `general-hr-chartInsights`
@@ -287,6 +303,7 @@ if (barData.length > 0 && lineData.length > 0) {
 ## Validation Results
 
 ### ✅ Build Success
+
 ```bash
 npm run build
 # ✨ Built in 922ms
@@ -294,11 +311,13 @@ npm run build
 ```
 
 ### ✅ Data Integrity Verified
+
 - All table values match `shortenCurrency()` display format
 - All chart insights reflect dual-axis display (Rp + %)
 - All categories from UI are represented in insights
 
 ### ✅ Token Reduction Achieved
+
 - **Before**: ~2,000,000 tokens (historicalReports array)
 - **After**: ~2,000 tokens (structured insights)
 - **Reduction**: 99.9%
@@ -306,6 +325,7 @@ npm run build
 ## Edge Cases Handled
 
 ### Empty Data
+
 ```typescript
 if (reports.length === 0) {
     thead.innerHTML = '';
@@ -315,12 +335,14 @@ if (reports.length === 0) {
 ```
 
 ### Division by Zero
+
 ```typescript
 const growthPercent = firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue) * 100) : 0;
 const ratio = revenue > 0 ? (absoluteValue / revenue) * 100 : 0;
 ```
 
 ### Invalid Numbers
+
 ```typescript
 // formatCurrencyUtil handles NaN/undefined gracefully
 // Trend analysis uses Math.abs() for safe calculations
@@ -329,6 +351,7 @@ const ratio = revenue > 0 ? (absoluteValue / revenue) * 100 : 0;
 ## Testing Recommendations
 
 ### Manual Testing Checklist
+
 - [ ] Load section with real Firebase data
 - [ ] Verify all charts display correctly
 - [ ] Check AI analysis quality with new insights
@@ -336,6 +359,7 @@ const ratio = revenue > 0 ? (absoluteValue / revenue) * 100 : 0;
 - [ ] Test edge cases (no data, single period, etc.)
 
 ### Monitoring Points
+
 - [ ] AI analysis response quality
 - [ ] Actual token usage in Gemini API calls
 - [ ] User feedback on analysis accuracy
@@ -353,17 +377,20 @@ Based on similar patterns, prioritize these sections:
 ## Lessons Learned
 
 ### What Worked Well
+
 - Progressive insight addition via merging
 - Consistent trend analysis methodology
 - Complete metric coverage approach
 - Using existing utility functions
 
 ### What to Improve
+
 - Could add more sophisticated trend analysis
 - Consider adding statistical significance indicators
 - May benefit from benchmarking capabilities
 
 ### Reusable Patterns
+
 - View context structure
 - Dual-axis chart insight template
 - Trend classification logic

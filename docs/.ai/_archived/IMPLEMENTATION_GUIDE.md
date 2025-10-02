@@ -6,6 +6,7 @@
 ## Quick Implementation Checklist
 
 ### ✅ Completed
+
 - [x] **Foundation Setup** - Shared components extracted
 - [x] **Sample Implementation** - `general-keuangan` completed as template
 - [x] **Phase 2A: Financial Domain** - `waktu-keuangan`, `cabang-keuangan` completed
@@ -14,6 +15,7 @@
 - [x] **Phase 2D: Investment Domain** - `general-investasi`, `cabang-investasi` completed
 
 ### 🎉 **IMPLEMENTATION COMPLETE!**
+
 All 11 views now have tailored, domain-specific prompts!
 
 ## ✅ **Completed Implementation Summary**
@@ -21,25 +23,30 @@ All 11 views now have tailored, domain-specific prompts!
 ### **Domain-Specific Functions Created:**
 
 #### Financial Domain (3 functions)
+
 - `createGeneralKeuanganPrompt()` - Financial health & profitability analysis
 - `createWaktuKeuanganPrompt()` - Financial trends & temporal patterns
 - `createCabangKeuanganPrompt()` - Multi-location financial comparison
 
 #### Sales Domain (3 functions)
+
 - `createGeneralPenjualanPrompt()` - Transaction performance & customer behavior
 - `createWaktuPenjualanPrompt()` - Sales trends & customer behavior evolution
 - `createCabangPenjualanPrompt()` - Multi-location sales & customer comparison
 
 #### Product-Channel Domain (3 functions)
+
 - `createGeneralProdukChannelPrompt()` - Menu performance & channel effectiveness
 - `createWaktuProdukChannelPrompt()` - Product lifecycle & channel evolution
 - `createCabangProdukChannelPrompt()` - Location-specific product & channel analysis
 
 #### Investment Domain (2 functions)
+
 - `createGeneralInvestasiPrompt()` - ROI analysis & risk assessment
 - `createCabangInvestasiPrompt()` - Multi-location investment comparison
 
 ### **Total Transformation:**
+
 - **Before:** 1 generic prompt function for all 11 views
 - **After:** 11 specialized prompt functions + shared components
 - **Result:** Domain expertise, context-aware analysis, professional terminology
@@ -47,6 +54,7 @@ All 11 views now have tailored, domain-specific prompts!
 ### 🔄 Next Steps (In Priority Order)
 
 #### Phase 2A: Complete Financial Domain
+
 ```typescript
 // Implement these functions in src/prompt.ts:
 - createWaktuKeuanganPrompt(data: unknown): string
@@ -58,6 +66,7 @@ All 11 views now have tailored, domain-specific prompts!
 ```
 
 #### Phase 2B: Sales Domain Implementation
+
 ```typescript
 // Create domain config:
 const PENJUALAN_CONFIG = { /* See plan for full config */ }
@@ -69,6 +78,7 @@ const PENJUALAN_CONFIG = { /* See plan for full config */ }
 ```
 
 #### Phase 2C: Product-Channel Domain
+
 ```typescript
 // Create domain config:
 const PRODUK_CHANNEL_CONFIG = { /* See plan for full config */ }
@@ -80,6 +90,7 @@ const PRODUK_CHANNEL_CONFIG = { /* See plan for full config */ }
 ```
 
 #### Phase 2D: Investment Domain
+
 ```typescript
 // Create domain config:
 const INVESTASI_CONFIG = { /* See plan for full config */ }
@@ -92,21 +103,25 @@ const INVESTASI_CONFIG = { /* See plan for full config */ }
 ## Domain-Specific Guidance
 
 ### Financial Views (Keuangan)
+
 **Key Focus:** Profitability, cost control, financial health
 **Metrics:** Target vs Actual, GPM, NPM, COGS, revenue trends
 **Tone:** Professional financial analysis, ratio-focused
 
 ### Sales Views (Penjualan)
+
 **Key Focus:** Transaction patterns, customer behavior, channel performance
 **Metrics:** Sales volume, APC, payment methods, visit purposes, channel mix
 **Tone:** Customer-centric, behavior analysis, operational insights
 
 ### Product-Channel Views
+
 **Key Focus:** Menu optimization, distribution effectiveness, category performance
 **Metrics:** Product rankings, category composition, channel distribution, top performers
 **Tone:** Product portfolio analysis, operational optimization
 
 ### Investment Views
+
 **Key Focus:** ROI analysis, risk assessment, investment returns
 **Metrics:** ROI percentages, payback periods, risk metrics, investment performance
 **Tone:** Strategic financial analysis, investment evaluation
@@ -114,16 +129,19 @@ const INVESTASI_CONFIG = { /* See plan for full config */ }
 ## View Type Modifiers
 
 ### General Views
+
 - **Context:** Current period comprehensive overview
 - **Analysis:** Snapshot of overall business performance
 - **Focus:** Key metrics and overall health indicators
 
 ### Waktu (Time) Views
+
 - **Context:** Time-series analysis with trend focus
 - **Analysis:** Pattern identification, seasonality, growth trends
 - **Focus:** Changes over time, trend significance, temporal patterns
 
 ### Cabang (Branch) Views
+
 - **Context:** Multi-location comparative analysis
 - **Analysis:** Branch ranking, performance gaps, location insights
 - **Focus:** Cross-branch benchmarking, best/worst performers
@@ -156,6 +174,7 @@ For each new prompt function, follow this pattern:
 ## Testing Approach
 
 After implementing each view:
+
 1. **Create sample data** representative of that view's data structure
 2. **Generate prompt** and verify domain-specific elements are present
 3. **Compare with generic version** to ensure improvement
@@ -164,6 +183,7 @@ After implementing each view:
 ## Validation Checklist
 
 For each implemented prompt, verify:
+
 - [ ] Specialist role clearly defined
 - [ ] Domain expertise mentioned
 - [ ] Key metrics properly prioritized
@@ -178,6 +198,7 @@ For each implemented prompt, verify:
 ## Final Steps
 
 Once all views are implemented:
+
 1. **Remove old `formatPromptForPage`** function (after ensuring no other usage)
 2. **Clean up imports** and unused code
 3. **Add JSDoc comments** to all new functions
@@ -187,6 +208,7 @@ Once all views are implemented:
 ## Success Metrics
 
 The refactoring is successful when:
+
 - All 11 views have tailored, domain-specific prompts
 - Each prompt reflects the specialized expertise needed for that domain
 - Output format and restrictions remain consistent across all views

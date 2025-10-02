@@ -3,11 +3,13 @@
 This document defines the rules, constraints, and patterns for refactoring the codebase safely and consistently.
 
 ## Goals
+
 - Preserve behavior and public APIs while improving structure.
 - Keep diffs small, reviewable, and reversible.
 - Make modules easier to navigate, test, and evolve.
 
 ## Hard constraints
+
 - File size: ≤ 400 lines per file (hard cap).
 - Naming:
   - Components: PascalCase files under `src/components/` only (e.g., `PageSummary.ts`).
@@ -18,6 +20,7 @@ This document defines the rules, constraints, and patterns for refactoring the c
 - No new global side-effects: Keep top-level side-effects isolated; prefer functions/modules.
 
 ## Module patterns
+
 - Compatibility wrapper (keep imports stable):
   - Replace a large legacy file with a tiny wrapper that re-exports from a new module tree.
   - Example: `src/prompt.ts` → `export { prompts, chartPrompts, viewPromptCreators } from '@/prompts'`.
@@ -32,18 +35,20 @@ This document defines the rules, constraints, and patterns for refactoring the c
   - Prefer `Object.freeze` for exported constant maps to make intent explicit.
 
 ## Safe sequence for refactors
-1) Inventory usage.
+
+1. Inventory usage.
    - Grep for import path and symbol usage before moving.
-2) Create new module directory under `src/<area>/` with kebab-case.
+2. Create new module directory under `src/<area>/` with kebab-case.
    - Add `types.ts`, `shared.ts|constants.ts`, `helpers.ts`, `core.ts`, `api.ts` as needed.
-3) Add a compatibility wrapper at the original import path that re-exports from the new module.
+3. Add a compatibility wrapper at the original import path that re-exports from the new module.
    - Keep all exported names identical.
-4) Move logic incrementally into the new files, in small commits.
-5) Keep each new file under 400 LOC. If a file approaches 350+, split further.
-6) After each step: quick typecheck and a minimal smoke run.
-7) Only after consumers are all using the barrel, consider deleting temporary intermediates.
+4. Move logic incrementally into the new files, in small commits.
+5. Keep each new file under 400 LOC. If a file approaches 350+, split further.
+6. After each step: quick typecheck and a minimal smoke run.
+7. Only after consumers are all using the barrel, consider deleting temporary intermediates.
 
 ## Allowed vs not allowed
+
 - Allowed:
   - Splitting files, moving code, adding wrappers/barrels, extracting pure helpers/constants/types.
   - Renaming internal-only file names (kebab-case) and private symbols.
@@ -53,6 +58,7 @@ This document defines the rules, constraints, and patterns for refactoring the c
   - Mixing feature changes with structural moves.
 
 ## Structure examples
+
 - Prompts (done):
   - `src/prompt.ts` → tiny wrapper.
   - `src/prompts/` → `index.ts` (barrel), `chart-prompts.ts`, `views/*`, `views/shared.ts`.
@@ -61,6 +67,7 @@ This document defines the rules, constraints, and patterns for refactoring the c
   - `src/store/` → `types.ts`, `defaults.ts`, `helpers.ts`, `core.ts`, `api.ts`.
 
 ## PR checklist
+
 - Public API:
   - [ ] All previous import paths still work (e.g., `@/store`, `@/prompt`).
   - [ ] Exported identifiers remain identical.
@@ -75,16 +82,21 @@ This document defines the rules, constraints, and patterns for refactoring the c
   - [ ] Added/updated unit tests if behavior changed (should not in refactor-only).
 
 ## Quick checks (optional)
+
 - Count lines for a module:
+
 ```bash
 wc -l src/store.ts src/store/*.ts | sed 's/^ *//g'
 ```
+
 - Find oversize files across src:
+
 ```bash
 find src -type f -name '*.ts' -exec sh -c 'wc -l "$1" | awk "$1 ~ /src\/.*\.ts$/ && $1 > 400"' _ {} \;
 ```
 
 ## When to split
+
 - Any file > 300 LOC should be planned for split.
 - Prefer splitting by concerns:
   - Types/interfaces
@@ -94,11 +106,13 @@ find src -type f -name '*.ts' -exec sh -c 'wc -l "$1" | awk "$1 ~ /src\/.*\.ts$/
   - Public API surface (barrel/api)
 
 ## Deprecation policy (for future changes)
+
 - Step 1: Add new API with same behavior; keep old export path re-exporting from the new one.
 - Step 2: Migrate internal imports to the new path.
 - Step 3: After 2 releases, remove the compatibility export.
 
 ## Notes
+
 - Keep path aliases intact (`@/*` in `tsconfig.json`).
 - Avoid circular dependencies; if needed, lift shared types/helpers to a higher-level `shared/`.
 - Re-run a small smoke test of the app after each move.

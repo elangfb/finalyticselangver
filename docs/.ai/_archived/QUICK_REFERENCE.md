@@ -11,6 +11,7 @@
 ## Essential Code Patterns
 
 ### 1. Main Function Pattern
+
 ```typescript
 // BEFORE (❌ High tokens)
 $store.setActiveViewData('section-name', largeDataArray, filters);
@@ -27,6 +28,7 @@ $store.setActiveViewData('section-name', {
 ```
 
 ### 2. Chart Insight Pattern
+
 ```typescript
 // Add at end of each chart generation function
 if (chartData.length > 0) {
@@ -46,6 +48,7 @@ if (chartData.length > 0) {
 ```
 
 ### 3. Table Insight Pattern
+
 ```typescript
 // Add after table generation
 const tableInsights = {};
@@ -66,6 +69,7 @@ $store.setActiveViewData('section-name', {
 ## Common Chart Types & Insights
 
 ### Dual-Axis Charts (Value + Percentage)
+
 ```typescript
 {
     chartType: 'dual_axis_financial_ratio',
@@ -80,6 +84,7 @@ $store.setActiveViewData('section-name', {
 ```
 
 ### Time Series Charts
+
 ```typescript
 {
     chartType: 'time_series_trend',
@@ -92,6 +97,7 @@ $store.setActiveViewData('section-name', {
 ```
 
 ### Pie/Doughnut Charts
+
 ```typescript
 {
     chartType: 'category_distribution',
@@ -104,6 +110,7 @@ $store.setActiveViewData('section-name', {
 ```
 
 ## Trend Classification Logic
+
 ```typescript
 const getTrend = (startValue, endValue, threshold = 5) => {
     if (startValue === 0) return 'stable';
@@ -122,17 +129,20 @@ const getTrend = (startValue, endValue, threshold = 5) => {
 - [ ] Build completes successfully (npm run build)
 
 ## Expected Results
+
 - **Token Reduction**: 95%+ for most sections
 - **Data Completeness**: 100% of user-visible metrics
 - **Build Status**: No blocking TypeScript errors
 - **AI Quality**: Maintained or improved analysis
 
 ## Files to Document
+
 - Create `[SECTION_NAME]_IMPLEMENTATION.md` in `docs/.ai/`
 - Update this roadmap with progress
 - Add any lessons learned or optimizations
 
 ## Common Pitfalls to Avoid
+
 ❌ Creating new aggregation logic (reuse existing)
 ❌ Using shortenCurrency for AI insights (use formatCurrencyUtil)
 ❌ Missing user-visible metrics in insights

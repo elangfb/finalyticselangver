@@ -7,31 +7,37 @@ This guide provides a comprehensive framework for implementing token reduction i
 ## Problem Statement
 
 ### The Issue
+
 - **Root Cause**: Raw data arrays being passed to AI for analysis
 - **Symptoms**: Token limit exceeded errors, application crashes
 - **Example**: Historical P&L reports containing full transaction data (~2M tokens)
 
 ### The Solution
+
 Replace raw data storage with **descriptive insights** that capture exactly what users see in the UI.
 
 ## Core Principles
 
 ### 1. **User-AI Alignment**
+
 - AI insights must match exactly what users see in tables/charts
 - No summarization or aggregation beyond what's displayed
 - Maintain data integrity and accuracy
 
 ### 2. **Progressive Enhancement**
+
 - Use `setActiveViewData` merging capability
 - Each chart/table function adds its own insights
 - Build insights incrementally rather than all at once
 
 ### 3. **Existing Code Reuse**
+
 - Prefer existing utility functions over creating new ones
 - Use `formatCurrency` for AI insights (full precision)
 - Use `shortenCurrency` for user display only
 
 ### 4. **Comprehensive Coverage**
+
 - Include ALL categories/metrics shown to users
 - Don't cherry-pick "important" metrics
 - Ensure complete data representation
@@ -39,12 +45,14 @@ Replace raw data storage with **descriptive insights** that capture exactly what
 ## Implementation Pattern
 
 ### Step 1: Identify Data Flow
+
 1. **Find the main orchestrator function** (e.g., `generateGeneralKeuanganSection`)
 2. **Locate raw data storage** (look for `setActiveViewData` with large arrays)
 3. **Map all chart/table functions** that use the raw data
 4. **Document current token usage** (estimate from data size)
 
 ### Step 2: Replace Main Data Storage
+
 Replace raw data with minimal view context:
 
 ```typescript
@@ -64,6 +72,7 @@ $store.setActiveViewData('section-name', {
 ```
 
 ### Step 3: Add Insights to Each Function
+
 For each chart/table function, add insights that capture what users see:
 
 ```typescript
@@ -186,6 +195,7 @@ const timeInsights = {
 ## Implementation Checklist
 
 ### Pre-Implementation Analysis
+
 - [ ] Identify the main orchestrator function
 - [ ] Map all chart/table functions in the section
 - [ ] Estimate current token usage
@@ -193,6 +203,7 @@ const timeInsights = {
 - [ ] Document existing utility functions available
 
 ### Core Implementation
+
 - [ ] Replace main data storage with view context
 - [ ] Add insights to historical/summary tables
 - [ ] Add insights to all chart functions
@@ -201,6 +212,7 @@ const timeInsights = {
 - [ ] Ensure trend analysis is consistent
 
 ### Validation
+
 - [ ] Build compiles successfully
 - [ ] All chart/table functions add insights
 - [ ] Insights match exactly what users see
@@ -208,6 +220,7 @@ const timeInsights = {
 - [ ] Token usage reduced significantly
 
 ### Testing
+
 - [ ] Test with real data in browser
 - [ ] Verify AI analysis quality
 - [ ] Monitor actual token usage
@@ -216,6 +229,7 @@ const timeInsights = {
 ## Common Patterns by Chart Type
 
 ### Dual-Axis Charts (Value + Percentage)
+
 ```typescript
 const dualAxisInsights = {
     chartType: 'dual_axis_financial_ratio',
@@ -236,6 +250,7 @@ const dualAxisInsights = {
 ```
 
 ### Stacked Bar Charts
+
 ```typescript
 const stackedBarInsights = {
     chartType: 'stacked_bar_chart',
@@ -258,6 +273,7 @@ const stackedBarInsights = {
 ```
 
 ### Time Series Charts
+
 ```typescript
 const timeSeriesInsights = {
     chartType: 'time_series_trend',
@@ -286,6 +302,7 @@ const timeSeriesInsights = {
 ```
 
 ### Pie/Doughnut Charts
+
 ```typescript
 const pieChartInsights = {
     chartType: 'category_distribution',
@@ -308,6 +325,7 @@ const pieChartInsights = {
 ## Error Handling and Edge Cases
 
 ### Empty Data Handling
+
 ```typescript
 // Always check for empty data before generating insights
 if (data.length === 0 || !data.some(item => item.value > 0)) {
@@ -325,6 +343,7 @@ if (data.length === 0 || !data.some(item => item.value > 0)) {
 ```
 
 ### Invalid Data Handling
+
 ```typescript
 // Handle division by zero and invalid calculations
 const ratio = denominator > 0 ? (numerator / denominator * 100) : 0;
@@ -342,16 +361,19 @@ const safeFormat = (value) => {
 ## Best Practices
 
 ### Naming Conventions
+
 - Insight keys: `[chartId]Insights` (e.g., `general-cogs-chartInsights`)
 - View context: `viewContext`
 - Table insights: `[tableName]Trends` (e.g., `historicalPnlTrends`)
 
 ### Data Precision
+
 - **Currency**: Use `formatCurrencyUtil()` for full precision (e.g., "Rp 1,234,567")
 - **Percentages**: Use 1 decimal place (e.g., "45.2%")
 - **Growth rates**: Use 1 decimal place with sign (e.g., "+12.5%", "-8.3%")
 
 ### Trend Classification
+
 ```typescript
 // Consistent trend determination logic
 const getTrend = (startValue, endValue, threshold = 5) => {
@@ -372,6 +394,7 @@ const getRatioTrend = (startRatio, endRatio, threshold = 5) => {
 ## Debugging and Validation
 
 ### Token Usage Estimation
+
 ```typescript
 // Add this temporarily to estimate token reduction
 console.log('Raw data size:', JSON.stringify(rawData).length);
@@ -380,6 +403,7 @@ console.log('Reduction ratio:', (1 - insights.length / rawData.length) * 100 + '
 ```
 
 ### Data Integrity Checks
+
 ```typescript
 // Verify insights match UI display
 const validateInsights = (insights, displayedData) => {
@@ -392,11 +416,13 @@ const validateInsights = (insights, displayedData) => {
 ## Expected Results
 
 ### Token Reduction Targets
+
 - **Massive datasets** (>1M tokens): 99%+ reduction
 - **Large datasets** (100K-1M tokens): 95%+ reduction
 - **Medium datasets** (10K-100K tokens): 80%+ reduction
 
 ### Quality Maintenance
+
 - AI analysis quality should remain equivalent or improve
 - All user-visible metrics must be preserved
 - Trend analysis should be more focused and actionable
@@ -404,11 +430,13 @@ const validateInsights = (insights, displayedData) => {
 ## Future Considerations
 
 ### Scalability
+
 - Pattern can be applied to any section with large datasets
 - Insights structure is extensible for new chart types
 - Compatible with future UI changes
 
 ### Monitoring
+
 - Add logging to track actual token usage
 - Monitor AI analysis quality metrics
 - Set up alerts for token usage spikes

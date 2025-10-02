@@ -9,17 +9,22 @@ This guide provides a detailed analysis of the current token reduction implement
 ### 🔴 Critical Issues Found
 
 #### 1. ~~**Completely Disabled AI Analysis**~~ [SKIP AS PER USER REQUEST]
+
 **Location**: `src/components/PageSummary.ts:171`
+
 ```typescript
 console.debug('Data sent to AI:', { data, filters })
 return; // <-- AI analysis is completely bypassed!
 ```
+
 **Impact**: No AI insights are generated regardless of data quality.
 
 #### 2. **Massive Data-UI Disconnect**
+
 **Problem**: Users see rich analytical data, AI gets useless metadata.
 
 **Example - General Keuangan:**
+
 ```typescript
 // What users see in UI:
 // - 12 months of P&L data with Revenue, COGS, OPEX, Net Income
@@ -36,13 +41,16 @@ viewContext: {
 ```
 
 #### 3. **Inconsistent Implementation Patterns**
+
 - **General Keuangan**: Sends metadata only
 - **General Penjualan**: Sends record counts only
 - **General Produk Channel**: Sends item counts only
 - **No section** sends actual analytical data
 
 #### 4. **Type Safety Issues**
+
 Multiple TypeScript errors prevent proper data extraction:
+
 - `Object.values()` returns `unknown[]`
 - P&L data structure lacks proper typing
 - Arithmetic operations fail on `unknown` types
@@ -50,10 +58,12 @@ Multiple TypeScript errors prevent proper data extraction:
 ## Section-by-Section Improvement Plan
 
 ### 🏦 General Keuangan Section
+
 **Current State**: Sends 3 metadata fields
 **Required State**: Send 12+ months of financial data
 
 #### Data Gap Analysis:
+
 ```typescript
 // MISSING: Historical P&L metrics that users see
 const requiredData = {
@@ -76,16 +86,19 @@ const requiredData = {
 ```
 
 #### Implementation Fixes Needed:
+
 1. **Fix TypeScript Issues**: Use existing patterns from line 2435
 2. **Extract Chart Data**: Get the same ratios displayed in financial charts
 3. **Include Subcategories**: Add expense breakdowns (Wages, Rent, etc.)
 4. **Preserve Calculations**: Include all subtotals users see in tables
 
 ### 💰 General Penjualan Section
+
 **Current State**: Sends summary counts only
 **Required State**: Send sales performance data based on time granularity
 
 #### Granularity Rules Implementation:
+
 ```typescript
 // Need to implement time-based granularity:
 const dateRange = endDate - startDate;
@@ -105,6 +118,7 @@ if (dateRange <= 31 days) {
 ```
 
 #### Data Gap Analysis:
+
 ```typescript
 // MISSING: Sales metrics that users see in charts/tables
 const requiredData = {
@@ -134,10 +148,12 @@ const requiredData = {
 ```
 
 ### 🍽️ General Produk Channel Section
+
 **Current State**: Sends counts of unique items/channels
 **Required State**: Send actual product performance data
 
 #### Data Gap Analysis:
+
 ```typescript
 // MISSING: Product performance data from charts
 const requiredData = {
@@ -178,6 +194,7 @@ const requiredData = {
 ### 1. **Fix TypeScript Type Safety**
 
 #### Problem: Unknown Types Breaking Calculations
+
 ```typescript
 // Current broken pattern:
 Object.values(report.pnlData?.["Revenue"] || {}).reduce((sum: number, val: number) => sum + val, 0);
@@ -185,6 +202,7 @@ Object.values(report.pnlData?.["Revenue"] || {}).reduce((sum: number, val: numbe
 ```
 
 #### Solution: Use Existing Working Pattern
+
 ```typescript
 // From line 2435 - already working pattern:
 Object.values(report.pnlData[cat] || {}).reduce((sum: number, val: number) => sum + val, 0);
@@ -196,6 +214,7 @@ Object.values(report.pnlData?.[category] || {}).reduce((sum: number, val: any) =
 ### 2. **Implement Proper Data Extraction Pattern**
 
 #### Current Anti-Pattern:
+
 ```typescript
 // WRONG: Storing metadata instead of data
 $store.setActiveViewData('general-keuangan', {
@@ -204,6 +223,7 @@ $store.setActiveViewData('general-keuangan', {
 ```
 
 #### Correct Pattern:
+
 ```typescript
 // RIGHT: Extract data that matches UI display
 const extractFinancialData = (reports) => {
@@ -232,6 +252,7 @@ const extractFinancialData = (reports) => {
 ### 3. ~~**Re-enable AI Analysis**~~ [SKIP AS PER USER REQUEST]
 
 #### Critical Fix Required:
+
 ```typescript
 // In PageSummary.ts, REMOVE this line:
 return; // <-- This completely disables AI
@@ -244,6 +265,7 @@ const summary = await params.analyzeUsingAI(prompt);
 ### 4. **Implement Smart Granularity Logic**
 
 #### Sales Data Granularity Implementation:
+
 ```typescript
 const determineGranularity = (startDate: Date, endDate: Date) => {
     const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -272,6 +294,7 @@ const aggregateByGranularity = (salesData, granularity) => {
 ## Validation and Testing Strategy
 
 ### 1. **Data Integrity Validation**
+
 ```typescript
 // Verify AI data matches UI data
 const validateDataIntegrity = (aiData, uiDisplayData) => {
@@ -288,6 +311,7 @@ const validateDataIntegrity = (aiData, uiDisplayData) => {
 ```
 
 ### 2. **Token Usage Monitoring**
+
 ```typescript
 // Add temporary logging to track token reduction
 const logTokenUsage = (sectionName, data) => {
@@ -301,6 +325,7 @@ const logTokenUsage = (sectionName, data) => {
 ```
 
 ### 3. **Progressive Implementation Testing**
+
 1. **Phase 1**: Fix TypeScript errors and re-enable AI
 2. **Phase 2**: Implement one section (General Keuangan) fully
 3. **Phase 3**: Validate AI analysis quality vs. current results
@@ -310,6 +335,7 @@ const logTokenUsage = (sectionName, data) => {
 ## Success Criteria
 
 ### ✅ Minimum Standards to Meet:
+
 1. **AI gets same data users see** - No more metadata-only approach
 2. **All sections functional** - Remove the `return;` that disables AI
 3. **Type safety maintained** - Fix all TypeScript errors
@@ -317,6 +343,7 @@ const logTokenUsage = (sectionName, data) => {
 5. **Granularity rules followed** - Daily/Weekly/Monthly based on time range
 
 ### 📊 Measurable Improvements:
+
 - **Data quality**: AI receives actual analytical data vs. metadata
 - **Token efficiency**: Optimize data size while preserving insights
 - **Analysis accuracy**: AI insights match or improve current quality
@@ -325,16 +352,19 @@ const logTokenUsage = (sectionName, data) => {
 ## Implementation Priority
 
 ### 🚨 **Immediate (Critical)**:
+
 1. ~~Re-enable AI analysis (remove `return;` statement)~~ [SKIP AS PER USER REQUEST]
 2. Fix TypeScript errors preventing data extraction
 3. Implement General Keuangan with actual P&L data
 
 ### 📈 **Short Term (1-2 weeks)**:
+
 1. Implement time-based granularity for General Penjualan
 2. Add product performance data for General Produk Channel
 3. Add comprehensive validation and monitoring
 
 ### 🔄 **Medium Term (1 month)**:
+
 1. Apply learnings to other analysis sections
 2. Optimize token usage across all sections
 3. Implement automated token usage monitoring

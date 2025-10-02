@@ -9,6 +9,7 @@ This document outlines the validation process to ensure **AI receives the same a
 Based on the current implementation status:
 
 ### 1. **General Keuangan** ✅ IMPLEMENTED
+
 - **Location**: `generateGeneralKeuanganSection()`
 - **UI Data Sources**:
   - Historical P&L Table with all categories and subtotals
@@ -17,6 +18,7 @@ Based on the current implementation status:
 - **AI Data Expected**: `historicalPnlTrends`, `pnlOverviewInsights`, chart-specific insights
 
 ### 2. **General Penjualan** ✅ IMPLEMENTED
+
 - **Location**: `generateGeneralPenjualanSection()`
 - **UI Data Sources**:
   - Sales summary (Total Omzet, TC, APC)
@@ -27,6 +29,7 @@ Based on the current implementation status:
 - **AI Data Expected**: 7 different insight objects covering all chart functions
 
 ### 3. **General Produk Channel** ✅ IMPLEMENTED
+
 - **Location**: `generateGeneralProdukChannelSection()`
 - **UI Data Sources**:
   - Channel revenue distribution (donut chart)
@@ -36,6 +39,7 @@ Based on the current implementation status:
 - **AI Data Expected**: `channelRevenueInsights`, `categoryOrdersInsights`, `topItemsInsights`, `menuTrendInsights`
 
 ### 4. **General Investasi** ✅ IMPLEMENTED
+
 - **Location**: `generateGeneralInvestasiSection()`
 - **UI Data Sources**:
   - Business Yield chart (profit vs yield %)
@@ -50,6 +54,7 @@ Based on the current implementation status:
 For each section, verify that AI receives structured insights matching what users see:
 
 #### ✅ General Keuangan Validation
+
 ```typescript
 // Expected AI data structure:
 {
@@ -76,6 +81,7 @@ For each section, verify that AI receives structured insights matching what user
 ```
 
 #### ✅ General Penjualan Validation
+
 ```typescript
 // Expected AI data structure:
 {
@@ -91,6 +97,7 @@ For each section, verify that AI receives structured insights matching what user
 ```
 
 #### ✅ General Produk Channel Validation
+
 ```typescript
 // Expected AI data structure:
 {
@@ -110,6 +117,7 @@ For each section, verify that AI receives structured insights matching what user
 ```
 
 #### ✅ General Investasi Validation
+
 ```typescript
 // Expected AI data structure:
 {
@@ -174,6 +182,7 @@ Test with actual Firebase data to ensure:
 ## 🎯 Validation Checklist
 
 ### General Keuangan ✅
+
 - [ ] Historical P&L trends match table display
 - [ ] Chart insights reflect actual chart data
 - [ ] Financial ratios calculated correctly
@@ -181,6 +190,7 @@ Test with actual Firebase data to ensure:
 - [ ] Growth trends accurate
 
 ### General Penjualan ✅
+
 - [ ] Sales summary matches UI cards
 - [ ] Daily/weekly trends correct
 - [ ] TC/APC calculations accurate
@@ -188,12 +198,14 @@ Test with actual Firebase data to ensure:
 - [ ] Target comparisons included
 
 ### General Produk Channel ✅
+
 - [ ] Channel distribution percentages correct
 - [ ] Top items lists match charts
 - [ ] Category breakdowns accurate
 - [ ] Menu trends calculated properly
 
 ### General Investasi ✅
+
 - [ ] ROI calculations match charts
 - [ ] Yield percentages accurate
 - [ ] Slot-based metrics correct
@@ -202,6 +214,7 @@ Test with actual Firebase data to ensure:
 ## 🔧 Implementation Status
 
 ### ✅ Completed Sections
+
 - **General Keuangan**: Full implementation with comprehensive insights
 - **General Penjualan**: All 7 chart functions with insights
 - **General Produk Channel**: Complete coverage of all charts

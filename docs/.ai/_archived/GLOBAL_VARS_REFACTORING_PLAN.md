@@ -6,12 +6,14 @@
 ## Overview
 
 ### Current Problem
+
 - ~25+ mutable global variables scattered across `main.ts`
 - Variables maintain state when user navigates: Dashboard → Analysis → Dashboard → Analysis
 - No centralized reset mechanism leads to stale state and potential bugs
 - Memory leaks from unreleased Chart.js and SlimSelect instances
 
 ### Solution
+
 - Centralize all analysis-related mutable state in Zustand store
 - Implement automatic cleanup when leaving analysis view
 - Proper cleanup of UI components (charts, selectors)
@@ -20,6 +22,7 @@
 ## Architecture Design
 
 ### Store Structure Extension
+
 ```typescript
 interface AnalysisState {
   // Data Storage
@@ -65,6 +68,7 @@ interface AnalysisState {
 ```
 
 ### Variables NOT to be moved (remain as globals)
+
 - Firebase instances: `app`, `auth`, `db`, `functions`, `storage`
 - Authentication state: `currentUser`, `currentUserRole`, `adminCredentials`
 - DOM element references: `authView`, `dashboardView`, etc.
@@ -74,11 +78,13 @@ interface AnalysisState {
 ## Implementation Strategy
 
 ### Reset Timing
+
 - **When:** User leaves analysis view (detected in `showView()` function)
 - **Why:** Ensures clean state when re-entering analysis view
 - **How:** Detect transition away from 'analysis' view and trigger reset
 
 ### Cleanup Strategy
+
 1. **Charts:** Call `destroyCharts()` function to prevent memory leaks
 2. **SlimSelect:** Call `.destroy()` method on each instance
 3. **Window Properties:** Clear `window.generalMenuTrendSelect`
@@ -88,6 +94,7 @@ interface AnalysisState {
 ## Detailed Task Checklist
 
 ### Phase 1: Store Extension ✅
+
 - [x] **Task 1.1:** Extend `AppState` interface with `AnalysisState`
 - [x] **Task 1.2:** Add analysis state to store with default values
 - [x] **Task 1.3:** Create `resetAnalysisState()` function with proper cleanup
@@ -95,6 +102,7 @@ interface AnalysisState {
 - [x] **Task 1.5:** Update store exports for new analysis functions
 
 ### Phase 2: Navigation Integration ✅
+
 - [x] **Task 2.1:** Modify `showView()` to detect leaving analysis view
 - [x] **Task 2.2:** Integrate reset function call in navigation flow
 - [x] **Task 2.3:** Add debug logging for reset operations
@@ -103,6 +111,7 @@ interface AnalysisState {
 ### Phase 3: Global Variable Migration ✅ (100% Complete)
 
 #### Data Storage Variables ✅ (100% Complete)
+
 - [x] **Task 3.1:** Replace `allSalesData` with store access (Helper functions created ✅)
 - [x] **Task 3.2:** Replace `chartDataForAI` with store access (Helper functions created ✅)
 - [x] **Task 3.3:** Replace `aiAnalysisResults` with store access (Helper functions created ✅)
@@ -110,7 +119,9 @@ interface AnalysisState {
 - [x] **Task 3.26:** Replace `currentPnlData` with store access (Helper functions created ✅)
 
 #### UI Initialization Flags ✅ (100% Complete)
+
 **✅ Helper Functions Added:** `getInitFlag()`, `setInitFlag()` for clean syntax
+
 - [x] **Task 3.5:** Replace `yoyYearSelectInitialized` (✅ DONE)
 - [x] **Task 3.6:** Replace `monthlyComparisonInitialized` (✅ DONE)
 - [x] **Task 3.7:** Replace `generalKeuanganSelectorInitialized` (✅ DONE)
@@ -126,6 +137,7 @@ interface AnalysisState {
 - [x] **Task 3.17:** Replace `cabangInvestasiSelectorInitialized` (✅ DONE)
 
 #### UI Component References ✅ (100% Complete)
+
 - [x] **Task 3.18:** Replace `omzetComparisonSelect` with store access (✅ DONE)
 - [x] **Task 3.19:** Replace `menuTrend24MonthSelect` with store access (✅ DONE)
 - [x] **Task 3.20:** Replace `generalMenuTrendSelect` with store access (✅ DONE)
@@ -133,17 +145,20 @@ interface AnalysisState {
 - [x] **Task 3.22:** Replace `cabangMenuTrendSelect` with store access (✅ DONE)
 
 #### Configuration/State Variables ✅ (100% Complete)
+
 - [x] **Task 3.23:** Replace `monthlyComparisonTargets` with store access (✅ DONE)
 - [x] **Task 3.24:** Replace `currentPnlPeriod` with store access (✅ DONE - not used)
 - [x] **Task 3.25:** Replace `activeSalesTarget` with store access (✅ DONE)
 
 ### Phase 4: Window Properties Cleanup ✅ (100% Complete)
+
 - [x] **Task 4.1:** Clear `window.generalMenuTrendSelect` in reset function (✅ DONE)
 - [x] **Task 4.2:** Update functions that assign to window properties (✅ DONE)
 
 ## 🎉 **PHASE 3 COMPLETION SUMMARY**
 
 ### ✅ **COMPLETED SECTIONS:**
+
 - **Data Storage Variables:** 100% Complete (5/5) ✅
 - **UI Component References:** 100% Complete (5/5) ✅
 - **Configuration/State Variables:** 100% Complete (3/3) ✅
@@ -151,6 +166,7 @@ interface AnalysisState {
 - **UI Initialization Flags:** 100% Complete (13/13) ✅
 
 ### 🚀 **KEY ACHIEVEMENTS:**
+
 - ✅ All critical UI components migrated to store
 - ✅ All configuration variables centralized
 - ✅ All data storage variables using helper functions
@@ -169,6 +185,7 @@ interface AnalysisState {
 ## 🎉 **FINAL COMPLETION SUMMARY**
 
 ### ✅ **ALL PHASES COMPLETED:**
+
 - **Phase 1: Store Extension** ✅ (100% Complete)
 - **Phase 2: Navigation Integration** ✅ (100% Complete)
 - **Phase 3: Global Variable Migration** ✅ (100% Complete)
@@ -177,6 +194,7 @@ interface AnalysisState {
 - **Phase 6: Code Cleanup** ✅ (100% Complete)
 
 ### 🚀 **FINAL ACHIEVEMENTS:**
+
 - ✅ All 25+ global variables successfully migrated to Zustand store
 - ✅ Comprehensive JSDoc documentation added for all helper functions
 - ✅ Clean navigation with automatic analysis state reset
@@ -187,6 +205,7 @@ interface AnalysisState {
 - ✅ **REFACTORING SUCCESSFULLY COMPLETED** 🎉
 
 ### Phase 5: Testing & Validation ✅/❌
+
 - [ ] **Task 5.1:** Test navigation flow: Dashboard → Analysis → Dashboard → Analysis
 - [ ] **Task 5.2:** Verify all charts are properly destroyed and recreated
 - [ ] **Task 5.3:** Verify all SlimSelect instances are properly cleaned up
@@ -196,6 +215,7 @@ interface AnalysisState {
 - [ ] **Task 5.7:** Verify cache and auth state remain untouched
 
 ### Phase 6: Code Cleanup ✅ (100% Complete)
+
 - [x] **Task 6.1:** Remove old global variable declarations ✅
 - [x] **Task 6.2:** Update comments and documentation ✅
 - [x] **Task 6.3:** Add JSDoc comments for new store functions ✅
@@ -213,6 +233,7 @@ interface AnalysisState {
 ## Key Functions to Modify
 
 ### Store Functions (New)
+
 - `getAnalysisState()` - Get current analysis state
 - `setAnalysisState()` - Update analysis state
 - `resetAnalysisState()` - Clean reset with proper cleanup
@@ -221,10 +242,12 @@ interface AnalysisState {
 - `updateAnalysisConfig()` - Update configuration
 
 ### Navigation Functions (Modify)
+
 - `showView()` - Add reset detection and call
 - `viewCompiledAnalysis()` - Ensure proper state initialization
 
 ### Analysis Functions (Modify - many)
+
 - `setupAndShowAnalysisView()` - Use store instead of globals
 - `runAnalysis()` - Use store instead of globals
 - `setupMonthlyComparison()` - Use store instead of globals
