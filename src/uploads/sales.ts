@@ -6,7 +6,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { ref, uploadBytesResumable, UploadTask } from 'firebase/storage'
 import { db, storage } from '@/core/firebase'
 import { currentUser } from '@/core/state'
-import { getPeriodFromSalesData, getPeriodFromMokaData } from './utils'
+import { getPeriodRangeFromEsbData, getPeriodRangeFromMokaData } from './utils'
 import { listenForProcessingStatus } from './processing'
 
 /**
@@ -51,8 +51,8 @@ export async function uploadSalesFile(file: File, format: 'STANDARD' | 'MOKA', e
     const worksheet = workbook.Sheets[workbook.SheetNames[0]]
 
     const period = format === 'STANDARD'
-      ? getPeriodFromSalesData(worksheet)
-      : getPeriodFromMokaData(worksheet)
+      ? getPeriodRangeFromEsbData(worksheet)
+      : getPeriodRangeFromMokaData(worksheet)
 
     if (expectedPeriod && period !== expectedPeriod) {
       throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${period}'.`)

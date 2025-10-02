@@ -8,9 +8,8 @@ import { populateCompiledDataTable } from '../data-hub/table'
 /**
  * Listens for real-time status updates on a Firestore document that signals
  * the progress of a backend data processing task.
- * @param period The period (YYYY-MM) which also serves as the document ID for the upload.
  */
-export function listenForProcessingStatus(period: string) {
+export function listenForProcessingStatus(jobId: string) {
   if (!currentUser) return
 
   const progressContainer = document.getElementById('upload-progress-container')
@@ -29,55 +28,57 @@ export function listenForProcessingStatus(period: string) {
   // Transition UI to "Processing" state
   uploadView.classList.add('hidden')
   processingView.classList.remove('hidden')
-  processingFilename.textContent = `Processing for ${period}`
-  processingStatusText.textContent = 'Initializing on server...';
-  (processingProgressBar as HTMLElement).style.width = '0%'
+  processingFilename.textContent = `Processing Job: ${jobId}`
+  processingStatusText.textContent = 'Initializing on server...'
+  processingProgressBar.style.width = '0%'
   processingProgressPercent.textContent = '0%'
 
-  const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period)
+  const jobDocRef = doc(db, `processingJobs`, jobId)
 
-  const unsubscribe = onSnapshot(docRef, (docSnap) => {
-    if (!docSnap.exists()) return
+  const unsubscribe = onSnapshot(jobDocRef, (docSnap) => {
+    if (!docSnap.exists()) {
+      processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: Job document not found.</span>`
+      unsubscribe()
+      return
+    }
 
-    const data = docSnap.data()
-    const status = data?.processingStatus
+    const jobData = docSnap.data()
+    const status = jobData?.status
+    const progress = jobData?.progress
 
-    if (status) {
-      if (status.state === 'processing' && status.totalRows > 0) {
-        const percent = Math.round((status.rowsProcessed / status.totalRows) * 100);
-        (processingProgressBar as HTMLElement).style.width = `${percent}%`
-        processingProgressPercent.textContent = `${percent}%`
-        processingStatusText.textContent = `Processing row ${status.rowsProcessed.toLocaleString()} of ${status.totalRows.toLocaleString()}`
-      } else if (status.state === 'complete') {
-        (processingProgressBar as HTMLElement).style.width = '100%'
-        processingProgressPercent.textContent = '100%'
-        processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>'
+    if (status === 'processing' && progress) {
+      const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
+      processingProgressBar.style.width = `${percent}%`
+      processingProgressPercent.textContent = `${percent}%`
+      processingStatusText.textContent = progress.message || 'Processing...'
+    } else if (status === 'complete') {
+      processingProgressBar.style.width = '100%'
+      processingProgressPercent.textContent = '100%'
+      processingStatusText.innerHTML = `<span class="text-green-600 font-semibold">${progress?.message || 'Processing Complete!'}</span>`
 
-        populateCompiledDataTable() // Refresh the main data hub
-
-        unsubscribe() // Stop listening after completion
+      populateCompiledDataTable() // Refresh the main data hub table
+      unsubscribe()
+      setTimeout(() => {
+        progressContainer.classList.remove('show')
         setTimeout(() => {
-          progressContainer.classList.remove('show')
-          setTimeout(() => {
-            progressContainer.classList.add('hidden')
-            uploadView.classList.remove('hidden')
-            processingView.classList.add('hidden')
-          }, 300)
-        }, 3000)
-      } else if (status.state === 'error') {
-        (processingProgressBar as HTMLElement).classList.replace('bg-blue-600', 'bg-red-500')
-        processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`
+          progressContainer.classList.add('hidden')
+          uploadView.classList.remove('hidden')
+          processingView.classList.add('hidden')
+        }, 300)
+      }, 3000)
+    } else if (status === 'error') {
+      processingProgressBar.classList.replace('bg-green-500', 'bg-red-500')
+      processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${progress?.message || 'Processing failed'}</span>`
 
-        unsubscribe() // Stop listening after error
+      unsubscribe()
+      setTimeout(() => {
+        progressContainer.classList.remove('show')
         setTimeout(() => {
-          progressContainer.classList.remove('show')
-          setTimeout(() => {
-            progressContainer.classList.add('hidden')
-            uploadView.classList.remove('hidden')
-            processingView.classList.add('hidden')
-          }, 300)
-        }, 5000)
-      }
+          progressContainer.classList.add('hidden')
+          uploadView.classList.remove('hidden')
+          processingView.classList.add('hidden')
+        }, 300)
+      }, 5000)
     }
   })
 }
