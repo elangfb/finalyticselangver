@@ -209,7 +209,7 @@ function generateMermaidGraph(graph: Map<string, string[]>): string {
   for (const [file, imports] of graph.entries()) {
     if (imports.length > 0) {
       for (const imp of imports) {
-        mermaidString += `    "${file}" --> "${imp}";\n`
+        mermaidString += `    ${file} --> ${imp}\n`
       }
     }
   }
