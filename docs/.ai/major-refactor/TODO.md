@@ -1,19 +1,23 @@
 # 📋 Major Refactor - Centralized TODO Tracker
 
 ## 🎯 Purpose
+
 This file tracks all temporary solutions, known issues, and future improvements identified during the major refactor process. Each PR should update this file when introducing workarounds or identifying areas for future enhancement.
 
 ## 📝 How to Use This File
 
 ### When Working on PRs:
+
 1. **Add entries** when you implement temporary solutions
 2. **Add entries** when you identify improvements outside current PR scope
 3. **Add entries** when you discover technical debt to address later
 4. **Reference this file** in your PR documentation using: `⚠️ See TODO.md #[entry-number]`
 
 ### Entry Format:
+
 ```markdown
 ### [CATEGORY] #[NUMBER] - [Short Description]
+
 - **Source PR**: PR [X] - [PR Name]
 - **Priority**: High/Medium/Low
 - **Type**: Temporary Solution / Technical Debt / Future Enhancement
@@ -28,26 +32,31 @@ This file tracks all temporary solutions, known issues, and future improvements 
 ---
 
 ## 🚨 High Priority Items
-*Items that should be addressed soon after the refactor*
+
+_Items that should be addressed soon after the refactor_
 
 ---
 
 ## ⚡ Medium Priority Items
-*Items that improve code quality but aren't urgent*
+
+_Items that improve code quality but aren't urgent_
 
 ---
 
 ## 💡 Low Priority Items / Future Enhancements
-*Nice-to-have improvements and feature ideas*
+
+_Nice-to-have improvements and feature ideas_
 
 ---
 
 ## ✅ Completed Items
-*Resolved TODOs (move completed items here for reference)*
+
+_Resolved TODOs (move completed items here for reference)_
 
 ---
 
 ## 📊 Statistics
+
 - **Total Open Items**: 0
 - **High Priority**: 0
 - **Medium Priority**: 0
@@ -58,6 +67,7 @@ This file tracks all temporary solutions, known issues, and future improvements 
 ---
 
 ## 🔍 How to Search This File
+
 - Search by `#[number]` to find specific entries
 - Search by `PR [X]` to find entries from specific PRs
 - Search by category: `[ARCHITECTURE]`, `[PERFORMANCE]`, `[TECHNICAL-DEBT]`, etc.
@@ -66,4 +76,4 @@ This file tracks all temporary solutions, known issues, and future improvements 
 
 ---
 
-*📌 Remember: This file should be updated during each PR implementation, not after the entire refactor is complete.*
+_📌 Remember: This file should be updated during each PR implementation, not after the entire refactor is complete._

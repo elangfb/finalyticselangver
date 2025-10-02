@@ -3,6 +3,7 @@ onlyBuiltDependencies:
   - '@parcel/watcher'
   - '@swc/core'
   - core-js
+  - dprint
   - esbuild
   - lmdb
   - msgpackr-extract

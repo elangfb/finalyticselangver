@@ -4,6 +4,7 @@
 **Goal:** Refactor generic `formatPromptForPage` function to create tailored, domain-specific prompts for each of the 11 analytical views while maintaining consistency and reusability.
 
 ## Table of Contents
+
 1. [Current State Analysis](#current-state-analysis)
 2. [Problems with Current Approach](#problems-with-current-approach)
 3. [Refactoring Strategy](#refactoring-strategy)
@@ -20,6 +21,7 @@
 ## Current State Analysis
 
 ### Existing Structure
+
 ```typescript
 // Current implementation - ALL views use the same generic prompt
 export const viewPromptCreators = Object.freeze({
@@ -30,11 +32,13 @@ export const viewPromptCreators = Object.freeze({
 ```
 
 ### View Categories
+
 - **General Views (4):** `general-keuangan`, `general-penjualan`, `general-produk-channel`, `general-investasi`
 - **Time-focused Views (3):** `waktu-keuangan`, `waktu-penjualan`, `waktu-produk-channel`
 - **Branch-focused Views (4):** `cabang-keuangan`, `cabang-penjualan`, `cabang-produk-channel`, `cabang-investasi`
 
 ### Data Domains
+
 - **Keuangan (Financial):** Revenue, costs, profit margins, ratios (COGS, GPM, NPM), target vs actual
 - **Penjualan (Sales):** Transaction counts, channels, payment methods, customer behavior
 - **Produk-Channel:** Menu performance, category analysis, channel distribution
@@ -45,22 +49,26 @@ export const viewPromptCreators = Object.freeze({
 ## Problems with Current Approach
 
 ### 1. **Generic Analysis Context**
+
 - All views get same "objective data analyst" role
 - No domain-specific expertise or terminology
 - Missing context about what specific metrics matter most
 
 ### 2. **Inadequate Specialization**
+
 - Financial views should focus on profitability, ratios, cost control
 - Sales views should emphasize customer patterns, channel performance
 - Time views should highlight trends, seasonality, growth patterns
 - Branch views should emphasize comparative performance, rankings
 
 ### 3. **Missed Opportunities**
+
 - No domain-specific KPI prioritization
 - No specialized analysis methodologies
 - No context-aware metric interpretation
 
 ### 4. **Maintainability Issues**
+
 - All prompt logic concentrated in one generic function
 - Hard to customize specific view requirements
 - Changes affect all views simultaneously
@@ -70,12 +78,14 @@ export const viewPromptCreators = Object.freeze({
 ## Refactoring Strategy
 
 ### Core Principles
+
 1. **Shared Foundation:** Common output format, rules, and brand context
 2. **Domain Specialization:** Role, metrics, and analysis approach tailored per domain
 3. **View Type Modifiers:** Time-series vs branch comparison vs general overview contexts
 4. **Modular Design:** Reusable components that can be mixed and matched
 
 ### Component Architecture
+
 ```
 Prompt = SharedComponents + DomainConfig + ViewTypeModifier + SpecificContext
 ```
@@ -85,6 +95,7 @@ Prompt = SharedComponents + DomainConfig + ViewTypeModifier + SpecificContext
 ## Implementation Architecture
 
 ### 1. Shared Components (Extracted from current `formatPromptForPage`)
+
 ```typescript
 const SHARED_COMPONENTS = {
   outputFormat: `/* Two-part format: paragraph + bullet points */`,
@@ -94,6 +105,7 @@ const SHARED_COMPONENTS = {
 ```
 
 ### 2. Domain Configurations
+
 ```typescript
 interface DomainConfig {
   role: string           // Specialized analyst role
@@ -105,6 +117,7 @@ interface DomainConfig {
 ```
 
 ### 3. View Type Modifiers
+
 ```typescript
 interface ViewTypeModifier {
   timeContext: string     // How to frame time/period context
@@ -114,6 +127,7 @@ interface ViewTypeModifier {
 ```
 
 ### 4. Prompt Builder Function
+
 ```typescript
 function buildTailoredPrompt(config: {
   domain: DomainConfig
@@ -129,6 +143,7 @@ function buildTailoredPrompt(config: {
 ## Domain-Specific Configurations
 
 ### Keuangan (Financial) Domain
+
 ```typescript
 const KEUANGAN_CONFIG: DomainConfig = {
   role: "analis keuangan bisnis yang mengkhususkan diri dalam analisis performa finansial restoran/F&B",
@@ -146,6 +161,7 @@ const KEUANGAN_CONFIG: DomainConfig = {
 ```
 
 ### Penjualan (Sales) Domain
+
 ```typescript
 const PENJUALAN_CONFIG: DomainConfig = {
   role: "analis penjualan yang berfokus pada performa transaksi dan customer behavior",
@@ -164,6 +180,7 @@ const PENJUALAN_CONFIG: DomainConfig = {
 ```
 
 ### Produk-Channel Domain
+
 ```typescript
 const PRODUK_CHANNEL_CONFIG: DomainConfig = {
   role: "analis produk dan distribusi yang mengkhususkan diri dalam performa menu dan channel optimization",
@@ -181,6 +198,7 @@ const PRODUK_CHANNEL_CONFIG: DomainConfig = {
 ```
 
 ### Investasi (Investment) Domain
+
 ```typescript
 const INVESTASI_CONFIG: DomainConfig = {
   role: "analis investasi yang berfokus pada ROI dan evaluasi risiko bisnis",
@@ -202,6 +220,7 @@ const INVESTASI_CONFIG: DomainConfig = {
 ## View Type Specializations
 
 ### General Views
+
 ```typescript
 const GENERAL_MODIFIER: ViewTypeModifier = {
   timeContext: "periode saat ini dengan fokus pada performa keseluruhan",
@@ -211,6 +230,7 @@ const GENERAL_MODIFIER: ViewTypeModifier = {
 ```
 
 ### Waktu (Time-focused) Views
+
 ```typescript
 const WAKTU_MODIFIER: ViewTypeModifier = {
   timeContext: "analisis time-series dengan fokus pada tren dan pola temporal",
@@ -220,6 +240,7 @@ const WAKTU_MODIFIER: ViewTypeModifier = {
 ```
 
 ### Cabang (Branch-focused) Views
+
 ```typescript
 const CABANG_MODIFIER: ViewTypeModifier = {
   timeContext: "perbandingan antar cabang/lokasi dengan benchmarking analysis",
@@ -233,11 +254,13 @@ const CABANG_MODIFIER: ViewTypeModifier = {
 ## Implementation Roadmap
 
 ### Phase 1: Foundation Setup ✅
+
 - [x] Extract shared components from existing `formatPromptForPage`
 - [x] Create domain configuration interfaces
 - [x] Implement one sample view (`general-keuangan`)
 
 ### Phase 2: Domain Implementation (Priority Order)
+
 1. **Financial Views** (Most critical for business decisions)
    - [x] `general-keuangan` ✅ COMPLETED
    - [ ] `waktu-keuangan`
@@ -258,11 +281,13 @@ const CABANG_MODIFIER: ViewTypeModifier = {
    - [ ] `cabang-investasi`
 
 ### Phase 3: Testing & Validation
+
 - [ ] Create test prompts with sample data for each view
 - [ ] Validate output quality and domain-specificity
 - [ ] Compare AI responses: generic vs tailored prompts
 
 ### Phase 4: Documentation & Cleanup
+
 - [ ] Document each prompt configuration
 - [ ] Remove old `formatPromptForPage` function
 - [ ] Update related code and references
@@ -272,6 +297,7 @@ const CABANG_MODIFIER: ViewTypeModifier = {
 ## Code Templates
 
 ### 1. Domain-Specific Prompt Creator Template
+
 ```typescript
 // Template for creating domain-specific prompt functions
 function create[Domain][ViewType]Prompt(data: unknown): string {
@@ -286,6 +312,7 @@ function create[Domain][ViewType]Prompt(data: unknown): string {
 ```
 
 ### 2. Prompt Builder Function
+
 ```typescript
 function buildTailoredPrompt(config: {
   domain: DomainConfig
@@ -331,6 +358,7 @@ function buildTailoredPrompt(config: {
 ```
 
 ### 3. View Prompt Creator Update Pattern
+
 ```typescript
 // Before
 'view-name': (data: unknown) => formatPromptForPage({
@@ -347,6 +375,7 @@ function buildTailoredPrompt(config: {
 ## Testing Strategy
 
 ### 1. Prompt Quality Testing
+
 ```typescript
 // Test with sample data to validate prompt quality
 const sampleFinancialData = {
@@ -360,11 +389,13 @@ const tailoredPrompt = createGeneralKeuanganPrompt(sampleData)
 ```
 
 ### 2. AI Response Validation
+
 - Feed identical data to generic vs tailored prompts
 - Compare AI analysis quality and domain-specificity
 - Validate that specialized prompts produce more relevant insights
 
 ### 3. Consistency Testing
+
 - Ensure all views maintain same output format
 - Verify shared rules are consistently applied
 - Check that domain terminology is used appropriately
@@ -374,27 +405,32 @@ const tailoredPrompt = createGeneralKeuanganPrompt(sampleData)
 ## Benefits
 
 ### 1. **Enhanced Analysis Quality**
+
 - Domain experts provide more relevant insights
 - Specialized terminology and context improve accuracy
 - Focused metric prioritization highlights what matters most
 
 ### 2. **Better User Experience**
+
 - Brand owners get insights tailored to their specific needs
 - Financial views focus on profitability and health metrics
 - Sales views emphasize customer behavior and patterns
 - Time views highlight trends and seasonality
 
 ### 3. **Improved Maintainability**
+
 - Modular design allows independent view customization
 - Shared components ensure consistency
 - Easy to add new views or modify existing ones
 
 ### 4. **Scalability**
+
 - Framework supports new domains and view types
 - Mix-and-match architecture for flexible combinations
 - Reusable components reduce code duplication
 
 ### 5. **Professional Output**
+
 - Domain-specific expertise in AI responses
 - Appropriate business terminology usage
 - Context-aware metric interpretation
@@ -404,17 +440,20 @@ const tailoredPrompt = createGeneralKeuanganPrompt(sampleData)
 ## Implementation Notes
 
 ### Key Considerations
+
 - Maintain exact same output format and restrictions
 - Preserve brand owner context across all views
 - Ensure consistent word count and structure requirements
 - Keep shared components DRY (Don't Repeat Yourself)
 
 ### Error Prevention
+
 - Type-safe interfaces for configurations
 - Template validation for consistent structure
 - Clear separation between shared and specific components
 
 ### Future Extensibility
+
 - Easy to add new domains (e.g., `customer`, `inventory`)
 - Support for new view types (e.g., `competitive`, `predictive`)
 - Framework allows for A/B testing different prompt approaches

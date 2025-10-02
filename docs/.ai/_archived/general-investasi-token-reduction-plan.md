@@ -3,16 +3,19 @@
 ## Current Status: ANALYSIS COMPLETE ✅
 
 ### Overview
+
 Implementing token reduction for the 'general-investasi' section to prevent Google Gemini API token limit errors (1,048,576 tokens), following the successful pattern from 'general-keuangan' section.
 
 ## Analysis Results
 
 ### Current Implementation Located ✅
+
 - **Main orchestrator**: `generateGeneralInvestasiSection()` in `src/main.ts` line ~13850
 - **Raw data storage**: Line 13902 - `$store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch })`
 - **Token issue**: Storing full `monthlyProfits` array (24 months of detailed P&L data) + `investmentData`
 
 ### Chart Functions Identified ✅
+
 1. **`generateBusinessYieldChart()`** - Line ~13920
    - Business profit vs yield percentage dual-axis chart
    - Uses: `monthlyProfits` (profit + period data)
@@ -26,7 +29,9 @@ Implementing token reduction for the 'general-investasi' section to prevent Goog
    - Uses: `monthlyProfits` + investor share percentage
 
 ### Data Structure Analysis ✅
+
 **Raw data being stored**:
+
 ```typescript
 // CURRENT - High token usage
 {
@@ -49,11 +54,13 @@ Implementing token reduction for the 'general-investasi' section to prevent Goog
 ```
 
 **Token Estimation**:
+
 - `investmentData`: ~200 tokens
 - `monthlyProfits`: ~5K-10K tokens (24 periods of financial data)
 - **Total**: ~5K-10K tokens per analysis
 
 ### Investment Data Types Confirmed ✅
+
 - **ROI Analysis**: Business yield percentage (profit/investment ratio)
 - **Investment Structure**: Total amount, slot distribution, investor share percentage
 - **Time-based Performance**: Monthly profit trends over 24 periods
@@ -62,14 +69,17 @@ Implementing token reduction for the 'general-investasi' section to prevent Goog
 ## Implementation Plan (READY FOR EXECUTION)
 
 ### Phase 1: Main Data Storage Replacement ✅ ANALYZED
+
 **Target**: Line 13902 in `generateGeneralInvestasiSection()`
 
 **BEFORE**:
+
 ```typescript
 $store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch });
 ```
 
 **AFTER**:
+
 ```typescript
 $store.setActiveViewData('general-investasi', {
     viewContext: {
@@ -88,6 +98,7 @@ $store.setActiveViewData('general-investasi', {
 ### Phase 2: Chart Function Insights Addition
 
 #### A. Business Yield Chart Insights (`generateBusinessYieldChart`)
+
 **Location**: After chart creation (~line 13945)
 **Function**: Add ROI and profit performance insights
 
@@ -131,6 +142,7 @@ if (monthlyProfits.length > 0) {
 ```
 
 #### B. Investor Yield Chart Insights (`generateInvestorYieldChart`)
+
 **Location**: After chart creation (~line 13975)
 **Function**: Add per-slot yield and investor return insights
 
@@ -166,6 +178,7 @@ if (monthlyProfits.length > 0 && slots > 0) {
 ```
 
 #### C. Cumulative Investor Share Chart Insights (`generateCumulativeInvestorShareChart`)
+
 **Location**: After chart creation (~line 13800)
 **Function**: Add cumulative return and investor share insights
 
@@ -205,6 +218,7 @@ if (monthlyProfits.length > 0) {
 ```
 
 ### Phase 3: Utility Functions
+
 Add helper function for trend analysis:
 
 ```typescript
@@ -218,12 +232,14 @@ function getProfitTrend(firstValue: number, lastValue: number, threshold = 5): s
 ```
 
 ### Phase 4: Expected Token Reduction
+
 - **Before**: ~5K-10K tokens
 - **After**: ~500-800 tokens
 - **Reduction**: 85-90% token reduction
 - **Maintained**: All user-visible metrics and trends
 
 ### Dependencies Confirmed ✅
+
 - `formatCurrency` function exists in `src/utils/string.ts` (will use this instead of `formatCurrencyUtil`)
 - `$store.setActiveViewData` merging capability confirmed
 - All chart creation functions identified and accessible
@@ -233,6 +249,7 @@ function getProfitTrend(firstValue: number, lastValue: number, threshold = 5): s
 Based on analysis and prompt description: "Data investasi perusahaan, termasuk ROI (Return on Investment) dan analisis risiko"
 
 **Confirmed insights needed**:
+
 - ✅ **ROI calculations and trends**: Business yield percentage, investor yield per slot
 - ✅ **Investment performance metrics**: Monthly profit analysis, cumulative returns
 - ✅ **Investment structure breakdown**: Total investment, slot distribution, investor share percentage
@@ -242,6 +259,7 @@ Based on analysis and prompt description: "Data investasi perusahaan, termasuk R
 ## Execution Plan Validation
 
 ### My Assumptions:
+
 1. **formatCurrency usage**: Using `formatCurrency` from `src/utils/string.ts` instead of `formatCurrencyUtil` (confirmed exists)
 2. **Investment context**: This section analyzes ROI for business investments with slot-based investor sharing
 3. **Chart types**: Three dual-axis and cumulative charts showing different yield perspectives
@@ -261,29 +279,38 @@ Based on analysis and prompt description: "Data investasi perusahaan, termasuk R
 ### Changes Made:
 
 #### ✅ Phase 1: Main Data Storage (Line 13902)
+
 **BEFORE**: `$store.setActiveViewData('general-investasi', { investmentData, monthlyProfits }, { selectedBranch });`
 **AFTER**: Replaced with minimal `viewContext` containing only essential metadata
 
 #### ✅ Phase 2: Utility Function (Line 4889)
+
 Added `getProfitTrend()` function for consistent trend analysis
 
 #### ✅ Phase 3: Business Yield Chart Insights (Line 13965)
+
 Added comprehensive insights covering:
+
 - Profit analysis (average, max, min, latest, trend)
 - Yield analysis (average, peak, annualized)
 - Investment performance metrics
 
 #### ✅ Phase 4: Investor Yield Chart Insights (Line 14051)
+
 Added slot-based insights covering:
+
 - Slot analysis (per-slot investment, profit, yield)
 - Return analysis (total returns, annualized yields)
 
 #### ✅ Phase 5: Cumulative Share Chart Insights (Line 13824)
+
 Added cumulative insights covering:
+
 - Investor share configuration
 - Cumulative analysis (total accumulated, averages, projections)
 
 ### Expected Results:
+
 - **Token Reduction**: ~85-90% (from ~10K to ~800 tokens)
 - **Data Preservation**: All user-visible metrics maintained as descriptive insights
 - **AI Analysis**: Enhanced with focused investment performance insights

@@ -1,14 +1,17 @@
 # General Penjualan Token Reduction Plan
 
 ## Section Overview
+
 **Target Section**: `general-penjualan`
 **Expected Data Types**:
+
 - Data ringkasan penjualan (total omzet, total transaksi, rata-rata belanja)
 - Grafik omzet harian dan mingguan
 - Grafik tren transaksi harian (TC & APC)
 - Heatmap penjualan per hari dan per jam
 
 ## Current Analysis Status
+
 - [x] **Step 1**: Locate main orchestrator function ✅ Found: `generateGeneralPenjualanSection()`
 - [x] **Step 2**: Map data flow and identify raw data storage points ✅ Line 12539: `$store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });`
 - [x] **Step 3**: Estimate current token usage ✅ ~1.5M tokens (large sales data arrays)
@@ -16,6 +19,7 @@
 - [x] **Step 5**: Document current implementation ✅ Complete analysis done
 
 ## My Current Assumptions (VALIDATED)
+
 1. **Main Function Exists**: ✅ `generateGeneralPenjualanSection()` found at line 12487
 2. **Raw Data Storage**: ✅ Line 12539 stores `currentData` (large sales arrays) using `setActiveViewData`
 3. **Multiple Charts**: ✅ 7 chart/table functions identified (see analysis above)
@@ -23,6 +27,7 @@
 5. **Data Types**: ✅ Sales summaries with detailed breakdown (see data structure above)
 
 ### Additional Findings
+
 - **Filters**: Uses branch selector, start/end date filters
 - **Sales Target Integration**: Fetches monthly sales targets from Firestore
 - **Summary Functions**: All chart functions expect sales summary objects (not raw transactions)
@@ -31,10 +36,12 @@
 ## Current Implementation Analysis
 
 ### Main Orchestrator Function
+
 **Location**: `/src/main.ts` lines 12487-12546
 **Function**: `generateGeneralPenjualanSection()`
 
 ### Current Data Flow (PROBLEMATIC)
+
 ```typescript
 // Line 12539 - Raw data storage causing token issues
 $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
@@ -48,6 +55,7 @@ $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, sta
 ```
 
 ### Chart/Table Functions Called
+
 1. **`generateRingkasanFromSummaries()`** - Sales summary table (Total Omzet, Total Check, APC)
 2. **`generateOmzetHarianChartFromSummaries()`** - Daily revenue chart
 3. **`generateOmzetMingguanChartFromSummaries()`** - Weekly revenue chart
@@ -57,7 +65,9 @@ $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, sta
 7. **`generateSalesTrendHourlyDailyChartFromSummaries()`** - Hourly/daily sales trend
 
 ### Data Structure
+
 Each summary object contains:
+
 - `date: Date` - Transaction date
 - `totalOmzet: number` - Total revenue
 - `totalTransactions: number` - Transaction count
@@ -67,6 +77,7 @@ Each summary object contains:
 - `menuItemQuantities: {[category: string]: {[item: string]: number}}`
 
 ## Questions for Clarification
+
 1. **File Location**: Where is the main `general-penjualan` section generation function located?
 2. **Data Size**: Approximately how much data are we dealing with? (number of transactions, time period)
 3. **Performance Impact**: Are you experiencing specific token limit errors with this section?
@@ -77,11 +88,13 @@ Each summary object contains:
 ### Phase 1: Replace Main Data Storage (Line 12539)
 
 **Current Problematic Code:**
+
 ```typescript
 $store.setActiveViewData('general-penjualan', currentData, { selectedBranch, startDate, endDate });
 ```
 
 **Target Replacement:**
+
 ```typescript
 // Replace with minimal view context
 $store.setActiveViewData('general-penjualan', {
@@ -98,6 +111,7 @@ $store.setActiveViewData('general-penjualan', {
 ### Phase 2: Add Insights to Each Chart Function
 
 #### 2.1 Sales Summary Insights (`generateRingkasanFromSummaries`)
+
 ```typescript
 // After calculating totals, add insights
 const summaryInsights = {
@@ -116,6 +130,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.2 Daily Revenue Chart Insights (`generateOmzetHarianChartFromSummaries`)
+
 ```typescript
 const chartInsights = {
     chartType: 'daily_revenue_trend',
@@ -141,6 +156,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.3 Weekly Revenue Chart Insights (`generateOmzetMingguanChartFromSummaries`)
+
 ```typescript
 const weeklyInsights = {
     chartType: 'weekly_revenue_trend',
@@ -164,6 +180,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.4 TC/APC Chart Insights (`generateTcApcHarianChartFromSummaries`)
+
 ```typescript
 const tcApcInsights = {
     chartType: 'dual_axis_transaction_analysis',
@@ -188,6 +205,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.5 Daily Heatmap Insights (`generateDailyOmzetHeatmapFromSummaries`)
+
 ```typescript
 const dailyHeatmapInsights = {
     chartType: 'daily_sales_heatmap',
@@ -215,6 +233,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.6 Hourly Heatmap Insights (`generateOmzetHeatmapFromSummaries`)
+
 ```typescript
 const hourlyHeatmapInsights = {
     chartType: 'hourly_sales_heatmap',
@@ -238,6 +257,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 #### 2.7 Sales Trend Chart Insights (`generateSalesTrendHourlyDailyChartFromSummaries`)
+
 ```typescript
 const salesTrendInsights = {
     chartType: 'comprehensive_sales_trend',
@@ -260,6 +280,7 @@ $store.setActiveViewData('general-penjualan', {
 ```
 
 ### Phase 3: Implementation Order
+
 1. Replace main data storage first (line 12539)
 2. Add insights to `generateRingkasanFromSummaries`
 3. Add insights to daily/weekly charts
@@ -267,34 +288,41 @@ $store.setActiveViewData('general-penjualan', {
 5. Add insights to trend analysis
 
 ### Expected Token Reduction
+
 - **Before**: ~1,500,000 tokens (raw sales data arrays)
 - **After**: ~2,000 tokens (structured insights only)
 - **Reduction**: 99.9% (following successful general-keuangan pattern)
 
 ## Planned Implementation Approach
+
 Following TOKEN_REDUCTION_GUIDE.md pattern:
 
 ### Phase 1: Analysis
+
 - Find and analyze current implementation
 - Map all data flows and chart functions
 - Estimate token usage before changes
 
 ### Phase 2: Core Implementation
+
 - Replace raw data storage with view context
 - Implement insights for each chart/table function
 - Use progressive enhancement with `setActiveViewData` merging
 
 ### Phase 3: Validation
+
 - Test compilation and functionality
 - Verify AI analysis quality maintained
 - Measure token reduction achieved
 
 ## Expected Results
+
 - **Token Reduction Target**: 95%+ (following guide expectations for large datasets)
 - **Quality Maintenance**: AI insights should match exactly what users see
 - **Functionality Preservation**: All charts and tables should work as before
 
 ## Implementation Status
+
 - [x] **Analysis Complete** ✅
 - [x] **Plan Approved** ✅ User confirmed: implement all, include date range, include sales targets
 - [x] **Core Implementation** ✅ ALL 7 FUNCTIONS IMPLEMENTED
@@ -333,11 +361,13 @@ I have successfully implemented token reduction for the entire `general-penjuala
    - **Sales Trend Chart**: Comprehensive trend analysis with volatility metrics
 
 #### **Features Included Per Your Requirements:**
+
 - ✅ **Date Range Information**: All insights include date ranges and period context
 - ✅ **Sales Target Integration**: Active targets are detected and included in descriptions
 - ✅ **Complete Implementation**: All 7 functions have insights, no partial implementation
 
 #### **Expected Results:**
+
 - **Token Reduction**: ~1,500,000 tokens → ~3,000 tokens (99.8% reduction)
 - **Quality Maintained**: All user-visible metrics preserved in insight format
 - **Functionality Preserved**: Charts and UI work exactly as before
