@@ -72,8 +72,12 @@ export function getPeriodRangeFromEsbData(worksheet: WorkSheet): { startPeriod: 
     throw new Error('Could not find any valid dates in the \'Sales Date In\' column.')
   }
 
-  const startPeriod = `${earliestDate.getFullYear()}-${(earliestDate.getMonth() + 1).toString().padStart(2, '0')}`
-  const endPeriod = `${latestDate.getFullYear()}-${(latestDate.getMonth() + 1).toString().padStart(2, '0')}`
+  // TypeScript assertions after the null check
+  const earliest = earliestDate as Date
+  const latest = latestDate as Date
+
+  const startPeriod = `${earliest.getFullYear()}-${(earliest.getMonth() + 1).toString().padStart(2, '0')}`
+  const endPeriod = `${latest.getFullYear()}-${(latest.getMonth() + 1).toString().padStart(2, '0')}`
 
   return { startPeriod, endPeriod }
 }
@@ -98,7 +102,7 @@ export function getPeriodRangeFromMokaData(worksheet: WorkSheet): { startPeriod:
 
     if (dateString && typeof dateString === 'string') {
       const parts = dateString.split('-')
-      if (parts.length === 3) {
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
         const day = parseInt(parts[0], 10)
         const month = parseInt(parts[1], 10) - 1 // JS months are 0-indexed
         const year = parseInt(parts[2], 10)
@@ -116,8 +120,12 @@ export function getPeriodRangeFromMokaData(worksheet: WorkSheet): { startPeriod:
     throw new Error('Could not find any valid dates in the \'Date\' column.')
   }
 
-  const startPeriod = `${earliestDate.getFullYear()}-${(earliestDate.getMonth() + 1).toString().padStart(2, '0')}`
-  const endPeriod = `${latestDate.getFullYear()}-${(latestDate.getMonth() + 1).toString().padStart(2, '0')}`
+  // TypeScript assertions after the null check
+  const earliest = earliestDate as Date
+  const latest = latestDate as Date
+
+  const startPeriod = `${earliest.getFullYear()}-${(earliest.getMonth() + 1).toString().padStart(2, '0')}`
+  const endPeriod = `${latest.getFullYear()}-${(latest.getMonth() + 1).toString().padStart(2, '0')}`
 
   return { startPeriod, endPeriod }
 }

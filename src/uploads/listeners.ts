@@ -1,101 +1,12 @@
 // Centralizes all event listeners related to file uploads and template downloads.
 
 import { populateCompiledDataTable } from '../data-hub/table'
-import { uploadSalesFile } from './sales'
+import { handleSalesDataUpload, handleModalSalesDataUpload } from './sales'
 import { downloadPnlTemplate, uploadAndProcessPnlFile } from './pnl'
-import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from './targets'
+import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate, handleModalTargetUpload } from './targets'
 import { showLoading, hideLoading, quickUploadModal } from '@/core/ui'
 import { generateGeneralFinance } from '@/analysis/sections/general/finance'
 import { currentUser } from '@/core/state'
-
-/**
- * A unified handler for uploading sales data files (both ESB and Moka).
- * It now creates the job document BEFORE uploading to prevent a race condition.
- */
-const handleSalesDataUpload = async (file: File, format: 'ESB' | 'MOKA') => {
-  if (!currentUser) return
-
-  const progressContainer = document.getElementById('upload-progress-container')
-  const statusText = document.getElementById('upload-status-text')
-  progressContainer.classList.remove('hidden')
-  setTimeout(() => progressContainer.classList.add('show'), 10)
-  statusText.textContent = `Analyzing and compressing ${format} file...`
-
-  try {
-    const fileBuffer = await file.arrayBuffer()
-    const compressedData = pako.gzip(fileBuffer)
-
-    const workbook = XLSX.read(fileBuffer)
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-
-    const { startPeriod, endPeriod } = format === 'MOKA'
-      ? getPeriodRangeFromMokaData(worksheet)
-      : getPeriodRangeFromEsbData(worksheet)
-
-    const periodRangeText = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`
-    statusText.textContent = `Period(s) ${periodRangeText} found. Preparing upload...`
-
-    const jobId = `job_${Date.now()}`
-
-    // --- FIX START: Create the job document and start listening BEFORE the upload ---
-    const jobDocRef = doc(db, `processingJobs`, jobId)
-    await setDoc(jobDocRef, {
-      userId: currentUser.uid,
-      jobId: jobId,
-      fileName: file.name,
-      status: 'preparing', // A new initial status
-      createdAt: new Date(),
-      format: format,
-      periodRange: periodRangeText,
-    })
-
-    // Start listening for backend progress immediately
-    listenForProcessingStatus(jobId)
-    // --- FIX END ---
-
-    const storagePath = `user_uploads/${currentUser.uid}/${jobId}/${file.name}.gz`
-    const storageRef = ref(storage, storagePath)
-
-    const metadata = {
-      contentEncoding: 'gzip', // Re-adding this as it's standard and the backend handles it
-      customMetadata: {
-        userId: currentUser.uid,
-        jobId: jobId,
-        format: format,
-        startPeriod: startPeriod,
-        endPeriod: endPeriod,
-      },
-    }
-
-    const uploadTask = uploadBytesResumable(storageRef, compressedData, metadata)
-
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        // This part of the UI is now handled by listenForProcessingStatus,
-        // but we can log progress if needed.
-        console.log(`Upload is ${progress}% done`)
-      },
-      (error) => {
-        console.error(`${format} upload failed:`, error)
-        // Update the job document to show the error
-        setDoc(jobDocRef, { 'status': 'error', 'progress.message': 'File upload failed.' }, { merge: true })
-      },
-      async () => {
-        // On success, the backend is already triggered. We just need to update the status.
-        console.log('File upload complete. Backend is processing...')
-        await setDoc(jobDocRef, { status: 'uploaded' }, { merge: true })
-      },
-    )
-  } catch (error) {
-    statusText.textContent = `Error: ${error.message}`
-    setTimeout(() => {
-      progressContainer.classList.remove('show')
-      setTimeout(() => progressContainer.classList.add('hidden'), 300)
-    }, 5000)
-    alert(`Error processing ${format} file: ${error.message}`)
-  }
-}
 
 /**
  * Attaches all event listeners for upload buttons, template downloads, and the quick upload modal.
@@ -240,16 +151,16 @@ export function initializeUploadListeners(): void {
     try {
       switch (type) {
         case 'salesData':
-          await uploadSalesFile(file, 'STANDARD', period)
+          await handleModalSalesDataUpload(file, period)
           break
         case 'salesTarget':
-          await handleTargetUpload(file, 'sales', period)
+          await handleModalTargetUpload(file, period, 'sales')
           break
         case 'pnlData':
           await uploadAndProcessPnlFile(file, period)
           break
         case 'pnlTarget':
-          await handleTargetUpload(file, 'pnl', period)
+          await handleModalTargetUpload(file, period, 'pnl')
           break
       }
 

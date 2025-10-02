@@ -4087,7 +4087,7 @@ function generatePenjualanChannelChartFromSummaries(summaries: any[], canvasId: 
 
     config?.alsoStore?.(channelSales, (v) => ({
       channelSales: Object.fromEntries(Object.entries(v).map(([channel, sales]) => (
-        [channel, formatCurrencyUtil(sales)],
+        [channel, formatCurrencyUtil(sales)]
       ))),
     }));
 
@@ -13008,7 +13008,7 @@ function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, c
 
     config?.alsoStore?.(byMenuCategory, (v) => ({
       totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
-        [category, formatNumberUtil(totalOrder)],
+        [category, formatNumberUtil(totalOrder)]
       ))),
     }));
 
