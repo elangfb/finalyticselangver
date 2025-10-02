@@ -129,3 +129,63 @@ export async function downloadPnlTargetTemplate() {
     alert('Could not download the template. Please ensure it has been uploaded by an administrator.')
   }
 }
+
+/**
+ * Handles the upload of Target files (Sales or P&L) from the modal.
+ * This is a simpler version that doesn't show progress UI since targets are smaller files.
+ * @param file The Excel file to process.
+ * @param expectedPeriod The expected period for validation.
+ * @param type The type of target ('sales' or 'pnl').
+ */
+export async function handleModalTargetUpload(file: File, expectedPeriod: string, type: 'sales' | 'pnl'): Promise<void> {
+  if (!currentUser) throw new Error('User not authenticated.')
+
+  const data = await file.arrayBuffer()
+  const workbook = XLSX.read(data)
+
+  // Determine the correct sheet name based on the upload type
+  const sheetName = type === 'sales' ? 'Sales Target Data' : 'P&L Target Data'
+  const worksheet = workbook.Sheets[sheetName]
+  if (!worksheet) {
+    throw new Error(`Sheet '${sheetName}' not found. Please use the correct template.`)
+  }
+
+  // Read branch name and period from the file
+  const branchName = worksheet['B1'] ? String(worksheet['B1'].v).trim() : 'Unknown Branch'
+  const actualPeriod = getPeriodFromFile(worksheet)
+
+  if (actualPeriod !== expectedPeriod) {
+    throw new Error(`File period mismatch. Expected '${expectedPeriod}', but file contains '${actualPeriod}'.`)
+  }
+
+  const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: ['Metric', 'Target'], range: 3 })
+
+  if (!jsonData || jsonData.length === 0) {
+    throw new Error('The Excel file is empty or does not contain valid data.')
+  }
+
+  const targets = jsonData.reduce((acc: Record<string, number>, row: any) => {
+    if (row.Metric && row.Target !== undefined && typeof row.Target === 'number') {
+      acc[String(row.Metric).trim()] = row.Target
+    }
+    return acc
+  }, {} as Record<string, number>)
+
+  if (Object.keys(targets).length === 0) {
+    throw new Error('Could not find \'Metric\' and \'Target\' columns with valid data.')
+  }
+
+  const collectionPath = type === 'sales' ? 'monthlySalesTargets' : 'monthlyPnlTargets'
+  const safeBranchName = branchName.replace(/\s+/g, '_')
+  const docId = `${actualPeriod}_${safeBranchName}` // Create composite ID
+  const targetDocRef = doc(db, `users/${currentUser.uid}/${collectionPath}`, docId)
+
+  // Save with the correct branchName field
+  await setDoc(targetDocRef, {
+    fileName: file.name,
+    lastUpdatedAt: new Date(),
+    targets: targets,
+    period: actualPeriod,
+    branchName: branchName,
+  }, { merge: true })
+}

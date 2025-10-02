@@ -9,9 +9,10 @@
     "dev": "pnpm install && pnpm run clean && parcel",
     "build": "parcel build",
     "clean": "rimraf .parcel-cache dist",
-    "lint": "eslint ./index.html",
-    "lint:fix": "eslint ./index.html --fix",
+    "lint": "eslint ./src",
+    "lint:fix": "eslint ./src --fix",
     "format": "pnpm run lint:fix",
+    "typecheck": "tsc --noEmit",
     "llms": "tsx scripts/generate-context.ts",
     "llms:full": "pnpm run llms-full",
     "llms-full": "tsx scripts/generate-full-context.ts"
@@ -40,7 +41,7 @@
     "@parcel/transformer-webmanifest": "^2.16.0",
     "@stylistic/eslint-plugin": "^5.4.0",
     "@tsconfig/recommended": "^1.0.10",
-    "@types/node": "^22.18.6",
+    "@types/node": "^22.18.8",
     "buffer": "^6.0.3",
     "eslint": "^9.36.0",
     "globals": "^16.4.0",
@@ -49,8 +50,8 @@
     "parcel-namer-hashless": "^1.0.7",
     "rimraf": "^6.0.1",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.44.1"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.45.0"
   },
   "browserslist": [
     "defaults"

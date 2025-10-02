@@ -1,9 +1,9 @@
 // Centralizes all event listeners related to file uploads and template downloads.
 
 import { populateCompiledDataTable } from '../data-hub/table'
-import { uploadSalesFile } from './sales'
+import { handleSalesDataUpload, handleModalSalesDataUpload } from './sales'
 import { downloadPnlTemplate, uploadAndProcessPnlFile } from './pnl'
-import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from './targets'
+import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate, handleModalTargetUpload } from './targets'
 import { showLoading, hideLoading, quickUploadModal } from '@/core/ui'
 import { generateGeneralFinance } from '@/analysis/sections/general/finance'
 import { currentUser } from '@/core/state'
@@ -14,30 +14,57 @@ import { currentUser } from '@/core/state'
 export function initializeUploadListeners(): void {
   // Listener for the main "Upload Standard Template" button
   document.getElementById('upload-btn')?.addEventListener('click', async () => {
+    // It reads from the shared 'file-input'
     const fileInput = document.getElementById('file-input') as HTMLInputElement
-    const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement
     const file = fileInput.files?.[0]
-    if (!file) {
-      alert('Please select a sales data file to upload.')
-      return
+    if (file) {
+      (document.getElementById('upload-btn') as HTMLButtonElement).disabled = true
+      // It calls the handler with the 'ESB' format
+      await handleSalesDataUpload(file, 'ESB');
+      (document.getElementById('upload-btn') as HTMLButtonElement).disabled = false
+      fileInput.value = ''
+    } else {
+      alert('Please select a file first.')
     }
-    uploadButton.disabled = true
-    await uploadSalesFile(file, 'STANDARD')
-    fileInput.value = '' // Clear file input after processing
   })
 
   // Listener for the "Upload Moka Template" button
   document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
+    // It also reads from the shared 'file-input'
     const fileInput = document.getElementById('file-input') as HTMLInputElement
-    const uploadButton = document.getElementById('upload-moka-btn') as HTMLButtonElement
     const file = fileInput.files?.[0]
-    if (!file) {
-      alert('Please select a Moka file to upload.')
-      return
+    if (file) {
+      (document.getElementById('upload-moka-btn') as HTMLButtonElement).disabled = true
+      // It calls the same handler but with the 'MOKA' format
+      await handleSalesDataUpload(file, 'MOKA');
+      (document.getElementById('upload-moka-btn') as HTMLButtonElement).disabled = false
+      fileInput.value = ''
+    } else {
+      alert('Please select a file first.')
     }
-    uploadButton.disabled = true
-    await uploadSalesFile(file, 'MOKA')
-    fileInput.value = ''
+  })
+
+  document.getElementById('refresh-data-hub-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('refresh-data-hub-btn') as HTMLButtonElement
+    const icon = btn.querySelector('svg')
+
+    if (!btn || !icon) return
+
+    // Disable button and add spinning animation for feedback
+    btn.disabled = true
+    icon.classList.add('animate-spin')
+
+    try {
+      // Call the existing function to re-fetch and re-populate the table
+      await populateCompiledDataTable()
+    } catch (error) {
+      console.error('Failed to refresh data hub:', error)
+      alert('There was an error refreshing the data. Please check the console.')
+    } finally {
+      // Re-enable button and remove animation when done
+      btn.disabled = false
+      icon.classList.remove('animate-spin')
+    }
   })
 
   // Listener for P&L Data upload button
@@ -124,16 +151,16 @@ export function initializeUploadListeners(): void {
     try {
       switch (type) {
         case 'salesData':
-          await uploadSalesFile(file, 'STANDARD', period)
+          await handleModalSalesDataUpload(file, period)
           break
         case 'salesTarget':
-          await handleTargetUpload(file, 'sales', period)
+          await handleModalTargetUpload(file, period, 'sales')
           break
         case 'pnlData':
           await uploadAndProcessPnlFile(file, period)
           break
         case 'pnlTarget':
-          await handleTargetUpload(file, 'pnl', period)
+          await handleModalTargetUpload(file, period, 'pnl')
           break
       }
 

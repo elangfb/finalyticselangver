@@ -1583,7 +1583,8 @@ async function deleteUserRecord(userId: string): Promise<void> {
   }
 }
 
-function listenForProcessingStatus(period: string) {
+// REPLACE the old listenForProcessingStatus function with this one
+function listenForProcessingStatus(jobId: string) {
     if (!currentUser) return;
 
     const progressContainer = document.getElementById('upload-progress-container');
@@ -1591,208 +1592,69 @@ function listenForProcessingStatus(period: string) {
     const processingView = document.getElementById('processing-view');
     const processingFilename = document.getElementById('processing-filename');
     const processingStatusText = document.getElementById('processing-status-text');
-
-    // Get the new UI elements for the processing progress bar
     const processingProgressBar = document.getElementById('processing-progress-bar');
     const processingProgressPercent = document.getElementById('processing-progress-percent');
 
     // Transition UI to "Processing" state
     uploadView.classList.add('hidden');
     processingView.classList.remove('hidden');
-    processingFilename.textContent = `Processing for ${period}`;
+    processingFilename.textContent = `Processing Job: ${jobId}`;
     processingStatusText.textContent = 'Initializing on server...';
     processingProgressBar.style.width = '0%';
     processingProgressPercent.textContent = '0%';
 
-    const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
+    const jobDocRef = doc(db, `processingJobs`, jobId);
 
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        if (!docSnap.exists()) return;
+    const unsubscribe = onSnapshot(jobDocRef, (docSnap) => {
+        if (!docSnap.exists()) {
+            processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: Job document not found.</span>`;
+            unsubscribe();
+            return;
+        }
 
-        const status = docSnap.data()?.processingStatus;
+        const jobData = docSnap.data();
+        const status = jobData?.status;
+        const progress = jobData?.progress;
 
-        if (status) {
-            // --- NEW: Handle intermediate 'processing' state ---
-            if (status.state === 'processing' && status.totalRows > 0) {
-                const percent = Math.round((status.rowsProcessed / status.totalRows) * 100);
-                processingProgressBar.style.width = `${percent}%`;
-                processingProgressPercent.textContent = `${percent}%`;
-                processingStatusText.textContent = `Processing row ${status.rowsProcessed.toLocaleString()} of ${status.totalRows.toLocaleString()}`;
-            }
-            // --- Handle final 'complete' state ---
-            else if (status.state === 'complete') {
-                processingProgressBar.style.width = '100%';
-                processingProgressPercent.textContent = '100%';
-                processingStatusText.innerHTML = '<span class="text-green-600 font-semibold">Processing Complete!</span>';
+        if (status === 'processing' && progress) {
+            const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+            processingProgressBar.style.width = `${percent}%`;
+            processingProgressPercent.textContent = `${percent}%`;
+            processingStatusText.textContent = progress.message || 'Processing...';
+        }
+        else if (status === 'complete') {
+            processingProgressBar.style.width = '100%';
+            processingProgressPercent.textContent = '100%';
+            processingStatusText.innerHTML = `<span class="text-green-600 font-semibold">${progress?.message || 'Processing Complete!'}</span>`;
 
-                // Refresh data in the UI
-                populateCompiledDataTable();
-
-                unsubscribe(); // Stop listening after completion
+            populateCompiledDataTable(); // Refresh the main data hub table
+            unsubscribe();
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
                 setTimeout(() => {
-                    progressContainer.classList.remove('show');
-                    setTimeout(() => {
-                        progressContainer.classList.add('hidden');
-                        uploadView.classList.remove('hidden');
-                        processingView.classList.add('hidden');
-                    }, 300);
-                }, 3000);
-            }
-            // --- Handle final 'error' state ---
-            else if (status.state === 'error') {
-                processingProgressBar.classList.replace('bg-green-500', 'bg-red-500');
-                processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${status.message || 'Processing failed'}</span>`;
+                    progressContainer.classList.add('hidden');
+                    uploadView.classList.remove('hidden');
+                    processingView.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+        else if (status === 'error') {
+            processingProgressBar.classList.replace('bg-green-500', 'bg-red-500');
+            processingStatusText.innerHTML = `<span class="text-red-600 font-semibold">Error: ${progress?.message || 'Processing failed'}</span>`;
 
-                unsubscribe(); // Stop listening after error
+            unsubscribe();
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
                 setTimeout(() => {
-                    progressContainer.classList.remove('show');
-                    setTimeout(() => {
-                        progressContainer.classList.add('hidden');
-                        uploadView.classList.remove('hidden');
-                        processingView.classList.add('hidden');
-                    }, 300);
-                }, 5000);
-            }
+                    progressContainer.classList.add('hidden');
+                    uploadView.classList.remove('hidden');
+                    processingView.classList.add('hidden');
+                }, 300);
+            }, 5000);
         }
     });
 }
 
-function getPeriodFromSalesData(worksheet) {
-    const periodCell = worksheet['B5'];
-    if (!periodCell || !periodCell.v) {
-        throw new Error("Period data range not found in cell B5. Please ensure it is filled out correctly.");
-    }
-
-    const dateRangeString = periodCell.v.toString();
-    const startDateString = dateRangeString.split(' - ')[0];
-    if (!startDateString) {
-        throw new Error(`Invalid date range format in cell B5: "${dateRangeString}".`);
-    }
-
-    const parts = startDateString.split('-');
-    if (parts.length !== 3) {
-        throw new Error(`Invalid date format for the start date: "${startDateString}". Expected "DD-MM-YYYY".`);
-    }
-
-    const month = parts[1];
-    const year = parts[2];
-
-    if (!/^\d{4}$/.test(year) || !/^\d{2}$/.test(month)) {
-         throw new Error(`Could not correctly parse the year and month from "${startDateString}".`);
-    }
-
-    return `${year}-${month}`;
-}
-
-
-// Replace your old event listener with this entire block
-document.getElementById('upload-btn').addEventListener('click', async () => {
-    const fileInput = document.getElementById('file-input') as HTMLInputElement;
-    const uploadError = document.getElementById('upload-error');
-    const file = fileInput.files?.[0];
-
-    if (!file) {
-        uploadError.textContent = 'Please select a file to upload.';
-        uploadError.classList.remove('hidden');
-        return;
-    }
-    uploadError.classList.add('hidden');
-
-    const uploadButton = document.getElementById('upload-btn') as HTMLButtonElement;
-    uploadButton.disabled = true;
-
-    // --- All your progress bar UI elements ---
-    const progressContainer = document.getElementById('upload-progress-container');
-    const progressBar = document.getElementById('upload-progress-bar');
-    const progressPercent = document.getElementById('upload-progress-percent');
-    const statusText = document.getElementById('upload-status-text');
-    const filenameText = document.getElementById('upload-filename');
-    const cancelBtn = document.getElementById('cancel-upload-btn');
-
-    filenameText.textContent = file.name;
-    statusText.textContent = 'Analyzing file...';
-    progressBar.style.width = '0%';
-    progressBar.classList.remove('bg-green-500', 'bg-red-500');
-    progressBar.classList.add('bg-blue-600');
-    progressPercent.textContent = '0%';
-    progressContainer.classList.remove('hidden');
-    setTimeout(() => progressContainer.classList.add('show'), 10);
-
-    try {
-        // --- START: NEW LOGIC to get period from the file ---
-        const fileData = await file.arrayBuffer();
-        const workbook = XLSX.read(fileData);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const period = getPeriodFromSalesData(worksheet);
-        // --- END: NEW LOGIC ---
-
-        statusText.textContent = `Period ${period} found. Uploading...`;
-
-        // UPDATED: The storage path is now more organized
-        const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
-        const storageRef = ref(storage, storagePath);
-        const metadata = {
-            customMetadata: {
-                userId: currentUser.uid,
-                period: period
-            }
-        };
-        const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, metadata);
-
-        const cancelUpload = () => uploadTask.cancel();
-        cancelBtn.addEventListener('click', cancelUpload, { once: true });
-
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                const percent = Math.round(progress);
-                progressBar.style.width = `${percent}%`;
-                progressPercent.textContent = `${percent}%`;
-                statusText.textContent = `Uploading... (${(snapshot.bytesTransferred / 1024 / 1024).toFixed(2)} MB of ${(snapshot.totalBytes / 1024 / 1024).toFixed(2)} MB)`;
-            },
-            (error) => {
-                console.error("Upload failed:", error);
-                statusText.textContent = 'Upload Failed!';
-                progressBar.classList.add('bg-red-500');
-                uploadButton.disabled = false;
-                setTimeout(() => {
-                    progressContainer.classList.remove('show');
-                    setTimeout(() => progressContainer.classList.add('hidden'), 300);
-                }, 5000);
-                cancelBtn.removeEventListener('click', cancelUpload);
-            },
-            async () => {
-                statusText.textContent = 'Upload Complete! Waiting for server...';
-                progressBar.classList.add('bg-green-500');
-                progressPercent.textContent = '100%';
-                uploadButton.disabled = false;
-                cancelBtn.removeEventListener('click', cancelUpload);
-
-                // --- CORRECTED: Trigger processing using the period, not the file name ---
-                const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
-                await setDoc(docRef, {
-                    fileName: file.name,
-                    status: 'uploaded',
-                    period: period,
-                    storagePath: storagePath,
-                    uploadedAt: new Date(),
-                });
-
-                listenForProcessingStatus(period);
-            }
-        );
-
-    } catch (error) {
-        console.error("Upload initialization failed:", error);
-        statusText.textContent = `Error: ${error.message}`;
-        progressBar.classList.add('bg-red-500');
-        uploadButton.disabled = false;
-        setTimeout(() => {
-            progressContainer.classList.remove('show');
-            setTimeout(() => progressContainer.classList.add('hidden'), 300);
-        }, 5000);
-    }
-});
 
 // --- AI Analysis & Configuration ---
 /**
@@ -1893,7 +1755,8 @@ async function getGeminiAnalysis(prompt: string): Promise<{ summaryText: string,
   if (!apiKey) {
     throw new Error('Gemini API Key is not configured. Please contact your administrator to set up the API key.');
   }
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const model = 'gemini-2.5-flash-lite';
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
 
@@ -12410,6 +12273,8 @@ document.getElementById('pnl-target-modal-ok-btn').addEventListener('click', () 
  * Displays a modal comparing P&L targets to actual performance for a specific period,
  * with a conditional "Achievement" column.
  */
+// In main.ts, replace the existing showPnlTargetModal function with this one.
+
 async function showPnlTargetModal(targetData: any, reportId: string, config?: { alsoStore?: AlsoStoreFn }) {
     const modal = document.getElementById('pnl-target-modal');
     const titleEl = document.getElementById('pnl-target-modal-title');
@@ -14923,100 +14788,26 @@ function generateOrderCompositionChart(
     ));
 }
 
-
 /**
- * Generates a grouped bar chart comparing the composition of orders (Food Only, Drink Only, Mixed)
- * between two datasets (e.g., Period A vs Period B, or Branch A vs Branch B).
+ * Finds the earliest and latest month (YYYY-MM) in a Moka CSV file.
  */
-function generateOrderCompositionChart(
-    dataA: any[],
-    dataB: any[],
-    labelA: string,
-    labelB: string,
-    canvasId: string,
-    config?: { alsoStore?: AlsoStoreFn }
-) {
-    const aggregateComposition = (summaries: any[]) => {
-        return summaries.reduce((acc, s) => {
-            if (s.orderComposition) {
-                acc.foodOnly += s.orderComposition.foodOnly?.count || 0;
-                acc.drinkOnly += s.orderComposition.drinkOnly?.count || 0;
-                acc.mixed += s.orderComposition.mixed?.count || 0;
-            }
-            return acc;
-        }, { foodOnly: 0, drinkOnly: 0, mixed: 0 });
-    };
-
-    const compositionA = aggregateComposition(dataA);
-    const compositionB = aggregateComposition(dataB);
-
-    const labels = ['Food Only Checks', 'Drink Only Checks', 'Mixed Checks'];
-    const valuesA = [compositionA.foodOnly, compositionA.drinkOnly, compositionA.mixed];
-    const valuesB = [compositionB.foodOnly, compositionB.drinkOnly, compositionB.mixed];
-
-    // Store the aggregated data for AI analysis
-    maybeAlsoStore(
-        config?.alsoStore,
-        { labels, valuesA, valuesB },
-        (v) => ({
-            orderComposition: {
-                [labelA]: {
-                    [v.labels[0]]: formatNumberUtil(v.valuesA[0]),
-                    [v.labels[1]]: formatNumberUtil(v.valuesA[1]),
-                    [v.labels[2]]: formatNumberUtil(v.valuesA[2]),
-                },
-                [labelB]: {
-                    [v.labels[0]]: formatNumberUtil(v.valuesB[0]),
-                    [v.labels[1]]: formatNumberUtil(v.valuesB[1]),
-                    [v.labels[2]]: formatNumberUtil(v.valuesB[2]),
-                }
-            }
-        })
-    );
-
-    createChart(canvasId, 'bar', {
-        labels,
-        datasets: [
-            { label: labelA, data: valuesA, backgroundColor: '#9CA3AF' },
-            { label: labelB, data: valuesB, backgroundColor: '#4F46E5' }
-        ]
-    }, mergeChartOptions(
-        chartYTicks(shortenNumber),
-        chartTooltip({
-            label: (context) => {
-                const label = context.dataset.label || '';
-                const value = context.parsed.y;
-                return `${label}: ${formatNumber(value)} checks`;
-            }
-        })
-    ));
-}
-
-/**
- * Extracts the period (YYYY-MM) from a Moka sales data file.
- * It finds the earliest date in the 'Date' column to determine the correct period.
- */
-function getPeriodFromMokaData(worksheet): string {
+function getPeriodRangeFromMokaData(worksheet): { startPeriod: string, endPeriod: string } {
     const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-    if (json.length < 2) {
-        throw new Error("Moka file is empty or has no data rows.");
-    }
+    if (json.length < 2) throw new Error("Moka file is empty or has no data rows.");
 
     const headers = json[0] as string[];
     const dateIndex = headers.findIndex(h => h === 'Date');
-    if (dateIndex === -1) {
-        throw new Error("Column 'Date' not found in Moka file.");
-    }
+    if (dateIndex === -1) throw new Error("Column 'Date' not found in Moka file.");
 
     let earliestDate: Date | null = null;
+    let latestDate: Date | null = null;
 
-    // Start from the first data row (index 1)
     for (let i = 1; i < json.length; i++) {
         const row = json[i] as any[];
         const dateString = row[dateIndex];
 
         if (dateString && typeof dateString === 'string') {
-            const parts = dateString.split('/');
+            const parts = dateString.split('-');
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
                 const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
@@ -15024,93 +14815,148 @@ function getPeriodFromMokaData(worksheet): string {
 
                 if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
                     const currentDate = new Date(year, month, day);
-                    if (!earliestDate || currentDate < earliestDate) {
-                        earliestDate = currentDate;
-                    }
+                    if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate;
+                    if (!latestDate || currentDate > latestDate) latestDate = currentDate;
                 }
             }
         }
     }
 
-    if (!earliestDate) {
+    if (!earliestDate || !latestDate) {
         throw new Error("Could not find any valid dates in the 'Date' column.");
     }
 
-    const year = earliestDate.getFullYear();
-    const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0');
+    const startPeriod = `${earliestDate.getFullYear()}-${(earliestDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const endPeriod = `${latestDate.getFullYear()}-${(latestDate.getMonth() + 1).toString().padStart(2, '0')}`;
 
-    return `${year}-${month}`;
+    return { startPeriod, endPeriod };
 }
 
-// Add this event listener for the new Moka upload button
-document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
-    const fileInput = document.getElementById('file-input') as HTMLInputElement;
-    const file = fileInput.files?.[0];
+/**
+ * Finds the earliest and latest month (YYYY-MM) in an ESB Excel file.
+ */
+function getPeriodRangeFromEsbData(worksheet): { startPeriod: string, endPeriod: string } {
+    const jsonRows: any[] = xlsx.utils.sheet_to_json(worksheet, { range: 11, raw: false }); // raw: false to get formatted dates
+     if (jsonRows.length === 0) throw new Error("ESB file has no data rows.");
 
-    if (!file) {
-        alert('Please select a Moka file to upload.');
-        return;
+    let earliestDate: Date | null = null;
+    let latestDate: Date | null = null;
+
+    jsonRows.forEach(row => {
+        const dateString = row['Sales Date In'];
+        if (dateString) {
+            // The xlsx library with raw:false often returns dates in MM/DD/YY format
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const month = parseInt(parts[0], 10) - 1;
+                const day = parseInt(parts[1], 10);
+                let year = parseInt(parts[2], 10);
+                if (year < 100) year += 2000; // Handle YY format
+
+                const currentDate = new Date(year, month, day);
+                if (!isNaN(currentDate.getTime())) {
+                    if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate;
+                    if (!latestDate || currentDate > latestDate) latestDate = currentDate;
+                }
+            }
+        }
+    });
+
+    if (!earliestDate || !latestDate) {
+        throw new Error("Could not find any valid dates in the 'Sales Date In' column.");
     }
+
+    const startPeriod = `${earliestDate.getFullYear()}-${(earliestDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const endPeriod = `${latestDate.getFullYear()}-${(latestDate.getMonth() + 1).toString().padStart(2, '0')}`;
+
+    return { startPeriod, endPeriod };
+}
+
+declare const pako: any;
+
+/**
+ * A unified handler for uploading sales data files (both ESB and Moka).
+ * It now COMPRESSES the file before uploading for significantly faster transfers.
+ */
+// REPLACE your existing handleSalesDataUpload function with this one
+
+/**
+ * A unified handler for uploading sales data files (both ESB and Moka).
+ * It now creates the job document BEFORE uploading to prevent a race condition.
+ */
+const handleSalesDataUpload = async (file: File, format: 'ESB' | 'MOKA') => {
     if (!currentUser) return;
 
-    const uploadButton = document.getElementById('upload-moka-btn') as HTMLButtonElement;
-    uploadButton.disabled = true;
-
-    // Show your main progress UI here...
     const progressContainer = document.getElementById('upload-progress-container');
     const statusText = document.getElementById('upload-status-text');
-
     progressContainer.classList.remove('hidden');
     setTimeout(() => progressContainer.classList.add('show'), 10);
-    statusText.textContent = 'Analyzing Moka file...';
+    statusText.textContent = `Analyzing and compressing ${format} file...`;
 
     try {
-        const fileData = await file.arrayBuffer();
-        // CORRECTED: Uses XLSX (uppercase)
-        const workbook = XLSX.read(fileData);
+        const fileBuffer = await file.arrayBuffer();
+        const compressedData = pako.gzip(fileBuffer);
+
+        const workbook = XLSX.read(fileBuffer);
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const period = getPeriodFromMokaData(worksheet);
 
-        statusText.textContent = `Period ${period} found. Uploading...`;
+        const { startPeriod, endPeriod } = format === 'MOKA'
+            ? getPeriodRangeFromMokaData(worksheet)
+            : getPeriodRangeFromEsbData(worksheet);
 
-        const storagePath = `users/${currentUser.uid}/${period}/${file.name}`;
+        const periodRangeText = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`;
+        statusText.textContent = `Period(s) ${periodRangeText} found. Preparing upload...`;
+
+        const jobId = `job_${Date.now()}`;
+
+        // --- FIX START: Create the job document and start listening BEFORE the upload ---
+        const jobDocRef = doc(db, `processingJobs`, jobId);
+        await setDoc(jobDocRef, {
+            userId: currentUser.uid,
+            jobId: jobId,
+            fileName: file.name,
+            status: 'preparing', // A new initial status
+            createdAt: new Date(),
+            format: format,
+            periodRange: periodRangeText,
+        });
+
+        // Start listening for backend progress immediately
+        listenForProcessingStatus(jobId);
+        // --- FIX END ---
+
+        const storagePath = `user_uploads/${currentUser.uid}/${jobId}/${file.name}.gz`;
         const storageRef = ref(storage, storagePath);
 
         const metadata = {
+            contentEncoding: 'gzip', // Re-adding this as it's standard and the backend handles it
             customMetadata: {
                 userId: currentUser.uid,
-                period: period,
-                format: 'MOKA'
+                jobId: jobId,
+                format: format,
+                startPeriod: startPeriod,
+                endPeriod: endPeriod,
             }
         };
 
-        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+        const uploadTask = uploadBytesResumable(storageRef, compressedData, metadata);
 
         uploadTask.on('state_changed',
           (snapshot) => {
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              document.getElementById('upload-progress-bar').style.width = `${progress}%`;
-              document.getElementById('upload-progress-percent').textContent = `${Math.round(progress)}%`;
+              // This part of the UI is now handled by listenForProcessingStatus,
+              // but we can log progress if needed.
+              console.log(`Upload is ${progress}% done`);
            },
           (error) => {
-              console.error("Moka upload failed:", error);
-              statusText.textContent = 'Upload Failed!';
-              uploadButton.disabled = false;
+              console.error(`${format} upload failed:`, error);
+              // Update the job document to show the error
+              setDoc(jobDocRef, { status: 'error', 'progress.message': 'File upload failed.' }, { merge: true });
            },
           async () => {
-              const docRef = doc(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`, period);
-              await setDoc(docRef, {
-                  fileName: file.name,
-                  status: 'uploaded',
-                  period: period,
-                  storagePath: storagePath,
-                  uploadedAt: new Date(),
-                  format: 'MOKA'
-              });
-
-              listenForProcessingStatus(period);
-              uploadButton.disabled = false;
-              fileInput.value = '';
+              // On success, the backend is already triggered. We just need to update the status.
+              console.log('File upload complete. Backend is processing...');
+              await setDoc(jobDocRef, { status: 'uploaded' }, { merge: true });
           }
         );
 
@@ -15120,7 +14966,64 @@ document.getElementById('upload-moka-btn')?.addEventListener('click', async () =
             progressContainer.classList.remove('show');
             setTimeout(() => progressContainer.classList.add('hidden'), 300);
         }, 5000);
-        alert(`Error processing Moka file: ${error.message}`);
-        uploadButton.disabled = false;
+        alert(`Error processing ${format} file: ${error.message}`);
+    }
+};
+
+// REPLACE your old event listeners for 'upload-btn' and 'upload-moka-btn' with this new block
+
+// Listener for the ESB button
+document.getElementById('upload-btn')?.addEventListener('click', async () => {
+    // It reads from the shared 'file-input'
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (file) {
+        (document.getElementById('upload-btn') as HTMLButtonElement).disabled = true;
+        // It calls the handler with the 'ESB' format
+        await handleSalesDataUpload(file, 'ESB');
+        (document.getElementById('upload-btn') as HTMLButtonElement).disabled = false;
+        fileInput.value = '';
+    } else {
+        alert('Please select a file first.');
+    }
+});
+
+// Listener for the Moka button
+document.getElementById('upload-moka-btn')?.addEventListener('click', async () => {
+    // It also reads from the shared 'file-input'
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (file) {
+        (document.getElementById('upload-moka-btn') as HTMLButtonElement).disabled = true;
+        // It calls the same handler but with the 'MOKA' format
+        await handleSalesDataUpload(file, 'MOKA');
+        (document.getElementById('upload-moka-btn') as HTMLButtonElement).disabled = false;
+        fileInput.value = '';
+    } else {
+        alert('Please select a file first.');
+    }
+});
+
+// Add this event listener for the new refresh button
+document.getElementById('refresh-data-hub-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('refresh-data-hub-btn') as HTMLButtonElement;
+    const icon = btn.querySelector('svg');
+
+    if (!btn || !icon) return;
+
+    // Disable button and add spinning animation for feedback
+    btn.disabled = true;
+    icon.classList.add('animate-spin');
+
+    try {
+        // Call the existing function to re-fetch and re-populate the table
+        await populateCompiledDataTable();
+    } catch (error) {
+        console.error("Failed to refresh data hub:", error);
+        alert("There was an error refreshing the data. Please check the console.");
+    } finally {
+        // Re-enable button and remove animation when done
+        btn.disabled = false;
+        icon.classList.remove('animate-spin');
     }
 });

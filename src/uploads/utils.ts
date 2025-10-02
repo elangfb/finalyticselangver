@@ -39,82 +39,93 @@ export function getPeriodFromFile(worksheet: WorkSheet): string {
 }
 
 /**
- * Extracts the period (YYYY-MM) from a standard sales data file (from cell B5).
- * @param worksheet The XLSX worksheet object.
- * @returns The period string in "YYYY-MM" format.
+ * Finds the earliest and latest month (YYYY-MM) in an ESB Excel file.
  */
-export function getPeriodFromSalesData(worksheet: WorkSheet): string {
-  const periodCell = worksheet['B5'] // As per the original logic
-  if (!periodCell || !periodCell.v) {
-    throw new Error('Period data range not found in cell B5. Please ensure it is filled out correctly.')
+export function getPeriodRangeFromEsbData(worksheet: WorkSheet): { startPeriod: string, endPeriod: string } {
+  const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { range: 11, raw: false }) // raw: false to get formatted dates
+  if (jsonRows.length === 0) throw new Error('ESB file has no data rows.')
+
+  let earliestDate: Date | null = null
+  let latestDate: Date | null = null
+
+  jsonRows.forEach((row) => {
+    const dateString = row['Sales Date In']
+    if (dateString) {
+      // The xlsx library with raw:false often returns dates in MM/DD/YY format
+      const parts = dateString.split('/')
+      if (parts.length === 3) {
+        const month = parseInt(parts[0], 10) - 1
+        const day = parseInt(parts[1], 10)
+        let year = parseInt(parts[2], 10)
+        if (year < 100) year += 2000 // Handle YY format
+
+        const currentDate = new Date(year, month, day)
+        if (!isNaN(currentDate.getTime())) {
+          if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate
+          if (!latestDate || currentDate > latestDate) latestDate = currentDate
+        }
+      }
+    }
+  })
+
+  if (!earliestDate || !latestDate) {
+    throw new Error('Could not find any valid dates in the \'Sales Date In\' column.')
   }
 
-  const dateRangeString = periodCell.v.toString()
-  const startDateString = dateRangeString.split(' - ')[0]
-  if (!startDateString) {
-    throw new Error(`Invalid date range format in cell B5: "${dateRangeString}".`)
-  }
+  // TypeScript assertions after the null check
+  const earliest = earliestDate as Date
+  const latest = latestDate as Date
 
-  const parts = startDateString.split('-')
-  if (parts.length !== 3) {
-    throw new Error(`Invalid date format for the start date: "${startDateString}". Expected "DD-MM-YYYY".`)
-  }
+  const startPeriod = `${earliest.getFullYear()}-${(earliest.getMonth() + 1).toString().padStart(2, '0')}`
+  const endPeriod = `${latest.getFullYear()}-${(latest.getMonth() + 1).toString().padStart(2, '0')}`
 
-  const [_day, month, year] = parts
-
-  if (!/^\d{4}$/.test(year) || !/^\d{2}$/.test(month)) {
-    throw new Error(`Could not correctly parse the year and month from "${startDateString}".`)
-  }
-
-  return `${year}-${month}`
+  return { startPeriod, endPeriod }
 }
 
 /**
- * Extracts the period (YYYY-MM) from a Moka sales data file by finding the earliest date.
- * @param worksheet The XLSX worksheet object.
- * @returns The period string in "YYYY-MM" format.
+ * Finds the earliest and latest month (YYYY-MM) in a Moka CSV file.
  */
-export function getPeriodFromMokaData(worksheet: any): string {
+export function getPeriodRangeFromMokaData(worksheet: WorkSheet): { startPeriod: string, endPeriod: string } {
   const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-  if (json.length < 2) {
-    throw new Error('Moka file is empty or has no data rows.')
-  }
+  if (json.length < 2) throw new Error('Moka file is empty or has no data rows.')
 
   const headers = json[0] as string[]
   const dateIndex = headers.findIndex((h) => h === 'Date')
-  if (dateIndex === -1) {
-    throw new Error('Column \'Date\' not found in Moka file.')
-  }
+  if (dateIndex === -1) throw new Error('Column \'Date\' not found in Moka file.')
 
   let earliestDate: Date | null = null
+  let latestDate: Date | null = null
 
   for (let i = 1; i < json.length; i++) {
     const row = json[i] as any[]
     const dateString = row[dateIndex]
 
     if (dateString && typeof dateString === 'string') {
-      const parts = dateString.split('-') as [string, string, string]
-      if (parts.length === 3) {
+      const parts = dateString.split('-')
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
         const day = parseInt(parts[0], 10)
         const month = parseInt(parts[1], 10) - 1 // JS months are 0-indexed
         const year = parseInt(parts[2], 10)
 
         if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
           const currentDate = new Date(year, month, day)
-          if (!earliestDate || currentDate < earliestDate) {
-            earliestDate = currentDate
-          }
+          if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate
+          if (!latestDate || currentDate > latestDate) latestDate = currentDate
         }
       }
     }
   }
 
-  if (!earliestDate) {
+  if (!earliestDate || !latestDate) {
     throw new Error('Could not find any valid dates in the \'Date\' column.')
   }
 
-  const year = earliestDate.getFullYear()
-  const month = (earliestDate.getMonth() + 1).toString().padStart(2, '0')
+  // TypeScript assertions after the null check
+  const earliest = earliestDate as Date
+  const latest = latestDate as Date
 
-  return `${year}-${month}`
+  const startPeriod = `${earliest.getFullYear()}-${(earliest.getMonth() + 1).toString().padStart(2, '0')}`
+  const endPeriod = `${latest.getFullYear()}-${(latest.getMonth() + 1).toString().padStart(2, '0')}`
+
+  return { startPeriod, endPeriod }
 }
