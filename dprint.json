@@ -1,5 +1,5 @@
 {
-  "lineWidth": 120,
+  "lineWidth": 1000,
   "indentWidth": 2,
   "newLineKind": "lf",
   "json": {
@@ -11,7 +11,8 @@
     "indentWidth": 4
   },
   "markup": {
-    "indentWidth": 4
+    "indentWidth": 4,
+    "preferAttrsSingleLine": true
   },
   "excludes": [
     "**/node_modules",

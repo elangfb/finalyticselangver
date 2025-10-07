@@ -8,15 +8,7 @@
     </g>
     <circle cx="80" cy="24" r="8" fill="#FEF08A" />
     <defs>
-        <filter
-            id="filter0_f_101_2"
-            x="60"
-            y="4"
-            width="40"
-            height="40"
-            filterUnits="userSpaceOnUse"
-            color-interpolation-filters="sRGB"
-        >
+        <filter id="filter0_f_101_2" x="60" y="4" width="40" height="40" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
             <feFlood flood-opacity="0" result="BackgroundImageFix" />
             <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
             <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur_101_2" />
