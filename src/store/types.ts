@@ -28,6 +28,7 @@ export interface AnalysisState {
     generalProdukChannelSelectorInitialized: boolean
     generalInvestasiSelectorInitialized: boolean
     cabangInvestasiSelectorInitialized: boolean
+    premiumAnalysisInitialized: boolean
   }
 
   // UI Component References

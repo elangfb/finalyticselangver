@@ -8,6 +8,8 @@ import {
 import { currentView, setCurrentView, currentUserRole } from './state'
 import { loadUsersForAdmin } from '@/admin/user-management'
 import { setupConfigurationTab } from '@/config/gemini'
+import { premiumAnalysisView } from './ui'
+import { setupPremiumAnalysisView } from '@/analysis/premium/orchestrator'
 
 /**
  * Displays a specific application view while hiding all others.
@@ -44,6 +46,11 @@ export function showView(viewName: string): void {
 
   if (viewMap[viewName]) {
     viewMap[viewName]?.classList.remove('hidden')
+
+    // UPDATED: Call the new setup function for the premium view
+    if (viewName === 'premium-analysis') {
+      setupPremiumAnalysisView()
+    }
   } else if (viewName === 'usermanagement') {
     // Handle admin-only view with a role check.
     if (currentUserRole === 'admin') {

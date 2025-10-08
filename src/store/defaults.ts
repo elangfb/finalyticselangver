@@ -24,6 +24,7 @@ export function createDefaultAnalysisState(): AnalysisState {
       generalProdukChannelSelectorInitialized: false,
       generalInvestasiSelectorInitialized: false,
       cabangInvestasiSelectorInitialized: false,
+      premiumAnalysisInitialized: false,
     },
 
     // UI Component References
