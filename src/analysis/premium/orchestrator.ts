@@ -9,9 +9,9 @@ import { generateOmzetHeatmapFromSummaries } from '@/analysis/sections/general/s
 import { generateOmzetByOutletChart } from './charts'
 import { showView } from '@/core/views'
 
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/core/firebase';
-import { currentUser } from '@/core/state';
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/core/firebase'
+import { currentUser } from '@/core/state'
 
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
@@ -72,165 +72,275 @@ function generatePremiumAnalysis() {
     }
   }
 }
+
 /**
  * This function runs once to set up the view's selectors and listeners.
  */
 export function setupPremiumAnalysisView() {
   // Prevent re-initialization
   if ($store.getInitFlag('premiumAnalysisInitialized')) {
-    generatePremiumAnalysis();
-    return;
+    generatePremiumAnalysis()
+    return
   }
 
-  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement;
-  if (!branchSelect) return;
+  // --- Get all necessary DOM elements ---
+  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
+  const dashboardContent = document.querySelector('#premium-analysis-view main:not(#premium-manage-data-content)')
+  const manageDataContent = document.getElementById('premium-manage-data-content')
+  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
+  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
+  const manageDataBranchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement
+  const gridContainer = document.getElementById('premium-data-cards-grid')
+  const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement
+  const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement
+  const pageInfo = document.getElementById('premium-data-page-info')
 
-  const dashboardContent = document.querySelector('#premium-analysis-view main:not(#premium-manage-data-content)');
-  const manageDataContent = document.getElementById('premium-manage-data-content');
-  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn');
-  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn');
-  let hasLoadedManageData = false;
+  if (!branchSelect || !manageDataBranchSelect || !gridContainer || !prevBtn || !nextBtn || !pageInfo) return
 
+  // --- State variables for the Manage Data view ---
+  let hasLoadedManageData = false
+  let aggregatedData: Record<string, any> = {}
+  let currentPage = 1
+  const CARDS_PER_PAGE = 8 // 2 rows of 4 cards
+
+  // --- View Switching Logic ---
   const showDashboard = () => {
-    dashboardContent?.classList.remove('hidden');
-    manageDataContent?.classList.add('hidden');
-    dashboardBtn?.classList.add('bg-gray-100', 'font-semibold');
-    manageDataBtn?.classList.remove('bg-gray-100', 'font-semibold');
-  };
-  
+    dashboardContent?.classList.remove('hidden')
+    manageDataContent?.classList.add('hidden')
+    dashboardBtn?.classList.add('bg-gray-100', 'font-semibold')
+    manageDataBtn?.classList.remove('bg-gray-100', 'font-semibold')
+  }
+
   const showManageData = () => {
-    dashboardContent?.classList.add('hidden');
-    manageDataContent?.classList.remove('hidden');
-    dashboardBtn?.classList.remove('bg-gray-100', 'font-semibold');
-    manageDataBtn?.classList.add('bg-gray-100', 'font-semibold');
-    // Only fetch and render the data the first time the user clicks the tab
+    dashboardContent?.classList.add('hidden')
+    manageDataContent?.classList.remove('hidden')
+    dashboardBtn?.classList.remove('bg-gray-100', 'font-semibold')
+    manageDataBtn?.classList.add('bg-gray-100', 'font-semibold')
     if (!hasLoadedManageData) {
-        renderPremiumManageDataView();
-        hasLoadedManageData = true;
+      renderPremiumManageDataView()
+      hasLoadedManageData = true
     }
-  };
-  
-  dashboardBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    showDashboard();
-  });
+  }
 
-  manageDataBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    showManageData();
-  });
-  
-  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      showView('main-menu');
-  });
+  // --- Main Rendering and Filtering function for Manage Data ---
+  const renderFilteredCards = () => {
+    const selectedBranch = manageDataBranchSelect.value
+    const allKeys = Object.keys(aggregatedData).sort((a, b) => {
+      const [_branchA, periodA] = a.split('|')
+      const [_branchB, periodB] = b.split('|')
+      return periodB.localeCompare(periodA)
+    })
 
-  const allSalesData: SalesSummary[] = $store.getAllSalesData();
-  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
+    const filteredKeys = selectedBranch === 'ALL'
+      ? allKeys
+      : allKeys.filter((key) => aggregatedData[key].branch === selectedBranch)
 
-  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
+    const totalPages = Math.ceil(filteredKeys.length / CARDS_PER_PAGE)
+    currentPage = Math.max(1, Math.min(currentPage, totalPages)) // Ensure currentPage is valid
 
-  branchSelect.addEventListener('change', generatePremiumAnalysis);
+    const startIndex = (currentPage - 1) * CARDS_PER_PAGE
+    const pageKeys = filteredKeys.slice(startIndex, startIndex + CARDS_PER_PAGE)
 
-  $store.setInitFlag('premiumAnalysisInitialized', true);
-  generatePremiumAnalysis();
+    if (pageKeys.length === 0) {
+      gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">No data found for the selected branch.</p>'
+    } else {
+      gridContainer.innerHTML = pageKeys.map((key) => {
+        const item = aggregatedData[key]
+        const [year, month] = item.period.split('-')
+        const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        const progress = (item.count / 4) * 100
+        const status = progress === 100 ? 'Complete' : 'In Progress'
+        const statusColor = progress === 100 ? 'green' : 'yellow'
+        const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`
+        const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`
+        const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target']
+
+        return `
+                <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                    <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-800 px-2 py-0.5 rounded-full">${status}</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div>
+                    <h4 class="font-semibold text-gray-800">${item.branch}</h4>
+                    <p class="text-sm text-gray-500 mb-3">${formattedPeriod}</p>
+                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-${statusColor}-500 h-1.5 rounded-full" style="width: ${progress}%"></div></div><span>${item.count}/4</span></div>
+                    <div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button><div class="pl-4 mt-2 space-y-2 text-gray-500">${dataTypes.map((type) => `<div class="flex items-center gap-2">${item.types[type] ? checkmarkIcon : circleIcon} ${type}</div>`).join('')}</div></div>
+                </div>`
+      }).join('')
+    }
+
+    // Update pagination UI
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`
+    prevBtn.disabled = currentPage === 1
+    nextBtn.disabled = currentPage >= totalPages
+  }
+
+  // --- Data Fetching function for Manage Data ---
+  async function renderPremiumManageDataView() {
+    if (!currentUser) return
+    gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>'
+
+    try {
+      const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
+        getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
+        getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
+        getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
+        getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
+      ])
+
+      const processSnap = (snap: any, type: string) => { /* ... same as before ... */ } // This logic is now inside the main function
+      // (The content of this function is moved inside the try block below for simplicity)
+
+      // Re-aggregate data
+      aggregatedData = {} // Clear previous data
+      const processAgg = (snap: any, type: string) => snap.forEach((doc: any) => {
+        const data = doc.data(); const period = data.period || doc.id; if (!period || !/^\d{4}-\d{2}$/.test(period)) return; const branch = data.branchName || 'Company-Wide'; const key = `${branch}|${period}`; if (!aggregatedData[key]) { aggregatedData[key] = { branch: branch, period: period, count: 0, types: {} } } aggregatedData[key].types[type] = true; aggregatedData[key].count++
+      })
+      processAgg(salesSnap, 'Sales Data'); processAgg(salesTargetSnap, 'Sales Target'); processAgg(pnlSnap, 'P&L Data'); processAgg(pnlTargetSnap, 'P&L Target')
+
+      const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort()
+      manageDataBranchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+      renderFilteredCards() // Initial render
+    } catch (error) {
+      console.error('Error populating premium manage data view:', error)
+      gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>'
+    }
+  }
+
+  // --- Attach all event listeners ---
+  dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
+  manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData() })
+  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu') })
+
+  // Listeners for Manage Data view
+  manageDataBranchSelect.addEventListener('change', () => {
+    currentPage = 1 // Reset to page 1 on filter change
+    renderFilteredCards()
+  })
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--
+      renderFilteredCards()
+    }
+  })
+  nextBtn.addEventListener('click', () => {
+    currentPage++ // The render function will cap this if it's too high
+    renderFilteredCards()
+  })
+
+  // --- Initial Setup for Dashboard View ---
+  const allSalesData: SalesSummary[] = $store.getAllSalesData()
+  const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + dashboardBranches.map((b) => `<option value="${b}">${b}</option>`).join('')
+  branchSelect.addEventListener('change', generatePremiumAnalysis)
+
+  $store.setInitFlag('premiumAnalysisInitialized', true)
+  generatePremiumAnalysis()
 }
 
 /**
  * Fetches all user data and renders the "Manage Data" card grid.
  */
 async function renderPremiumManageDataView() {
-    if (!currentUser) return;
-    const gridContainer = document.getElementById('premium-data-cards-grid');
-    if (!gridContainer) return;
+  if (!currentUser) return
+  const gridContainer = document.getElementById('premium-data-cards-grid')
+  const branchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement
+  if (!gridContainer || !branchSelect) return
 
-    gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>';
+  gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>'
 
-    try {
-        const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
-            getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
-            getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
-            getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
-            getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
-        ]);
+  try {
+    // --- Data Fetching (runs only once) ---
+    const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
+      getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
+      getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
+      getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
+      getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
+    ])
 
-        const aggregatedData: Record<string, any> = {};
-
-        const processSnap = (snap: any, type: string) => {
-            snap.forEach((doc: any) => {
-                const data = doc.data();
-                const period = data.period || doc.id;
-                if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
-                const branch = data.branchName || 'Company-Wide';
-                const key = `${branch}|${period}`;
-                if (!aggregatedData[key]) {
-                    aggregatedData[key] = { branch: branch, period: period, count: 0, types: {} };
-                }
-                aggregatedData[key].types[type] = true;
-                aggregatedData[key].count++;
-            });
-        };
-
-        processSnap(salesSnap, 'Sales Data');
-        processSnap(salesTargetSnap, 'Sales Target');
-        processSnap(pnlSnap, 'P&L Data');
-        processSnap(pnlTargetSnap, 'P&L Target');
-
-        const sortedKeys = Object.keys(aggregatedData).sort((a, b) => {
-            const [_branchA, periodA] = a.split('|') as [string, string];
-            const [_branchB, periodB] = b.split('|') as [string, string];
-            return periodB.localeCompare(periodA);
-        });
-        
-        if (sortedKeys.length === 0) {
-            gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">No data found. Upload a file to get started.</p>';
-            return;
+    const aggregatedData: Record<string, any> = {}
+    const processSnap = (snap: any, type: string) => {
+      snap.forEach((doc: any) => {
+        const data = doc.data()
+        const period = data.period || doc.id
+        if (!period || !/^\d{4}-\d{2}$/.test(period)) return
+        const branch = data.branchName || 'Company-Wide'
+        const key = `${branch}|${period}`
+        if (!aggregatedData[key]) {
+          aggregatedData[key] = { branch: branch, period: period, count: 0, types: {} }
         }
-
-        gridContainer.innerHTML = sortedKeys.map(key => {
-            const item = aggregatedData[key];
-            const [year, month] = item.period.split('-');
-            const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-            const progress = (item.count / 4) * 100;
-            const status = progress === 100 ? 'Complete' : 'In Progress';
-            const statusColor = progress === 100 ? 'green' : 'yellow';
-
-            const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
-            const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`;
-
-            const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target'];
-
-            return `
-            <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-800 px-2 py-0.5 rounded-full">${status}</span>
-                    <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
-                    </button>
-                </div>
-                <h4 class="font-semibold text-gray-800">${item.branch}</h4>
-                <p class="text-sm text-gray-500 mb-3">${formattedPeriod}</p>
-                <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                    <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-${statusColor}-500 h-1.5 rounded-full" style="width: ${progress}%"></div></div>
-                    <span>${item.count}/4</span>
-                </div>
-                <div class="text-sm">
-                    <button class="w-full text-left flex justify-between items-center text-gray-600">
-                        <span>See details</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div class="pl-4 mt-2 space-y-2 text-gray-500">
-                        ${dataTypes.map(type => `
-                            <div class="flex items-center gap-2">${item.types[type] ? checkmarkIcon : circleIcon} ${type}</div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            `;
-        }).join('');
-
-    } catch (error) {
-        console.error("Error populating premium manage data view:", error);
-        gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>';
+        aggregatedData[key].types[type] = true
+        aggregatedData[key].count++
+      })
     }
+
+    processSnap(salesSnap, 'Sales Data')
+    processSnap(salesTargetSnap, 'Sales Target')
+    processSnap(pnlSnap, 'P&L Data')
+    processSnap(pnlTargetSnap, 'P&L Target')
+
+    // --- Selector Population ---
+    const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort()
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+    // --- Rendering Logic ---
+    const renderCards = () => {
+      const selectedBranch = branchSelect.value
+      const allKeys = Object.keys(aggregatedData).sort((a, b) => {
+        const [_branchA, periodA] = a.split('|') as [string, string]
+        const [_branchB, periodB] = b.split('|') as [string, string]
+        return periodB.localeCompare(periodA)
+      })
+
+      const filteredKeys = selectedBranch === 'ALL'
+        ? allKeys
+        : allKeys.filter((key) => aggregatedData[key].branch === selectedBranch)
+
+      if (filteredKeys.length === 0) {
+        gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">No data found for the selected branch.</p>'
+        return
+      }
+
+      gridContainer.innerHTML = filteredKeys.map((key) => {
+        const item = aggregatedData[key]
+        const [year, month] = item.period.split('-')
+        const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        const progress = (item.count / 4) * 100
+        const status = progress === 100 ? 'Complete' : 'In Progress'
+        const statusColor = progress === 100 ? 'green' : 'yellow'
+
+        const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`
+        const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`
+        const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target']
+
+        return `
+                <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-800 px-2 py-0.5 rounded-full">${status}</span>
+                        <button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
+                    </div>
+                    <h4 class="font-semibold text-gray-800">${item.branch}</h4>
+                    <p class="text-sm text-gray-500 mb-3">${formattedPeriod}</p>
+                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                        <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-${statusColor}-500 h-1.5 rounded-full" style="width: ${progress}%"></div></div>
+                        <span>${item.count}/4</span>
+                    </div>
+                    <div class="text-sm">
+                        <button class="w-full text-left flex justify-between items-center text-gray-600">
+                            <span>See details</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div class="pl-4 mt-2 space-y-2 text-gray-500">
+                            ${dataTypes.map((type) => `<div class="flex items-center gap-2">${item.types[type] ? checkmarkIcon : circleIcon} ${type}</div>`).join('')}
+                        </div>
+                    </div>
+                </div>`
+      }).join('')
+    }
+
+    // --- Event Listener and Initial Render ---
+    branchSelect.addEventListener('change', renderCards)
+    renderCards() // Initial render for "All Branches"
+  } catch (error) {
+    console.error('Error populating premium manage data view:', error)
+    gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>'
+  }
 }
