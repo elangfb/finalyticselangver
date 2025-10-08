@@ -446,9 +446,7 @@
             <label for="premium-analysis-branch-select" class="sr-only">Select Branch</label>
             <select id="premium-analysis-branch-select" class="w-48 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
         </div>
-        <input type="text" value="1-30 July 2025" class="w-36 text-sm border rounded-lg px-3 py-2 focus:outline-none">
-        <input type="text" value="1-24 August 2025" class="w-36 text-sm border rounded-lg px-3 py-2 focus:outline-none">
-        <button class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm">Analyze all charts</button>
+            <button class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm">Analyze all charts</button>
         <button class="border bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 text-sm">Export</button>
     </div>
 </div>
@@ -472,23 +470,31 @@
 </div>
 
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="bg-white p-6 rounded-lg shadow-md">
-                                <h4 class="font-semibold text-gray-700">Tren TC & APC Harian</h4>
-                                <div class="h-64 mt-4 bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">Chart Placeholder</span></div>
-                            </div>
-                            <div class="bg-white p-6 rounded-lg shadow-md">
-                                <h4 class="font-semibold text-gray-700">Omzet</h4>
-                                <div class="h-64 mt-4 bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">Chart Placeholder</span></div>
-                            </div>
-                            <div class="bg-white p-6 rounded-lg shadow-md">
-                                <h4 class="font-semibold text-gray-700">Heatmap</h4>
-                                <div class="h-48 mt-4 bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">Heatmap Placeholder</span></div>
-                            </div>
-                            <div class="bg-white p-6 rounded-lg shadow-md">
-                                <h4 class="font-semibold text-gray-700">Omzet by Outlet</h4>
-                                <div class="h-48 mt-4 bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">Chart Placeholder</span></div>
-                            </div>
-                        </div>
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h4 class="font-semibold text-gray-700">Tren TC & APC Harian</h4>
+        <div class="chart-container mt-4">
+            <canvas id="premium-tc-apc-chart"></canvas>
+        </div>
+    </div>
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h4 class="font-semibold text-gray-700">Omzet</h4>
+        <div class="chart-container mt-4">
+            <canvas id="premium-omzet-chart"></canvas>
+        </div>
+    </div>
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h4 class="font-semibold text-gray-700">Heatmap</h4>
+        <div id="premium-heatmap-container" class="h-48 mt-4 overflow-x-auto">
+             <div class="h-full bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">Heatmap Placeholder</span></div>
+        </div>
+    </div>
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h4 class="font-semibold text-gray-700">Omzet by Outlet</h4>
+        <div class="chart-container h-48 mt-4">
+            <canvas id="premium-omzet-by-outlet-chart"></canvas>
+        </div>
+    </div>
+</div>
                     </main>
                 </div>
             </div>
