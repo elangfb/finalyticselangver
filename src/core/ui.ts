@@ -12,6 +12,8 @@ export const salesDashboardView = document.getElementById('sales-dashboard-view'
 export const pnlHistoryView = document.getElementById('pnl-history-view')
 export const pnlComparisonView = document.getElementById('pnl-comparison-view')
 
+export const premiumAnalysisView = document.getElementById('premium-analysis-view')
+
 export const authError = document.getElementById('auth-error')
 export const signupError = document.getElementById('signup-error')
 export const uploadError = document.getElementById('upload-error')

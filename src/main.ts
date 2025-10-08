@@ -95,6 +95,8 @@ function initializeApp(): void {
   document.getElementById('goto-upload-data-btn')?.addEventListener('click', () => showView('sales-dashboard'))
   document.getElementById('goto-view-data-btn')?.addEventListener('click', viewCompiledAnalysis)
   document.getElementById('back-to-main-menu-from-data-hub-btn')?.addEventListener('click', () => showView('main-menu'))
+
+  document.getElementById('goto-premium-analysis-btn')?.addEventListener('click', () => showView('premium-analysis'))
 }
 
 // --- Run the Application ---

@@ -3,7 +3,7 @@
 import * as $store from '@/store'
 import {
   authView, analysisView, userManagementView, konfigurasiView,
-  plAnalysisView, mainMenuview, salesDashboardView, pnlHistoryView, pnlComparisonView,
+  plAnalysisView, mainMenuview, salesDashboardView, pnlHistoryView, pnlComparisonView, premiumAnalysisView,
 } from './ui'
 import { currentView, setCurrentView, currentUserRole } from './state'
 import { loadUsersForAdmin } from '@/admin/user-management'
@@ -26,7 +26,7 @@ export function showView(viewName: string): void {
   const allViews = [
     authView, mainMenuview, salesDashboardView, analysisView,
     userManagementView, konfigurasiView, plAnalysisView,
-    pnlHistoryView, pnlComparisonView,
+    pnlHistoryView, pnlComparisonView, premiumAnalysisView,
   ]
   allViews.forEach((v) => v?.classList.add('hidden'))
 
@@ -39,6 +39,7 @@ export function showView(viewName: string): void {
     'analysis': analysisView,
     'pnl-history': pnlHistoryView,
     'pnl-comparison': pnlComparisonView,
+    'premium-analysis': premiumAnalysisView,
   }
 
   if (viewMap[viewName]) {
