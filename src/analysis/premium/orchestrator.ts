@@ -7,6 +7,7 @@ import type { SalesSummary } from '@/analysis/sections/general/sales/types'
 import { generateTcApcHarianChartFromSummaries, generateOmzetHarianChartFromSummaries } from '@/analysis/sections/general/sales/charts'
 import { generateOmzetHeatmapFromSummaries } from '@/analysis/sections/general/sales/heatmaps'
 import { generateOmzetByOutletChart } from './charts'
+import { showView } from '@/core/views'
 
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
@@ -81,6 +82,43 @@ export function setupPremiumAnalysisView() {
 
   const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
   if (!branchSelect) return
+
+  // --- CORRECTED: View Switching Logic ---
+  // This selector is now fixed to correctly find the dashboard's main content area.
+  const dashboardContent = document.querySelector('#premium-analysis-view main:not(#premium-manage-data-content)');
+  const manageDataContent = document.getElementById('premium-manage-data-content');
+  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn');
+  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn');
+
+  const showDashboard = () => {
+    dashboardContent?.classList.remove('hidden');
+    manageDataContent?.classList.add('hidden');
+    dashboardBtn?.classList.add('bg-gray-100', 'font-semibold');
+    manageDataBtn?.classList.remove('bg-gray-100', 'font-semibold');
+  };
+  
+  const showManageData = () => {
+    dashboardContent?.classList.add('hidden');
+    manageDataContent?.classList.remove('hidden');
+    dashboardBtn?.classList.remove('bg-gray-100', 'font-semibold');
+    manageDataBtn?.classList.add('bg-gray-100', 'font-semibold');
+  };
+  
+  dashboardBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showDashboard();
+  });
+
+  manageDataBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showManageData();
+  });
+  
+  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('main-menu');
+  });
+  // --- END CORRECTION ---
 
   // Populate the branch selector
   const allSalesData: SalesSummary[] = $store.getAllSalesData()

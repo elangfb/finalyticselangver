@@ -414,8 +414,8 @@
                         <nav>
                             <h3 class="text-xs uppercase text-gray-500 font-semibold mb-2">Menu</h3>
                             <ul>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-700 bg-gray-100 font-semibold"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a2 2 0 002 2h10a2 2 0 002-2V10M9 20v-6a2 2 0 012-2h2a2 2 0 012 2v6"></path></svg>Dashboard</a></li>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 7v10m16-10v10M4 17h16M4 7a2 2 0 012-2h12a2 2 0 012 2m-4 10v-4m-4 4v-4m-4 4v-4"></path></svg>Manage Data</a></li>
+                                <li><a href="#" id="premium-goto-dashboard-btn" class="flex items-center p-2 rounded-lg text-gray-700 bg-gray-100 font-semibold"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a2 2 0 002 2h10a2 2 0 002-2V10M9 20v-6a2 2 0 012-2h2a2 2 0 012 2v6"></path></svg>Dashboard</a></li>
+                                <li><a href="#" id="premium-goto-manage-data-btn" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 7v10m16-10v10M4 17h16M4 7a2 2 0 012-2h12a2 2 0 012 2m-4 10v-4m-4 4v-4m-4 4v-4"></path></svg>Manage Data</a></li>
                                 <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>User Management</a></li>
                             </ul>
                             <h3 class="text-xs uppercase text-gray-500 font-semibold mt-6 mb-2">Analysis Data</h3>
@@ -435,12 +435,12 @@
                     <main class="flex-1 space-y-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
     <div>
-        <div class="flex items-center gap-2">
-            <button class="text-gray-500 hover:text-gray-800">&larr;</button>
-            <h2 class="text-2xl font-bold text-gray-800">Dashboard</h2>
-        </div>
-        <p class="text-sm text-gray-500 mt-1">Last Update, 26 August 2025</p>
+    <div class="flex items-center gap-2">
+        <button id="premium-back-to-main-menu-btn" class="text-gray-500 hover:text-gray-800">&larr;</button>
+        <h2 class="text-2xl font-bold text-gray-800">Dashboard</h2>
     </div>
+    <p class="text-sm text-gray-500 mt-1">Last Update, 26 August 2025</p>
+</div>
     <div class="flex items-center gap-4 mt-4 sm:mt-0">
         <div>
             <label for="premium-analysis-branch-select" class="sr-only">Select Branch</label>
@@ -496,6 +496,79 @@
     </div>
 </div>
                     </main>
+                    <main id="premium-manage-data-content" class="flex-1 space-y-6 hidden">
+    <!-- Header Section -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <div class="flex items-center gap-2">
+                <button class="text-gray-500 hover:text-gray-800">&larr;</button>
+                <h2 class="text-2xl font-bold text-gray-800">Manage Data</h2>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Compiled Data</p>
+        </div>
+        <div class="flex items-center gap-4 mt-4 sm:mt-0">
+            <button class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Upload
+            </button>
+            <div class="relative">
+                <input type="text" placeholder="Search..." class="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Placeholder Card - Repeat this block as needed -->
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">In Progress</span>
+                <button class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                </button>
+            </div>
+            <h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4>
+            <p class="text-sm text-gray-500 mb-3">Aug 2025</p>
+            <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-yellow-500 h-1.5 rounded-full" style="width: 25%"></div></div>
+                <span>1/4</span>
+            </div>
+            <div class="text-sm">
+                <button class="w-full text-left flex justify-between items-center text-gray-600">
+                    <span>See details</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div class="pl-4 mt-2 space-y-2 text-gray-500">
+                    <div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> Sales Data</div>
+                    <div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg> Sales Target</div>
+                    <div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg> P&L Data</div>
+                    <div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg> P&L Target</div>
+                </div>
+            </div>
+        </div>
+        <!-- End Placeholder Card -->
+        <!-- Repeat 6 more times for the layout -->
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+            <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">In Progress</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">Jul 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+             <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Complete</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">Jun 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+             <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Complete</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">May 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+             <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Complete</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">Apr 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+             <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Complete</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">Mar 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+             <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Complete</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div><h4 class="font-semibold text-gray-800">Bakso Tujuh Pemuda</h4><p class="text-sm text-gray-500 mb-3">Feb 2025</p><div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 100%"></div></div><span>4/4</span></div><div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div>
+        </div>
+    </div>
+</main>
                 </div>
             </div>
             <div id="sales-dashboard-view" class="hidden">
