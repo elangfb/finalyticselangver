@@ -24,7 +24,7 @@ function generatePremiumAnalysis() {
     : allSalesData.filter((s) => s.branches.includes(selectedBranch))
 
   // 2. Determine date ranges (last month vs month before)
-  const now = new Date('2025-10-08T11:26:21.000Z') // Use consistent time
+  const now = new Date() // Use consistent time
   const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
   const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
 
