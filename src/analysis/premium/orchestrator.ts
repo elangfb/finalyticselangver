@@ -53,6 +53,9 @@ import {
 } from '@/analysis/sections/time-comparison/finance/generators';
 import { generatePremiumSubCategoryComparisonChart } from './finance-charts';
 
+import { populateTimeComparisonKPIs, generatePremiumTimeComparisonChart } from './sales-charts';
+
+
 import { deepmerge } from 'deepmerge-ts';
 import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string';
 
@@ -421,6 +424,8 @@ export function setupPremiumAnalysisView() {
                 await setupPremiumProductChannel();
             } else if (targetId === 'premium-placeholder-waktu-keuangan') {
                 await setupPremiumTimeFinance();
+            } else if (targetId === 'premium-placeholder-waktu-penjualan') {
+                await setupPremiumTimeSales();
             }
     }
   })
@@ -1110,5 +1115,161 @@ async function setupPremiumTimeFinance() {
 
     setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
     $store.setInitFlag('premiumTimeFinanceInitialized', true);
+    await updatePeriodSelectors();
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumTimeSales() {
+    if (!currentUser) return;
+    
+    const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement;
+    const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement;
+    const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement;
+    const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement;
+
+    const selectedBranch = branchSelect.value;
+    const selectedRange = rangeSelect.value;
+    const periodA = periodASelect.value;
+    const periodB = periodBSelect.value;
+
+    if (!selectedBranch || !selectedRange || !periodA || !periodB) return;
+
+    // --- Filter Data for Both Periods ---
+    const allSalesData = $store.getAllSalesData();
+    let branchData = allSalesData;
+    if (selectedBranch !== 'ALL') {
+        branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    }
+    
+    const parsePeriod = (period: string, range: string) => {
+        const [year, part, dayPart] = period.split('-');
+        let startDate: Date, endDate: Date;
+        // ... (insert the full date parsing logic from previous steps)
+        switch (range) {
+            case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break;
+            case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break;
+            case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break;
+            case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break;
+            default: startDate = new Date(); endDate = new Date();
+        }
+        return { startDate, endDate };
+    };
+    
+    const rangeA = parsePeriod(periodA, selectedRange);
+    const rangeB = parsePeriod(periodB, selectedRange);
+    
+    const periodAData = branchData.filter(s => s.date >= rangeA.startDate && s.date <= rangeA.endDate);
+    const periodBData = branchData.filter(s => s.date >= rangeB.startDate && s.date <= rangeB.endDate);
+
+    // Update UI
+    populateTimeComparisonKPIs(periodAData, periodBData);
+    generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-omzet-chart', 'totalOmzet');
+    generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-tc-apc-chart', 'apc'); // Simplified to just show APC for comparison
+    generateOmzetHeatmapFromSummaries(periodBData, 'premium-time-sales-heatmap-container'); // Show heatmap for the more recent period (B)
+}
+
+async function setupPremiumTimeSales() {
+    const pageId = 'premium-placeholder-waktu-penjualan';
+    if ($store.getInitFlag('premiumTimeSalesInitialized')) {
+        await generatePremiumTimeSales();
+        return;
+    }
+    if (!currentUser) return;
+
+    const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement;
+    const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement;
+    const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement;
+    const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement;
+
+    const allSalesData = $store.getAllSalesData();
+    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    const updatePeriodSelectors = async () => {
+        const range = rangeSelect.value;
+        const selectedBranch = branchSelect.value;
+        let branchData = allSalesData;
+        if (selectedBranch !== 'ALL') {
+            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+        }
+        const allDates = branchData.map(s => s.date);
+        
+        if (allDates.length === 0) {
+            periodASelect.innerHTML = '<option>No data available</option>';
+            periodBSelect.innerHTML = '<option>No data available</option>';
+            return;
+        }
+
+        const periods = new Set<string>();
+        
+        // --- START: This is the corrected logic ---
+        if (range === 'yearly') {
+            allDates.forEach(d => periods.add(String(d.getFullYear())));
+        } else if (range === 'monthly') {
+            allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`));
+        } else if (range === 'quarterly') {
+            allDates.forEach(d => {
+                const quarter = Math.floor(d.getMonth() / 3) + 1;
+                periods.add(`${d.getFullYear()}-Q${quarter}`);
+            });
+        } else if (range === 'weekly') {
+            const getMonday = (d: Date) => {
+                const date = new Date(d);
+                const day = date.getDay();
+                const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+                return new Date(date.setDate(diff));
+            };
+            allDates.forEach(d => {
+                const monday = getMonday(d);
+                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+                periods.add(weekKey);
+            });
+        }
+        // --- END: This is the corrected logic ---
+
+        const sortedPeriods = Array.from(periods).sort((a,b) => b.localeCompare(a));
+        if (sortedPeriods.length < 2) {
+            periodASelect.innerHTML = '<option>Not enough data</option>';
+            periodBSelect.innerHTML = '<option>Not enough data</option>';
+            return;
+        }
+        
+        const optionsHtml = sortedPeriods.map(p => {
+            if (range === 'yearly') {
+                return `<option value="${p}">${p}</option>`;
+            }
+            if (range === 'monthly') {
+                const [year, month] = p.split('-');
+                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+                return `<option value="${p}">${label}</option>`;
+            }
+            if (range === 'quarterly') {
+                return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
+            }
+            if (range === 'weekly') {
+                const [year, month, day] = p.split('-');
+                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                return `<option value="${p}">${label}</option>`;
+            }
+            return '';
+        }).join('');
+
+        periodASelect.innerHTML = optionsHtml;
+        periodBSelect.innerHTML = optionsHtml;
+        periodASelect.value = sortedPeriods[1] || sortedPeriods[0];
+        periodBSelect.value = sortedPeriods[0];
+        
+        await generatePremiumTimeSales();
+    };
+
+    branchSelect.addEventListener('change', updatePeriodSelectors);
+    rangeSelect.addEventListener('change', updatePeriodSelectors);
+    periodASelect.addEventListener('change', generatePremiumTimeSales);
+    periodBSelect.addEventListener('change', generatePremiumTimeSales);
+
+    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
+    $store.setInitFlag('premiumTimeSalesInitialized', true);
     await updatePeriodSelectors();
 }
