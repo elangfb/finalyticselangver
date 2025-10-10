@@ -104,7 +104,10 @@ function setupTimeMenuTrendChart(periodAData: any[], periodBData: any[], config?
 /**
  * Generates a grouped bar chart comparing menu category quantities between two periods.
  */
-function generateCategoryComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+
+
+export function generateCategoryComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+
   const allCategories = [...new Set([...periodAData, ...periodBData].flatMap((s) => Object.keys(s.menuCategories || {})))]
   const getData = (data: any[]) => allCategories.map((cat) => data.reduce((sum, s) => sum + (s.menuCategories?.[cat]?.quantity || 0), 0))
   const periodAValues = getData(periodAData)
@@ -137,7 +140,7 @@ function generateCategoryComparisonChart(periodAData: any[], periodBData: any[],
 /**
  * Generates a grouped bar chart comparing channel revenue between two periods.
  */
-function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+export function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const allChannels = [...new Set([...periodAData, ...periodBData].flatMap((s) => Object.keys(s.revenueByVisitPurpose || {})))]
   const getData = (data: any[]) => allChannels.map((chan) => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0))
   const periodAValues = getData(periodAData)

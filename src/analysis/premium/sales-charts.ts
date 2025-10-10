@@ -291,3 +291,77 @@ export function generatePremiumTimeComparisonChart(
 }
 
 }
+
+// Add this new function to src/analysis/premium/sales-charts.ts
+export function generatePremiumMenuTrendComparisonChart(
+    periodAData: SalesSummary[],
+    periodBData: SalesSummary[],
+    range: string,
+    canvasId: string,
+    selectedMenus: string[]
+) {
+    if (selectedMenus.length === 0) {
+        createChart(canvasId, 'line', { labels: [], datasets: [] });
+        return;
+    }
+
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+    let labels: string[] = [];
+    const datasets: any[] = [];
+
+    const aggregateDataForMenu = (summaries: SalesSummary[], menuName: string) => {
+        const map = new Map<string, number>();
+        summaries.forEach(s => {
+            let key = '';
+            const d = s.date;
+            if (range === 'yearly') key = String(d.getMonth());
+            else if (range === 'monthly' || range === 'quarterly') key = String(d.getDate());
+            else if (range === 'weekly') key = String(d.getDay());
+
+            if (key) {
+                let quantity = 0;
+                if (s.menuItemQuantities) {
+                    for (const category in s.menuItemQuantities) {
+                        if (s.menuItemQuantities[category][menuName]) {
+                            quantity += s.menuItemQuantities[category][menuName];
+                        }
+                    }
+                }
+                if (quantity > 0) {
+                    map.set(key, (map.get(key) || 0) + quantity);
+                }
+            }
+        });
+        return map;
+    };
+
+    if (range === 'yearly') {
+        labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    } else if (range === 'weekly') {
+        labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    } else { // monthly or quarterly (daily axis)
+        const allDays = new Set<string>();
+        periodAData.forEach(s => allDays.add(String(s.date.getDate())));
+        periodBData.forEach(s => allDays.add(String(s.date.getDate())));
+        const sortedDays = Array.from(allDays).sort((a, b) => parseInt(a) - parseInt(b));
+        const maxDay = parseInt(sortedDays[sortedDays.length - 1] || '0');
+        labels = Array.from({ length: maxDay }, (_, i) => String(i + 1));
+    }
+
+    selectedMenus.forEach((menuName, index) => {
+        const color = colors[index % colors.length];
+        const mapA = aggregateDataForMenu(periodAData, menuName);
+        const mapB = aggregateDataForMenu(periodBData, menuName);
+
+        const dataA = labels.map((_, i) => mapA.get(String(range === 'weekly' || range === 'yearly' ? i : i + 1)) || null);
+        const dataB = labels.map((_, i) => mapB.get(String(range === 'weekly' || range === 'yearly' ? i : i + 1)) || null);
+
+        datasets.push({ label: `${menuName} (A)`, data: dataA, borderColor: color, borderDash: [5, 5], tension: 0.1, spanGaps: true });
+        datasets.push({ label: `${menuName} (B)`, data: dataB, borderColor: color, tension: 0.1, spanGaps: true });
+    });
+
+    createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
+        { plugins: { tooltip: { mode: 'index', intersect: false } } },
+        chartTooltip({ label: (ctx: any) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} items` })
+    ));
+}
