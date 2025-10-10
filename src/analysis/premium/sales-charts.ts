@@ -29,19 +29,42 @@ export function generateOmzetYearlyChart(summaries: SalesSummary[], canvasId: st
 /**
  * Generates a quarterly omzet chart, aggregating data by quarter.
  */
+/**
+ * Generates a quarterly omzet chart, breaking down data by month within that quarter.
+ */
 export function generateOmzetQuarterlyChart(summaries: SalesSummary[], canvasId: string) {
-    const quarterlyTotals = Array(4).fill(0);
+    if (summaries.length === 0) {
+        // Clear the chart if there's no data
+        createChart(canvasId, 'bar', { labels: [], datasets: [] });
+        return;
+    }
+
+    // Determine the quarter from the first data point
+    const firstDate = summaries[0].date;
+    const year = firstDate.getFullYear();
+    const quarter = Math.floor(firstDate.getMonth() / 3); // 0 for Q1, 1 for Q2, etc.
+    const startMonth = quarter * 3; // The starting month index (0 for Jan, 3 for Apr, etc.)
+
+    const monthlyTotals = [0, 0, 0];
+    const monthLabels = [
+        new Date(year, startMonth).toLocaleString('default', { month: 'long' }),
+        new Date(year, startMonth + 1).toLocaleString('default', { month: 'long' }),
+        new Date(year, startMonth + 2).toLocaleString('default', { month: 'long' }),
+    ];
+
+    // Aggregate sales into the correct month bucket
     summaries.forEach(s => {
-        const quarter = Math.floor(s.date.getMonth() / 3); // 0-3
-        quarterlyTotals[quarter] += s.totalOmzet;
+        const monthInQuarterIndex = s.date.getMonth() - startMonth; // Will be 0, 1, or 2
+        if (monthInQuarterIndex >= 0 && monthInQuarterIndex < 3) {
+            monthlyTotals[monthInQuarterIndex] += s.totalOmzet;
+        }
     });
 
-    const labels = ['Q1', 'Q2', 'Q3', 'Q4'];
     createChart(canvasId, 'bar', {
-        labels,
+        labels: monthLabels,
         datasets: [{
             label: 'Total Omzet',
-            data: quarterlyTotals,
+            data: monthlyTotals,
             backgroundColor: '#4f46e5',
         }],
     }, mergeChartOptions(
