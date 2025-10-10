@@ -418,13 +418,49 @@
                                 <li><a href="#" id="premium-goto-manage-data-btn" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 7v10m16-10v10M4 17h16M4 7a2 2 0 012-2h12a2 2 0 012 2m-4 10v-4m-4 4v-4m-4 4v-4"></path></svg>Manage Data</a></li>
                                 <li><a href="#" id="premium-goto-user-management-btn" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>User Management</a></li>    
                             </ul>
-                            <h3 class="text-xs uppercase text-gray-500 font-semibold mt-6 mb-2">Analysis Data</h3>
-                            <ul>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50">Sales Analysis</a></li>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50">Time Comparison</a></li>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50">Product Analysis</a></li>
-                                <li><a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50">Branch Analysis</a></li>
-                            </ul>
+                            <!-- START MODIFIED SECTION -->
+                        <h3 class="text-xs uppercase text-gray-500 font-semibold mt-6 mb-2">Analysis Data</h3>
+                        <div id="premium-analysis-menu">
+                            <!-- Analisis General -->
+                            <div class="submenu-container">
+                                <button class="premium-submenu-toggle w-full text-left p-2 rounded-md flex justify-between items-center hover:bg-gray-100 font-medium text-gray-700">
+                                    <span>Analisis General</span>
+                                    <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div class="premium-submenu hidden pl-4 mt-1 space-y-1">
+                                    <a href="#" id="premium-general-keuangan" data-target="premium-placeholder-general-keuangan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Keuangan</a>
+                                    <a href="#" id="premium-general-penjualan" data-target="premium-placeholder-general-penjualan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Penjualan</a>
+                                    <a href="#" id="premium-general-produk-channel" data-target="premium-placeholder-general-produk" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Produk dan Channel</a>
+                                    <a href="#" id="premium-general-investasi" data-target="premium-placeholder-general-investasi" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Investasi</a>
+                                </div>
+                            </div>
+                            <!-- Analisis Perbandingan Waktu -->
+                            <div class="submenu-container">
+                                <button class="premium-submenu-toggle w-full text-left p-2 rounded-md flex justify-between items-center hover:bg-gray-100 font-medium text-gray-700">
+                                    <span>Analisis Perbandingan Waktu</span>
+                                    <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div class="premium-submenu hidden pl-4 mt-1 space-y-1">
+                                    <a href="#" id="premium-waktu-keuangan" data-target="premium-placeholder-waktu-keuangan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Keuangan</a>
+                                    <a href="#" id="premium-waktu-penjualan" data-target="premium-placeholder-waktu-penjualan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Penjualan</a>
+                                    <a href="#" id="premium-waktu-produk-channel" data-target="premium-placeholder-waktu-produk" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Produk dan Channel</a>
+                                </div>
+                            </div>
+                            <!-- Analisis Perbandingan Cabang -->
+                            <div class="submenu-container">
+                                <button class="premium-submenu-toggle w-full text-left p-2 rounded-md flex justify-between items-center hover:bg-gray-100 font-medium text-gray-700">
+                                    <span>Analisis Perbandingan Cabang</span>
+                                    <svg class="w-4 h-4 transform transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div class="premium-submenu hidden pl-4 mt-1 space-y-1">
+                                    <a href="#" id="premium-cabang-keuangan" data-target="premium-placeholder-cabang-keuangan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Keuangan</a>
+                                    <a href="#" id="premium-cabang-penjualan" data-target="premium-placeholder-cabang-penjualan" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Penjualan</a>
+                                    <a href="#" id="premium-cabang-produk-channel" data-target="premium-placeholder-cabang-produk" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Produk dan Channel</a>
+                                    <a href="#" id="premium-cabang-investasi" data-target="premium-placeholder-cabang-investasi" class="premium-sidebar-link block p-2 rounded-md text-sm text-gray-600 hover:bg-gray-50">Aspek Investasi</a>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- END MODIFIED SECTION -->
                         </nav>
                         <div class="mt-auto pt-6 border-t">
                             <a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Configuration</a>
@@ -432,7 +468,7 @@
                         </div>
                     </aside>
 
-                    <main class="flex-1 space-y-6">
+                    <main class="premium-analysis-content flex-1 space-y-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
     <div>
     <div class="flex items-center gap-2">
@@ -574,6 +610,40 @@
             </tbody>
         </table>
     </div>
+                    </main>
+
+                    <main id="premium-placeholder-general-keuangan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Keuangan</h2>
+                    </main>
+                    <main id="premium-placeholder-general-penjualan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Penjualan</h2>
+                    </main>
+                    <main id="premium-placeholder-general-produk" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Produk dan Channel</h2>
+                    </main>
+                    <main id="premium-placeholder-general-investasi" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Investasi</h2>
+                    </main>
+                    <main id="premium-placeholder-waktu-keuangan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Waktu, Aspek Keuangan</h2>
+                    </main>
+                    <main id="premium-placeholder-waktu-penjualan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Waktu, Aspek Penjualan</h2>
+                    </main>
+                    <main id="premium-placeholder-waktu-produk" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Waktu, Aspek Produk dan Channel</h2>
+                    </main>
+                    <main id="premium-placeholder-cabang-keuangan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Cabang, Aspek Keuangan</h2>
+                    </main>
+                    <main id="premium-placeholder-cabang-penjualan" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Cabang, Aspek Penjualan</h2>
+                    </main>
+                    <main id="premium-placeholder-cabang-produk" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Cabang, Aspek Produk dan Channel</h2>
+                    </main>
+                    <main id="premium-placeholder-cabang-investasi" class="premium-analysis-content flex-1 space-y-6 hidden">
+                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Cabang, Aspek Investasi</h2>
                     </main>
                     
                 </div>
