@@ -74,224 +74,216 @@ function generatePremiumAnalysis() {
 }
 
 export function setupPremiumAnalysisView() {
-  // Prevent re-initialization
-  if ($store.getInitFlag('premiumAnalysisInitialized')) {
-    generatePremiumAnalysis()
-    return
-  }
-
-  // --- Get all necessary DOM elements ---
-  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
-  const dashboardContent = document.querySelector('#premium-analysis-view main:not(#premium-manage-data-content):not(#premium-user-management-content)')
-  const manageDataContent = document.getElementById('premium-manage-data-content')
-  const userManagementContent = document.getElementById('premium-user-management-content')
-
-  // Add selector for all main content areas
-  const allMainContent = document.querySelectorAll('.premium-analysis-content')
-
-  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
-  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
-  const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
-
-  const manageDataBranchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement
-  const gridContainer = document.getElementById('premium-data-cards-grid')
-  const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement
-  const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement
-  const pageInfo = document.getElementById('premium-data-page-info')
-
-  if (!branchSelect || !manageDataBranchSelect || !gridContainer || !prevBtn || !nextBtn || !pageInfo) return
-
-  // --- State variables for the Manage Data view ---
-  let hasLoadedManageData = false
-  let hasLoadedUserData = false
-  let aggregatedData: Record<string, any> = {}
-  let currentPage = 1
-  const CARDS_PER_PAGE = 8
-
-  // --- View Switching Logic ---
-  const showDashboard = () => {
-    allMainContent.forEach((el) => el.classList.add('hidden'))
-    dashboardContent?.classList.remove('hidden')
-    dashboardBtn?.classList.add('bg-gray-100', 'font-semibold')
-    manageDataBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    userManagementBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    document.querySelectorAll('.premium-sidebar-link').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
-  }
-
-  const showManageData = () => {
-    allMainContent.forEach((el) => el.classList.add('hidden'))
-    manageDataContent?.classList.remove('hidden')
-    dashboardBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    manageDataBtn?.classList.add('bg-gray-100', 'font-semibold')
-    userManagementBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    document.querySelectorAll('.premium-sidebar-link').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
-    if (!hasLoadedManageData) {
-      renderPremiumManageDataView()
-      hasLoadedManageData = true
+    // Prevent re-initialization
+    if ($store.getInitFlag('premiumAnalysisInitialized')) {
+        generatePremiumAnalysis();
+        return;
     }
-  }
 
-  const showUserManagement = () => {
-    allMainContent.forEach((el) => el.classList.add('hidden'))
-    userManagementContent?.classList.remove('hidden')
-    dashboardBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    manageDataBtn?.classList.remove('bg-gray-100', 'font-semibold')
-    userManagementBtn?.classList.add('bg-gray-100', 'font-semibold')
-    document.querySelectorAll('.premium-sidebar-link').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
-    if (!hasLoadedUserData) {
-      renderPremiumUserManagementView()
-      hasLoadedUserData = true
-    }
-  }
+    // --- Get all necessary DOM elements ---
+    const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement;
+    // --- START MODIFIED SECTION ---
+    const dashboardContent = document.getElementById('premium-dashboard-content');
+    const manageDataContent = document.getElementById('premium-manage-data-content');
+    const userManagementContent = document.getElementById('premium-user-management-content');
+    const allMainContent = document.querySelectorAll('.premium-analysis-content');
+    // --- END MODIFIED SECTION ---
 
-  // --- Rendering and Filtering function for Manage Data ---
-  const renderFilteredCards = () => {
-    const selectedBranch = manageDataBranchSelect.value
-    const allKeys = Object.keys(aggregatedData).sort((a, b) => {
-      const [_branchA, periodA] = a.split('|')
-      const [_branchB, periodB] = b.split('|')
-      return periodB.localeCompare(periodA)
-    })
+    const dashboardBtn = document.getElementById('premium-goto-dashboard-btn');
+    const manageDataBtn = document.getElementById('premium-goto-manage-data-btn');
+    const userManagementBtn = document.getElementById('premium-goto-user-management-btn');
+    
+    const manageDataBranchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement;
+    const gridContainer = document.getElementById('premium-data-cards-grid');
+    const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement;
+    const pageInfo = document.getElementById('premium-data-page-info');
 
-    const filteredKeys = selectedBranch === 'ALL'
-      ? allKeys
-      : allKeys.filter((key) => aggregatedData[key].branch === selectedBranch)
+    if (!branchSelect || !manageDataBranchSelect || !gridContainer || !prevBtn || !nextBtn || !pageInfo) return;
 
-    const totalPages = Math.ceil(filteredKeys.length / CARDS_PER_PAGE)
-    currentPage = Math.max(1, Math.min(currentPage, totalPages))
+    // --- State variables for the Manage Data view ---
+    let hasLoadedManageData = false;
+    let hasLoadedUserData = false;
+    let aggregatedData: Record<string, any> = {};
+    let currentPage = 1;
+    const CARDS_PER_PAGE = 8;
 
-    const startIndex = (currentPage - 1) * CARDS_PER_PAGE
-    const pageKeys = filteredKeys.slice(startIndex, startIndex + CARDS_PER_PAGE)
+    // --- START MODIFIED VIEW SWITCHING LOGIC ---
+    const showDashboard = () => {
+        allMainContent.forEach(el => el.classList.add('hidden'));
+        dashboardContent?.classList.remove('hidden');
+        
+        // Update styling for all sidebar links
+        document.querySelectorAll('aside nav a').forEach(el => el.classList.remove('bg-gray-100', 'font-semibold'));
+        dashboardBtn?.classList.add('bg-gray-100', 'font-semibold');
+    };
+    
+    const showManageData = () => {
+        allMainContent.forEach(el => el.classList.add('hidden'));
+        manageDataContent?.classList.remove('hidden');
+        
+        document.querySelectorAll('aside nav a').forEach(el => el.classList.remove('bg-gray-100', 'font-semibold'));
+        manageDataBtn?.classList.add('bg-gray-100', 'font-semibold');
 
-    if (pageKeys.length === 0) {
-      gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">No data found for the selected branch.</p>'
-    } else {
-      gridContainer.innerHTML = pageKeys.map((key) => {
-        const item = aggregatedData[key]
-        const [year, month] = item.period.split('-')
-        const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
-        const progress = (item.count / 4) * 100
-        const status = progress === 100 ? 'Complete' : 'In Progress'
-        const statusColor = progress === 100 ? 'green' : 'yellow'
-        const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`
-        const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`
-        const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target']
+        if (!hasLoadedManageData) {
+            renderPremiumManageDataView();
+            hasLoadedManageData = true;
+        }
+    };
 
-        return `
+    const showUserManagement = () => {
+        allMainContent.forEach(el => el.classList.add('hidden'));
+        userManagementContent?.classList.remove('hidden');
+
+        document.querySelectorAll('aside nav a').forEach(el => el.classList.remove('bg-gray-100', 'font-semibold'));
+        userManagementBtn?.classList.add('bg-gray-100', 'font-semibold');
+
+        if (!hasLoadedUserData) {
+            renderPremiumUserManagementView();
+            hasLoadedUserData = true;
+        }
+    };
+    // --- END MODIFIED VIEW SWITCHING LOGIC ---
+    
+    // --- Rendering and Filtering function for Manage Data ---
+    const renderFilteredCards = () => {
+        const selectedBranch = manageDataBranchSelect.value;
+        const allKeys = Object.keys(aggregatedData).sort((a, b) => {
+            const [_branchA, periodA] = a.split('|');
+            const [_branchB, periodB] = b.split('|');
+            return periodB.localeCompare(periodA);
+        });
+
+        const filteredKeys = selectedBranch === 'ALL'
+            ? allKeys
+            : allKeys.filter(key => aggregatedData[key].branch === selectedBranch);
+
+        const totalPages = Math.ceil(filteredKeys.length / CARDS_PER_PAGE);
+        currentPage = Math.max(1, Math.min(currentPage, totalPages));
+
+        const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
+        const pageKeys = filteredKeys.slice(startIndex, startIndex + CARDS_PER_PAGE);
+
+        if (pageKeys.length === 0) {
+            gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">No data found for the selected branch.</p>';
+        } else {
+            gridContainer.innerHTML = pageKeys.map(key => {
+                const item = aggregatedData[key];
+                const [year, month] = item.period.split('-');
+                const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+                const progress = (item.count / 4) * 100;
+                const status = progress === 100 ? 'Complete' : 'In Progress';
+                const statusColor = progress === 100 ? 'green' : 'yellow';
+                const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+                const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`;
+                const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target'];
+
+                return `
                 <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
                     <div class="flex justify-between items-center mb-2"><span class="text-xs font-semibold bg-${statusColor}-100 text-${statusColor}-800 px-2 py-0.5 rounded-full">${status}</span><button class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button></div>
                     <h4 class="font-semibold text-gray-800">${item.branch}</h4>
                     <p class="text-sm text-gray-500 mb-3">${formattedPeriod}</p>
                     <div class="flex items-center gap-2 text-sm text-gray-600 mb-3"><div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-${statusColor}-500 h-1.5 rounded-full" style="width: ${progress}%"></div></div><span>${item.count}/4</span></div>
-                    <div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button><div class="pl-4 mt-2 space-y-2 text-gray-500">${dataTypes.map((type) => `<div class="flex items-center gap-2">${item.types[type] ? checkmarkIcon : circleIcon} ${type}</div>`).join('')}</div></div>
-                </div>`
-      }).join('')
+                    <div class="text-sm"><button class="w-full text-left flex justify-between items-center text-gray-600"><span>See details</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button><div class="pl-4 mt-2 space-y-2 text-gray-500">${dataTypes.map(type => `<div class="flex items-center gap-2">${item.types[type] ? checkmarkIcon : circleIcon} ${type}</div>`).join('')}</div></div>
+                </div>`;
+            }).join('');
+        }
+
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`;
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage >= totalPages;
+    };
+
+    // --- Data Fetching function for Manage Data ---
+    async function renderPremiumManageDataView() {
+        if (!currentUser) return;
+        gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>';
+
+        try {
+            const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
+                getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
+                getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
+                getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
+                getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
+            ]);
+            
+            aggregatedData = {};
+            const processAgg = (snap: any, type: string) => snap.forEach((doc: any) => {
+                const data = doc.data(); const period = data.period || doc.id; if (!period || !/^\d{4}-\d{2}$/.test(period)) return; const branch = data.branchName || 'Company-Wide'; const key = `${branch}|${period}`; if (!aggregatedData[key]) { aggregatedData[key] = { branch: branch, period: period, count: 0, types: {} }; } aggregatedData[key].types[type] = true; aggregatedData[key].count++;
+            });
+            processAgg(salesSnap, 'Sales Data'); processAgg(salesTargetSnap, 'Sales Target'); processAgg(pnlSnap, 'P&L Data'); processAgg(pnlTargetSnap, 'P&L Target');
+
+            const branches = [...new Set(Object.values(aggregatedData).map(item => item.branch))].sort();
+            manageDataBranchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+            renderFilteredCards();
+        } catch (error) {
+            console.error("Error populating premium manage data view:", error);
+            gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>';
+        }
     }
 
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`
-    prevBtn.disabled = currentPage === 1
-    nextBtn.disabled = currentPage >= totalPages
-  }
+    // --- Attach all event listeners ---
+    dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard(); });
+    manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData(); });
+    userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement(); });
+    document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu'); });
+    
+    manageDataBranchSelect.addEventListener('change', () => {
+        currentPage = 1;
+        renderFilteredCards();
+    });
+    prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderFilteredCards();
+        }
+    });
+    nextBtn.addEventListener('click', () => {
+        currentPage++;
+        renderFilteredCards();
+    });
 
-  // --- Data Fetching function for Manage Data ---
-  async function renderPremiumManageDataView() {
-    if (!currentUser) return
-    gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>'
+    const analysisMenu = document.getElementById('premium-analysis-menu');
+    analysisMenu?.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
 
-    try {
-      const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
-        getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
-        getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
-        getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
-        getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
-      ])
+        const toggleBtn = target.closest('.premium-submenu-toggle');
+        if (toggleBtn) {
+            const submenu = toggleBtn.nextElementSibling as HTMLElement;
+            const chevron = toggleBtn.querySelector('.chevron-icon');
+            submenu?.classList.toggle('hidden');
+            chevron?.classList.toggle('rotate-180');
+            return;
+        }
 
-      aggregatedData = {} // Clear previous data
-      const processAgg = (snap: any, type: string) => snap.forEach((doc: any) => {
-        const data = doc.data(); const period = data.period || doc.id; if (!period || !/^\d{4}-\d{2}$/.test(period)) return; const branch = data.branchName || 'Company-Wide'; const key = `${branch}|${period}`; if (!aggregatedData[key]) { aggregatedData[key] = { branch: branch, period: period, count: 0, types: {} } } aggregatedData[key].types[type] = true; aggregatedData[key].count++
-      })
-      processAgg(salesSnap, 'Sales Data'); processAgg(salesTargetSnap, 'Sales Target'); processAgg(pnlSnap, 'P&L Data'); processAgg(pnlTargetSnap, 'P&L Target')
+        const link = target.closest('.premium-sidebar-link') as HTMLAnchorElement;
+        if (link) {
+            e.preventDefault();
+            const targetId = link.dataset.target;
+            if (!targetId) return;
 
-      const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort()
-      manageDataBranchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+            allMainContent.forEach(el => el.classList.add('hidden'));
 
-      renderFilteredCards()
-    } catch (error) {
-      console.error('Error populating premium manage data view:', error)
-      gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>'
-    }
-  }
+            const targetContent = document.getElementById(targetId);
+            targetContent?.classList.remove('hidden');
+            
+            document.querySelectorAll('aside nav a').forEach(el => el.classList.remove('bg-gray-100', 'font-semibold'));
+            
+            link.classList.add('bg-gray-100', 'font-semibold');
+            const parentToggle = link.closest('.submenu-container')?.querySelector('.premium-submenu-toggle');
+            parentToggle?.classList.add('font-semibold');
+        }
+    });
 
-  // --- Attach all event listeners ---
-  dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
-  manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData() })
-  userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
-  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu') })
+    // --- Initial Setup for Dashboard View ---
+    const allSalesData: SalesSummary[] = $store.getAllSalesData();
+    const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + dashboardBranches.map((b) => `<option value="${b}">${b}</option>`).join('');
+    branchSelect.addEventListener('change', generatePremiumAnalysis);
 
-  // Listeners for Manage Data view
-  manageDataBranchSelect.addEventListener('change', () => {
-    currentPage = 1
-    renderFilteredCards()
-  })
-  prevBtn.addEventListener('click', () => {
-    if (currentPage > 1) {
-      currentPage--
-      renderFilteredCards()
-    }
-  })
-  nextBtn.addEventListener('click', () => {
-    currentPage++
-    renderFilteredCards()
-  })
-
-  // --- START: NEW LISTENER FOR ANALYSIS SIDEBAR ---
-  const analysisMenu = document.getElementById('premium-analysis-menu')
-  analysisMenu?.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
-
-    // Handle submenu toggle clicks
-    const toggleBtn = target.closest('.premium-submenu-toggle')
-    if (toggleBtn) {
-      const submenu = toggleBtn.nextElementSibling as HTMLElement
-      const chevron = toggleBtn.querySelector('.chevron-icon')
-      submenu?.classList.toggle('hidden')
-      chevron?.classList.toggle('rotate-180')
-      return
-    }
-
-    // Handle sidebar link clicks
-    const link = target.closest('.premium-sidebar-link') as HTMLAnchorElement
-    if (link) {
-      e.preventDefault()
-      const targetId = link.dataset.target
-      if (!targetId) return
-
-      // Hide all main content sections
-      allMainContent.forEach((el) => el.classList.add('hidden'))
-
-      // Show the target placeholder
-      const targetContent = document.getElementById(targetId)
-      targetContent?.classList.remove('hidden')
-
-      // Update active link styles for all sidebars
-      document.querySelectorAll('.premium-sidebar-link, #premium-analysis-menu .premium-submenu-toggle, aside nav ul li a').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
-
-      // Highlight the clicked link and its parent toggle
-      link.classList.add('bg-gray-100', 'font-semibold')
-      const parentToggle = link.closest('.submenu-container')?.querySelector('.premium-submenu-toggle')
-      parentToggle?.classList.add('font-semibold')
-    }
-  })
-  // --- END: NEW LISTENER FOR ANALYSIS SIDEBAR ---
-
-  // --- Initial Setup for Dashboard View ---
-  const allSalesData: SalesSummary[] = $store.getAllSalesData()
-  const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
-  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + dashboardBranches.map((b) => `<option value="${b}">${b}</option>`).join('')
-  branchSelect.addEventListener('change', generatePremiumAnalysis)
-
-  $store.setInitFlag('premiumAnalysisInitialized', true)
-  generatePremiumAnalysis()
+    $store.setInitFlag('premiumAnalysisInitialized', true);
+    generatePremiumAnalysis();
 }
 
 /**
