@@ -36,6 +36,9 @@ import { generateRingkasanFromSummaries } from '@/analysis/sections/general/sale
 import { generateTcApcHarianChartFromSummaries } from '@/analysis/sections/general/sales/charts'
 import { generateOmzetHeatmapFromSummaries, generateSalesTrendHourlyDailyChartFromSummaries } from '@/analysis/sections/general/sales/heatmaps'
 
+// Add this import to the top of src/analysis/premium/orchestrator.ts
+import { generateOmzetYearlyChart, generateOmzetQuarterlyChart, generateOmzetWeeklyChart } from './sales-charts'
+
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
  */
@@ -565,166 +568,205 @@ async function renderPremiumUserManagementView() {
 // Add these two new functions to src/analysis/premium/orchestrator.ts
 
 async function generatePremiumGeneralSales() {
-    if (!currentUser) return;
-    
-    // Get filter elements
-    const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement;
+  if (!currentUser) return
 
-    const selectedBranch = branchSelect.value;
-    const selectedRange = rangeSelect.value;
-    const selectedPeriod = periodSelect.value;
+  const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement
+  const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement
 
-    if (!selectedBranch || !selectedRange || !selectedPeriod) return;
+  const selectedBranch = branchSelect.value
+  const selectedRange = rangeSelect.value
+  const selectedPeriod = periodSelect.value
 
-    // --- Filter Data Based on Selections ---
-    const allSalesData = $store.getAllSalesData();
-    let filteredData = allSalesData;
+  if (!selectedBranch || !selectedRange || !selectedPeriod) return
 
-    if (selectedBranch !== 'ALL') {
-        filteredData = filteredData.filter(s => s.branches.includes(selectedBranch));
-    }
+  // --- START: Real Date Filtering Logic ---
+  const allSalesData = $store.getAllSalesData()
+  let branchData = allSalesData
+  if (selectedBranch !== 'ALL') {
+    branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
+  }
 
-    console.log(`Filtering data for: Branch=${selectedBranch}, Range=${selectedRange}, Period=${selectedPeriod}`);
-    
-    // --- Update UI Elements ---
-    // 1. KPIs - START MODIFIED SECTION
-    generateRingkasanFromSummaries(filteredData, [], {
-        omzet: 'premium-sales-total-omzet',
-        check: 'premium-sales-total-check',
-        avgCheck: 'premium-sales-avg-check',
-        omzetGrowth: 'premium-sales-omzet-growth',
-        checkGrowth: 'premium-sales-check-growth',
-        avgCheckGrowth: 'premium-sales-avg-check-growth'
-    });
-    // --- END MODIFIED SECTION ---
+  let startDate: Date, endDate: Date
+  const [year, part] = selectedPeriod.split('-')
 
-    // 2. Dynamic Omzet Chart
-    const omzetTitle = document.getElementById('premium-sales-omzet-title') as HTMLElement;
-    const chartContainers = {
-        yearly: document.getElementById('premium-sales-omzet-yearly-container'),
-        quarterly: document.getElementById('premium-sales-omzet-quarterly-container'),
-        monthly: document.getElementById('premium-sales-omzet-monthly-container'),
-        weekly: document.getElementById('premium-sales-omzet-weekly-container'),
-    };
-    
-    Object.values(chartContainers).forEach(c => c?.classList.add('hidden'));
+  switch (selectedRange) {
+    case 'yearly':
+      startDate = new Date(parseInt(year), 0, 1)
+      endDate = new Date(parseInt(year), 11, 31, 23, 59, 59)
+      break
+    case 'quarterly':
+      const quarter = parseInt(part.replace('Q', ''))
+      const startMonth = (quarter - 1) * 3
+      startDate = new Date(parseInt(year), startMonth, 1)
+      endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59)
+      break
+    case 'monthly':
+      startDate = new Date(parseInt(year), parseInt(part) - 1, 1)
+      endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59)
+      break
+    case 'weekly':
+      const monthPart = parseInt(part)
+      const dayPart = parseInt(selectedPeriod.split('-')[2])
+      startDate = new Date(parseInt(year), monthPart - 1, dayPart)
+      endDate = new Date(startDate)
+      endDate.setDate(startDate.getDate() + 6)
+      endDate.setHours(23, 59, 59)
+      break
+    default:
+      return
+  }
 
-    const activeContainer = chartContainers[selectedRange as keyof typeof chartContainers];
-    activeContainer?.classList.remove('hidden');
-    omzetTitle.textContent = `Omzet ${selectedRange.charAt(0).toUpperCase() + selectedRange.slice(1)}`;
+  const filteredData = branchData.filter((s) => s.date >= startDate && s.date <= endDate)
+  // --- END: Real Date Filtering Logic ---
 
-    console.log(`TODO: Render ${selectedRange} chart in canvas inside #${activeContainer?.id}`);
+  // 1. KPIs
+  generateRingkasanFromSummaries(filteredData, [], {
+    omzet: 'premium-sales-total-omzet', check: 'premium-sales-total-check', avgCheck: 'premium-sales-avg-check',
+    omzetGrowth: 'premium-sales-omzet-growth', checkGrowth: 'premium-sales-check-growth', avgCheckGrowth: 'premium-sales-avg-check-growth',
+  })
 
-    // 3. Other Charts & Heatmaps
-    generateTcApcHarianChartFromSummaries(filteredData, 'premium-sales-tc-apc-chart');
-    generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
-    generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-hourly-heatmap-container');
-    generateSalesTrendHourlyDailyChartFromSummaries(filteredData, 'premium-sales-trend-chart');
+  // 2. Dynamic Omzet Chart
+  const omzetTitle = document.getElementById('premium-sales-omzet-title') as HTMLElement
+  const chartContainers = {
+    yearly: document.getElementById('premium-sales-omzet-yearly-container'),
+    quarterly: document.getElementById('premium-sales-omzet-quarterly-container'),
+    monthly: document.getElementById('premium-sales-omzet-monthly-container'),
+    weekly: document.getElementById('premium-sales-omzet-weekly-container'),
+  }
+
+  Object.values(chartContainers).forEach((c) => c?.classList.add('hidden'))
+
+  const activeContainer = chartContainers[selectedRange as keyof typeof chartContainers]
+  activeContainer?.classList.remove('hidden')
+  omzetTitle.textContent = `Omzet ${selectedRange.charAt(0).toUpperCase() + selectedRange.slice(1)}`
+
+  // --- START: Call correct chart generator ---
+  switch (selectedRange) {
+    case 'yearly':
+      generateOmzetYearlyChart(filteredData, 'premium-sales-omzet-yearly-chart')
+      break
+    case 'quarterly':
+      generateOmzetQuarterlyChart(filteredData, 'premium-sales-omzet-quarterly-chart')
+      break
+    case 'monthly':
+      // The monthly view is a daily chart, so we reuse the 'harian' generator
+      generateOmzetHarianChartFromSummaries(filteredData, 'premium-sales-omzet-monthly-chart')
+      break
+    case 'weekly':
+      generateOmzetWeeklyChart(filteredData, 'premium-sales-omzet-weekly-chart')
+      break
+  }
+  // --- END: Call correct chart generator ---
+
+  // 3. Other Charts & Heatmaps
+  generateTcApcHarianChartFromSummaries(filteredData, 'premium-sales-tc-apc-chart')
+  generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container')
+  generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-hourly-heatmap-container')
+  generateSalesTrendHourlyDailyChartFromSummaries(filteredData, 'premium-sales-trend-chart')
 }
 
 async function setupPremiumGeneralSales() {
-    const pageId = 'premium-placeholder-general-penjualan';
-    if ($store.getInitFlag('premiumGeneralSalesInitialized')) {
-        // If already initialized, just ensure the data is generated for the current selection
-        await generatePremiumGeneralSales();
-        return;
+  const pageId = 'premium-placeholder-general-penjualan'
+  if ($store.getInitFlag('premiumGeneralSalesInitialized')) {
+    // If already initialized, just ensure the data is generated for the current selection
+    await generatePremiumGeneralSales()
+    return
+  }
+  if (!currentUser) return
+
+  // Get filter elements
+  const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement
+  const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement
+
+  // Populate Branch Selector
+  const allSalesData = $store.getAllSalesData()
+  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  // --- START MODIFIED SECTION ---
+  // Logic to update Period Selector based on Range and available data
+  const updatePeriodSelector = () => {
+    const range = rangeSelect.value
+    const selectedBranch = branchSelect.value
+
+    let branchData = allSalesData
+    if (selectedBranch !== 'ALL') {
+      branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
     }
-    if (!currentUser) return;
+    const allDates = branchData.map((s) => s.date)
+    if (allDates.length === 0) {
+      periodSelect.innerHTML = '<option>No data available</option>'
+      return
+    }
 
-    // Get filter elements
-    const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement;
-    
-    // Populate Branch Selector
-    const allSalesData = $store.getAllSalesData();
-    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
-    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
-    
-    // --- START MODIFIED SECTION ---
-    // Logic to update Period Selector based on Range and available data
-    const updatePeriodSelector = () => {
-        const range = rangeSelect.value;
-        const selectedBranch = branchSelect.value;
+    const periods = new Set<string>()
 
-        let branchData = allSalesData;
-        if (selectedBranch !== 'ALL') {
-            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
-        }
-        const allDates = branchData.map(s => s.date);
-        if (allDates.length === 0) {
-            periodSelect.innerHTML = '<option>No data available</option>';
-            return;
-        }
+    if (range === 'yearly') {
+      allDates.forEach((d) => periods.add(String(d.getFullYear())))
+    } else if (range === 'monthly') {
+      allDates.forEach((d) => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`))
+    } else if (range === 'quarterly') {
+      allDates.forEach((d) => {
+        const quarter = Math.floor(d.getMonth() / 3) + 1
+        periods.add(`${d.getFullYear()}-Q${quarter}`)
+      })
+    } else if (range === 'weekly') {
+      const getMonday = (d: Date) => {
+        const date = new Date(d)
+        const day = date.getDay()
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
+        return new Date(date.setDate(diff))
+      }
+      allDates.forEach((d) => {
+        const monday = getMonday(d)
+        const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+        periods.add(weekKey)
+      })
+    }
 
-        const periods = new Set<string>();
-        
-        if (range === 'yearly') {
-            allDates.forEach(d => periods.add(String(d.getFullYear())));
-        } else if (range === 'monthly') {
-            allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`));
-        } else if (range === 'quarterly') {
-            allDates.forEach(d => {
-                const quarter = Math.floor(d.getMonth() / 3) + 1;
-                periods.add(`${d.getFullYear()}-Q${quarter}`);
-            });
-        } else if (range === 'weekly') {
-            const getMonday = (d: Date) => {
-                const date = new Date(d);
-                const day = date.getDay();
-                const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-                return new Date(date.setDate(diff));
-            };
-            allDates.forEach(d => {
-                const monday = getMonday(d);
-                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-                periods.add(weekKey);
-            });
-        }
+    const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a))
 
-        const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a));
-        
-        if (sortedPeriods.length === 0) {
-            periodSelect.innerHTML = '<option>No data for this range</option>';
-            return;
-        }
-        
-        const optionsHtml = sortedPeriods.map(p => {
-            if (range === 'yearly') {
-                return `<option value="${p}">${p}</option>`;
-            }
-            if (range === 'monthly') {
-                const [year, month] = p.split('-');
-                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-                return `<option value="${p}">${label}</option>`;
-            }
-            if (range === 'quarterly') {
-                return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
-            }
-            if (range === 'weekly') {
-                const [year, month, day] = p.split('-');
-                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
-                return `<option value="${p}">${label}</option>`;
-            }
-            return '';
-        }).join('');
+    if (sortedPeriods.length === 0) {
+      periodSelect.innerHTML = '<option>No data for this range</option>'
+      return
+    }
 
-        periodSelect.innerHTML = optionsHtml;
-        generatePremiumGeneralSales(); // Re-generate charts on change
-    };
-    // --- END MODIFIED SECTION ---
+    const optionsHtml = sortedPeriods.map((p) => {
+      if (range === 'yearly') {
+        return `<option value="${p}">${p}</option>`
+      }
+      if (range === 'monthly') {
+        const [year, month] = p.split('-')
+        const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        return `<option value="${p}">${label}</option>`
+      }
+      if (range === 'quarterly') {
+        return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`
+      }
+      if (range === 'weekly') {
+        const [year, month, day] = p.split('-')
+        const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`
+        return `<option value="${p}">${label}</option>`
+      }
+      return ''
+    }).join('')
 
-    // Attach event listeners
-    branchSelect.addEventListener('change', updatePeriodSelector); // Now calls the new dynamic function
-    rangeSelect.addEventListener('change', updatePeriodSelector);
-    periodSelect.addEventListener('change', generatePremiumGeneralSales);
+    periodSelect.innerHTML = optionsHtml
+    generatePremiumGeneralSales() // Re-generate charts on change
+  }
+  // --- END MODIFIED SECTION ---
 
-    // Initialize the AI summary component for this view
-    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
+  // Attach event listeners
+  branchSelect.addEventListener('change', updatePeriodSelector) // Now calls the new dynamic function
+  rangeSelect.addEventListener('change', updatePeriodSelector)
+  periodSelect.addEventListener('change', generatePremiumGeneralSales)
 
-    $store.setInitFlag('premiumGeneralSalesInitialized', true);
-    updatePeriodSelector(); // Initial population
+  // Initialize the AI summary component for this view
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+
+  $store.setInitFlag('premiumGeneralSalesInitialized', true)
+  updatePeriodSelector() // Initial population
 }
