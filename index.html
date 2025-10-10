@@ -822,8 +822,90 @@
     </div>
 </main>
                     <main id="premium-placeholder-general-produk" class="premium-analysis-content flex-1 space-y-6 hidden">
-                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Produk dan Channel</h2>
-                    </main>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Analisis General: Aspek Produk & Channel</h2>
+            <p class="text-sm text-gray-500 mt-1">Analyze your product performance and sales channels.</p>
+        </div>
+        <div class="flex items-center gap-2 mt-4 sm:mt-0">
+            <div>
+                <label for="premium-product-branch-select" class="sr-only">Select Branch</label>
+                <select id="premium-product-branch-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>All Branches</option>
+                </select>
+            </div>
+            <div>
+                <label for="premium-product-range-select" class="sr-only">Select Period Range</label>
+                <select id="premium-product-range-select" class="w-32 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly" selected>Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div>
+                <label for="premium-product-period-select" class="sr-only">Select Period</label>
+                <select id="premium-product-period-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>October 2025</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div data-el="analyze-page-summary">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div data-state="init">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-semibold text-gray-700">AI Summary</h3>
+                    <button class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition" data-el="analyze-page-summary" data-target="premium-placeholder-general-produk">
+                        Analyze with AI
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        <h4 class="font-semibold text-gray-700">Tren Penjualan Menu</h4>
+        <div class="mt-4">
+            <label for="premium-product-menu-select" class="block text-sm font-medium text-gray-700 mb-1">Pilih menu untuk ditampilkan:</label>
+            <select id="premium-product-menu-select" multiple></select>
+        </div>
+        <div class="chart-container mt-4">
+            <canvas id="premium-product-menu-trend-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Penjualan Per Channel</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-product-channel-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Order by Menu Category</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-product-category-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Top 10 Menu By Quantity</h4>
+            <div id="premium-product-top-quantity-container" class="mt-4">
+                <p class="text-gray-400 text-center py-8">Top 10 by Quantity table will be displayed here.</p>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Top 10 Menu By Total Revenue</h4>
+            <div id="premium-product-top-revenue-container" class="mt-4">
+                <p class="text-gray-400 text-center py-8">Top 10 by Revenue table will be displayed here.</p>
+            </div>
+        </div>
+    </div>
+</main>
                     <main id="premium-placeholder-general-investasi" class="premium-analysis-content flex-1 space-y-6 hidden">
                         <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Investasi</h2>
                     </main>

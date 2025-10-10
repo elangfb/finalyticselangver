@@ -1,10 +1,10 @@
 // Contains all logic for the "Analisis General > Aspek Produk & Channel" section.
 
 import * as $store from '@/store'
-import { createChart } from '../../helpers'
-import { chartTooltip, currencyTooltipCallback, chartXTicks, chartYTicks, mergeChartOptions, shortenDateTickCallback, shortenNumber } from '../../utils/chart-formatters'
-import { AlsoStoreFn, createAlsoStoreFn } from '../../utils/store-helpers'
-import { formatNumber, formatNumberUtil, formatCurrencyUtil, formatMachineYearMonthDay } from '../../utils/string-formatters'
+import { createChart } from '../../../helpers'
+import { chartTooltip, currencyTooltipCallback, chartXTicks, chartYTicks, mergeChartOptions, shortenDateTickCallback, shortenNumber } from '../../../utils/chart-formatters'
+import { AlsoStoreFn, createAlsoStoreFn } from '../../../utils/store-helpers'
+import { formatNumber, formatNumberUtil, formatCurrencyUtil, formatMachineYearMonthDay } from '../../../utils/string-formatters'
 import { deepmerge } from 'deepmerge-ts'
 
 declare const SlimSelect: any
@@ -12,7 +12,7 @@ declare const SlimSelect: any
 /**
  * Generates the "Penjualan per Channel" doughnut chart.
  */
-function generateChannelDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+export function generateChannelDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const channelSales = summaries.reduce((acc, s) => {
     if (s.revenueByVisitPurpose) {
       for (const channel in s.revenueByVisitPurpose) {
@@ -40,7 +40,7 @@ function generateChannelDonutChart(summaries: any[], canvasId: string, config?: 
 /**
  * Generates an "Order by Menu Category" doughnut chart.
  */
-function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+export function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const byMenuCategory = summaries.reduce((acc, s) => {
     if (s.menuCategories) {
       for (const category in s.menuCategories) {
@@ -112,37 +112,36 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
 /**
  * Draws the general menu trend chart based on the current dropdown selection.
  */
-function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
-  const menuSelect = $store.getUIComponent('generalMenuTrendSelect')
-  if (!menuSelect) return
+export function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, slimSelectInstance: any, config?: { alsoStore?: AlsoStoreFn }) {
+  if (!slimSelectInstance) return;
 
-  const selectedMenus = menuSelect.getSelected() as string[]
-  const labels = [...new Set(summaries.map((s) => s.date.toISOString().split('T')[0]))].sort()
+  const selectedMenus = slimSelectInstance.getSelected() as string[];
+  const labels = [...new Set(summaries.map((s) => s.date.toISOString().split('T')[0]))].sort();
 
   const datasets = selectedMenus.map((menuName, index) => {
     const dataPoints = labels.map((dateStr) => {
-      const summaryForDay = summaries.find((s) => s.date.toISOString().startsWith(dateStr))
-      let quantity = 0
+      const summaryForDay = summaries.find((s) => s.date.toISOString().startsWith(dateStr));
+      let quantity = 0;
       if (summaryForDay && summaryForDay.menuItemQuantities) {
         for (const category in summaryForDay.menuItemQuantities) {
           if (summaryForDay.menuItemQuantities[category][menuName]) {
-            quantity = summaryForDay.menuItemQuantities[category][menuName]
-            break
+            quantity = summaryForDay.menuItemQuantities[category][menuName];
+            break;
           }
         }
       }
-      return quantity
-    })
+      return quantity;
+    });
 
-    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444']
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
     return {
       label: menuName,
       data: dataPoints,
       borderColor: colors[index % colors.length],
       tension: 0.1,
       fill: false,
-    }
-  })
+    };
+  });
 
   config?.alsoStore?.(datasets, (v) => ({
     menuTrend: deepmerge(...v.map((d) => ({
@@ -150,7 +149,7 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: 
         [formatMachineYearMonthDay(labels[index])]: formatNumberUtil(v),
       }))),
     }))),
-  }))
+  }));
 
   createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
     chartYTicks(shortenNumber),
@@ -158,7 +157,7 @@ function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, config?: 
     chartTooltip({
       label: (context: any) => `${context.dataset.label || ''}: ${formatNumber(context.parsed.y)} items`,
     }),
-  ))
+  ));
 }
 
 /**
