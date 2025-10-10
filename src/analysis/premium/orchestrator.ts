@@ -47,6 +47,10 @@ import {
 } from '@/analysis/sections/general/product-channel';
 import { generateTop10MenuTable } from './sales-tables';
 
+
+import { deepmerge } from 'deepmerge-ts';
+import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string';
+
 declare const SlimSelect: any;
 
 /**
@@ -867,7 +871,7 @@ async function setupPremiumProductChannel() {
     }
     if (!currentUser) return;
     
-    // --- Setup Filters ---
+    // --- Get Filter Elements ---
     const branchSelect = document.getElementById('premium-product-branch-select') as HTMLSelectElement;
     const rangeSelect = document.getElementById('premium-product-range-select') as HTMLSelectElement;
     const periodSelect = document.getElementById('premium-product-period-select') as HTMLSelectElement;
@@ -876,35 +880,38 @@ async function setupPremiumProductChannel() {
     const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
     branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
 
-    // --- START MODIFIED SECTION ---
-    // This is the complete, dynamic function to update the period selector
+    // --- Setup Menu Multi-Select (before listeners) ---
+    const menuSelectElement = document.getElementById('premium-product-menu-select') as HTMLSelectElement;
+    const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort();
+    menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('');
+
+    const slimSelectInstance = new SlimSelect({
+        select: '#premium-product-menu-select',
+        events: { afterChange: () => generatePremiumProductChannel() },
+    });
+    $store.setUIComponent('premiumProductMenuSelect', slimSelectInstance);
+    
     const updatePeriodSelector = () => {
         const range = rangeSelect.value;
         const selectedBranch = branchSelect.value;
-
         let branchData = allSalesData;
         if (selectedBranch !== 'ALL') {
             branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
         }
         const allDates = branchData.map(s => s.date);
+        
         if (allDates.length === 0) {
             periodSelect.innerHTML = '<option>No data available</option>';
-            generatePremiumProductChannel(); // Still call to clear charts
+            generatePremiumProductChannel();
             return;
         }
 
         const periods = new Set<string>();
         
-        if (range === 'yearly') {
-            allDates.forEach(d => periods.add(String(d.getFullYear())));
-        } else if (range === 'monthly') {
-            allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`));
-        } else if (range === 'quarterly') {
-            allDates.forEach(d => {
-                const quarter = Math.floor(d.getMonth() / 3) + 1;
-                periods.add(`${d.getFullYear()}-Q${quarter}`);
-            });
-        } else if (range === 'weekly') {
+        if (range === 'yearly') { allDates.forEach(d => periods.add(String(d.getFullYear()))); }
+        else if (range === 'monthly') { allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)); }
+        else if (range === 'quarterly') { allDates.forEach(d => { const q = Math.floor(d.getMonth() / 3) + 1; periods.add(`${d.getFullYear()}-Q${q}`); }); }
+        else if (range === 'weekly') {
             const getMonday = (d: Date) => {
                 const date = new Date(d);
                 const day = date.getDay();
@@ -918,18 +925,15 @@ async function setupPremiumProductChannel() {
             });
         }
 
-        const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a));
-        
+        const sortedPeriods = Array.from(periods).sort((a,b) => b.localeCompare(a));
         if (sortedPeriods.length === 0) {
             periodSelect.innerHTML = '<option>No data for this range</option>';
-            generatePremiumProductChannel(); // Still call to clear charts
+            generatePremiumProductChannel();
             return;
         }
         
         const optionsHtml = sortedPeriods.map(p => {
-            if (range === 'yearly') {
-                return `<option value="${p}">${p}</option>`;
-            }
+            if (range === 'yearly') return `<option value="${p}">${p}</option>`;
             if (range === 'monthly') {
                 const [year, month] = p.split('-');
                 const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -946,23 +950,59 @@ async function setupPremiumProductChannel() {
             }
             return '';
         }).join('');
-
         periodSelect.innerHTML = optionsHtml;
-        generatePremiumProductChannel(); // Re-generate charts on change
+        
+        // --- START: CORRECTED LOGIC FOR DEFAULT SELECTION ---
+        const initialPeriod = sortedPeriods[0];
+        let initialFilteredData: any[] = [];
+        if (initialPeriod) {
+            let startDate: Date, endDate: Date;
+            const [year, part, dayPart] = initialPeriod.split('-');
+
+            switch (range) {
+                case 'yearly':
+                    startDate = new Date(parseInt(year), 0, 1);
+                    endDate = new Date(parseInt(year), 11, 31, 23, 59, 59);
+                    break;
+                case 'quarterly':
+                    const quarter = parseInt(part.replace('Q', ''));
+                    const startMonth = (quarter - 1) * 3;
+                    startDate = new Date(parseInt(year), startMonth, 1);
+                    endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59);
+                    break;
+                case 'monthly':
+                    startDate = new Date(parseInt(year), parseInt(part) - 1, 1);
+                    endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59);
+                    break;
+                case 'weekly':
+                    startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart));
+                    endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + 6);
+                    endDate.setHours(23, 59, 59);
+                    break;
+            }
+            initialFilteredData = branchData.filter(s => s.date >= startDate && s.date <= endDate);
+        }
+
+        const menuQuantities: Map<string, number> = new Map();
+        initialFilteredData.forEach(summary => {
+            if (!summary.menuItemQuantities) return;
+            for (const category in summary.menuItemQuantities) {
+                for (const itemName in summary.menuItemQuantities[category]) {
+                    const quantity = summary.menuItemQuantities[category][itemName];
+                    menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity);
+                }
+            }
+        });
+
+        const top3MenuNames = Array.from(menuQuantities.entries())
+            .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
+            .slice(0, 3)
+            .map(([name]) => name);
+
+        slimSelectInstance.setSelected(top3MenuNames);
+        // --- END: CORRECTED LOGIC ---
     };
-    // --- END MODIFIED SECTION ---
-
-    // --- Setup Menu Multi-Select ---
-    const menuSelectElement = document.getElementById('premium-product-menu-select') as HTMLSelectElement;
-    const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort();
-    menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('');
-
-    const slimSelectInstance = new SlimSelect({
-        select: '#premium-product-menu-select',
-        events: { afterChange: () => generatePremiumProductChannel() },
-    });
-    slimSelectInstance.setSelected(allMenuItems.slice(0, 3));
-    $store.setUIComponent('premiumProductMenuSelect', slimSelectInstance);
 
     // Attach event listeners
     branchSelect.addEventListener('change', updatePeriodSelector);
@@ -972,5 +1012,5 @@ async function setupPremiumProductChannel() {
     // Initialize AI summary and set flag
     setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
     $store.setInitFlag('premiumProductChannelInitialized', true);
-    updatePeriodSelector(); // Initial population
+    updatePeriodSelector(); // Initial population and default selection
 }
