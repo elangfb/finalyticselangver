@@ -101,7 +101,7 @@ export function generateOmzetMingguanChartFromSummaries(summaries: SalesSummary[
     } as ChartDataset<'line', number[]>)
   }
 
-  createChart(canvasId, 'bar', { labels: sortedWeeks, datasets }, mergeChartOptions(
+  createChart(canvasId, type, { labels: sortedWeeks, datasets }, mergeChartOptions(
     chartYTicks((value: string | number) => shortenCurrency(Number(value))),
     chartXTicks(shortenDateTickCallback),
     chartTooltip({ label: currencyTooltipCallback }),

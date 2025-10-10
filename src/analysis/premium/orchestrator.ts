@@ -31,6 +31,11 @@ import {
   generateSpecificSubCategoryRatioChart,
 } from '@/analysis/sections/general/finance/charts'
 
+// Add these imports at the top of src/analysis/premium/orchestrator.ts
+import { generateRingkasanFromSummaries } from '@/analysis/sections/general/sales/ringkasan'
+import { generateTcApcHarianChartFromSummaries } from '@/analysis/sections/general/sales/charts'
+import { generateOmzetHeatmapFromSummaries, generateSalesTrendHourlyDailyChartFromSummaries } from '@/analysis/sections/general/sales/heatmaps'
+
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
  */
@@ -197,8 +202,6 @@ async function setupPremiumGeneralFinance() {
 export function setupPremiumAnalysisView() {
   // Prevent re-initialization
   if ($store.getInitFlag('premiumAnalysisInitialized')) {
-    // This part seems redundant if we manage views correctly, but keeping for safety.
-    // generatePremiumAnalysis();
     return
   }
 
@@ -259,7 +262,6 @@ export function setupPremiumAnalysisView() {
       hasLoadedUserData = true
     }
   }
-  // --- END MODIFIED VIEW SWITCHING LOGIC ---
 
   // --- Rendering and Filtering function for Manage Data ---
   const renderFilteredCards = () => {
@@ -379,17 +381,12 @@ export function setupPremiumAnalysisView() {
       const targetId = link.dataset.target
       if (!targetId) return
 
-      // Hide all main content areas first
       allMainContent.forEach((el) => el.classList.add('hidden'))
-
-      // Show the target content area
       const targetContent = document.getElementById(targetId)
       targetContent?.classList.remove('hidden')
 
-      // Update active link styles for all sidebars
       document.querySelectorAll('aside nav a').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
 
-      // Highlight the clicked link and its parent toggle
       link.classList.add('bg-gray-100', 'font-semibold')
       const parentToggle = link.closest('.submenu-container')?.querySelector('.premium-submenu-toggle')
       parentToggle?.classList.add('font-semibold')
@@ -397,6 +394,8 @@ export function setupPremiumAnalysisView() {
       // --- TRIGGER THE SETUP FOR THE SPECIFIC VIEW ---
       if (targetId === 'premium-placeholder-general-keuangan') {
         await setupPremiumGeneralFinance()
+      } else if (targetId === 'premium-placeholder-general-penjualan') {
+        await setupPremiumGeneralSales()
       }
     }
   })
@@ -561,4 +560,171 @@ async function renderPremiumUserManagementView() {
     console.error('Error loading users for premium view:', error)
     tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Could not load user data.</td></tr>'
   }
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumGeneralSales() {
+    if (!currentUser) return;
+    
+    // Get filter elements
+    const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement;
+    const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement;
+    const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement;
+
+    const selectedBranch = branchSelect.value;
+    const selectedRange = rangeSelect.value;
+    const selectedPeriod = periodSelect.value;
+
+    if (!selectedBranch || !selectedRange || !selectedPeriod) return;
+
+    // --- Filter Data Based on Selections ---
+    const allSalesData = $store.getAllSalesData();
+    let filteredData = allSalesData;
+
+    if (selectedBranch !== 'ALL') {
+        filteredData = filteredData.filter(s => s.branches.includes(selectedBranch));
+    }
+
+    console.log(`Filtering data for: Branch=${selectedBranch}, Range=${selectedRange}, Period=${selectedPeriod}`);
+    
+    // --- Update UI Elements ---
+    // 1. KPIs - START MODIFIED SECTION
+    generateRingkasanFromSummaries(filteredData, [], {
+        omzet: 'premium-sales-total-omzet',
+        check: 'premium-sales-total-check',
+        avgCheck: 'premium-sales-avg-check',
+        omzetGrowth: 'premium-sales-omzet-growth',
+        checkGrowth: 'premium-sales-check-growth',
+        avgCheckGrowth: 'premium-sales-avg-check-growth'
+    });
+    // --- END MODIFIED SECTION ---
+
+    // 2. Dynamic Omzet Chart
+    const omzetTitle = document.getElementById('premium-sales-omzet-title') as HTMLElement;
+    const chartContainers = {
+        yearly: document.getElementById('premium-sales-omzet-yearly-container'),
+        quarterly: document.getElementById('premium-sales-omzet-quarterly-container'),
+        monthly: document.getElementById('premium-sales-omzet-monthly-container'),
+        weekly: document.getElementById('premium-sales-omzet-weekly-container'),
+    };
+    
+    Object.values(chartContainers).forEach(c => c?.classList.add('hidden'));
+
+    const activeContainer = chartContainers[selectedRange as keyof typeof chartContainers];
+    activeContainer?.classList.remove('hidden');
+    omzetTitle.textContent = `Omzet ${selectedRange.charAt(0).toUpperCase() + selectedRange.slice(1)}`;
+
+    console.log(`TODO: Render ${selectedRange} chart in canvas inside #${activeContainer?.id}`);
+
+    // 3. Other Charts & Heatmaps
+    generateTcApcHarianChartFromSummaries(filteredData, 'premium-sales-tc-apc-chart');
+    generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
+    generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-hourly-heatmap-container');
+    generateSalesTrendHourlyDailyChartFromSummaries(filteredData, 'premium-sales-trend-chart');
+}
+
+async function setupPremiumGeneralSales() {
+    const pageId = 'premium-placeholder-general-penjualan';
+    if ($store.getInitFlag('premiumGeneralSalesInitialized')) {
+        // If already initialized, just ensure the data is generated for the current selection
+        await generatePremiumGeneralSales();
+        return;
+    }
+    if (!currentUser) return;
+
+    // Get filter elements
+    const branchSelect = document.getElementById('premium-sales-branch-select') as HTMLSelectElement;
+    const rangeSelect = document.getElementById('premium-sales-range-select') as HTMLSelectElement;
+    const periodSelect = document.getElementById('premium-sales-period-select') as HTMLSelectElement;
+    
+    // Populate Branch Selector
+    const allSalesData = $store.getAllSalesData();
+    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
+    
+    // --- START MODIFIED SECTION ---
+    // Logic to update Period Selector based on Range and available data
+    const updatePeriodSelector = () => {
+        const range = rangeSelect.value;
+        const selectedBranch = branchSelect.value;
+
+        let branchData = allSalesData;
+        if (selectedBranch !== 'ALL') {
+            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+        }
+        const allDates = branchData.map(s => s.date);
+        if (allDates.length === 0) {
+            periodSelect.innerHTML = '<option>No data available</option>';
+            return;
+        }
+
+        const periods = new Set<string>();
+        
+        if (range === 'yearly') {
+            allDates.forEach(d => periods.add(String(d.getFullYear())));
+        } else if (range === 'monthly') {
+            allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`));
+        } else if (range === 'quarterly') {
+            allDates.forEach(d => {
+                const quarter = Math.floor(d.getMonth() / 3) + 1;
+                periods.add(`${d.getFullYear()}-Q${quarter}`);
+            });
+        } else if (range === 'weekly') {
+            const getMonday = (d: Date) => {
+                const date = new Date(d);
+                const day = date.getDay();
+                const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+                return new Date(date.setDate(diff));
+            };
+            allDates.forEach(d => {
+                const monday = getMonday(d);
+                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+                periods.add(weekKey);
+            });
+        }
+
+        const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a));
+        
+        if (sortedPeriods.length === 0) {
+            periodSelect.innerHTML = '<option>No data for this range</option>';
+            return;
+        }
+        
+        const optionsHtml = sortedPeriods.map(p => {
+            if (range === 'yearly') {
+                return `<option value="${p}">${p}</option>`;
+            }
+            if (range === 'monthly') {
+                const [year, month] = p.split('-');
+                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+                return `<option value="${p}">${label}</option>`;
+            }
+            if (range === 'quarterly') {
+                return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
+            }
+            if (range === 'weekly') {
+                const [year, month, day] = p.split('-');
+                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                return `<option value="${p}">${label}</option>`;
+            }
+            return '';
+        }).join('');
+
+        periodSelect.innerHTML = optionsHtml;
+        generatePremiumGeneralSales(); // Re-generate charts on change
+    };
+    // --- END MODIFIED SECTION ---
+
+    // Attach event listeners
+    branchSelect.addEventListener('change', updatePeriodSelector); // Now calls the new dynamic function
+    rangeSelect.addEventListener('change', updatePeriodSelector);
+    periodSelect.addEventListener('change', generatePremiumGeneralSales);
+
+    // Initialize the AI summary component for this view
+    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
+
+    $store.setInitFlag('premiumGeneralSalesInitialized', true);
+    updatePeriodSelector(); // Initial population
 }
