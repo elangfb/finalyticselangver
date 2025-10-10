@@ -10,7 +10,7 @@ import { formatCurrency as formatCurrencyUtil, formatDecimalBasedPercentage, for
 /**
  * Generates a stacked bar chart with Omset, Expense, and Profit stacked in that order.
  */
-export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: AlsoStoreFn }) {
+export function generatePnlOverviewChart(reports: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const labels = reports.map((r) => new Date(r.period + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
   const revenueData: number[] = []
   const expenseData: number[] = []
@@ -29,7 +29,7 @@ export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: 
 
   const alsoStore = createMaybeAlsoStoreFn(config?.alsoStore)
 
-  createChart('general-pnl-overview-chart', 'bar', {
+  createChart(canvasId, 'bar', {
     labels,
     datasets: [
       {
@@ -44,7 +44,7 @@ export function generatePnlOverviewChart(reports: any[], config?: { alsoStore?: 
       {
         label: 'Expense',
         data: alsoStore(expenseData, (v: number[]) => ({
-          pnlOverviewChart: deepmerge(
+           pnlOverviewChart: deepmerge(
             ...v.map((val: number, index: number) => ({ [formatMachineYearMonth(reports[index].period)]: { expense: val } })),
           ),
         })),
