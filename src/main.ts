@@ -6,6 +6,8 @@ declare const XLSX: any
 declare const SlimSelect: any
 
 // --- Core Module Imports ---
+import { getSummariesFromCache, saveSummariesToCache, clearSummariesCache } from './services/localCacheService';
+import { collectionGroup, getDocs, query, where } from 'firebase/firestore';
 import { showView } from './core/views'
 import { currentUser } from './core/state'
 import { showLoading, hideLoading } from './core/ui'
@@ -29,49 +31,94 @@ import { collectionGroup, getDocs, query, where } from 'firebase/firestore'
 // This function is defined here as it's a top-level action initiated from the main menu.
 // In a larger application, this could be moved to a dedicated `actions.ts` file.
 async function viewCompiledAnalysis(targetView: 'analysis' | 'premium-analysis' = 'analysis') {
-  if (!currentUser) return
-  showLoading({ message: 'Fetching all daily summaries...', value: 10 })
+  if (!currentUser) return;
+  
+  // Logic is now split: Caching only applies to the 'premium-analysis' view.
+  if (targetView !== 'premium-analysis') {
+    console.log("Bypassing cache for standard analysis view. Fetching fresh data...");
+    showLoading({ message: 'Fetching all daily summaries...', value: 10 });
+    try {
+        const summariesQuery = query(collectionGroup(db, 'dailySummaries'), where('userId', '==', currentUser.uid));
+        const querySnapshot = await getDocs(summariesQuery);
+        const allSummaries = querySnapshot.docs.map(doc => ({...doc.data(), date: new Date(doc.data().date)}));
+        const validSummaries = allSummaries.filter(s => s.date instanceof Date && !isNaN(s.date.getTime()));
+
+        if (validSummaries.length === 0) {
+            alert('No valid summarized data found. Please upload a file first.');
+            hideLoading();
+            return;
+        }
+
+        validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime());
+        $store.setAllSalesData(validSummaries);
+        $store.setAiAnalysisResults({});
+        document.getElementById('analysis-title')!.textContent = 'Compiled Financial Analysis';
+        hideLoading();
+        showView(targetView);
+
+        const targetLink = document.querySelector('a.sidebar-link[data-target="general-keuangan"]') as HTMLElement;
+        if (targetLink) targetLink.click();
+        else await setupGeneralFinance();
+        return;
+    } catch (error: any) {
+        console.error('Failed to compile analysis from summaries:', error);
+        hideLoading();
+        alert(`An error occurred while fetching your data: ${error.message}`);
+        return;
+    }
+  }
+
+  // --- Caching Logic for Premium View ---
+
+  // 1. Try to load from IndexedDB cache first.
+  showLoading({ message: 'Checking for cached data...', value: 20 });
   try {
-    const summariesQuery = query(collectionGroup(db, 'dailySummaries'), where('userId', '==', currentUser.uid))
-    const querySnapshot = await getDocs(summariesQuery)
+    const cachedData = await getSummariesFromCache();
+    if (cachedData) {
+        console.log("%cCACHE HIT:", "color: #22c55e; font-weight: bold;", "Loading daily summaries from IndexedDB cache.");
+        const summariesFromCache = cachedData.map((s: any) => ({ ...s, date: new Date(s.date) }));
+        
+        $store.setAllSalesData(summariesFromCache);
+        hideLoading();
+        showView(targetView);
+        return; // Exit function after loading from cache
+    }
+  } catch (e) {
+      console.error("Failed to read from IndexedDB. Clearing cache and fetching from DB.", e);
+      await clearSummariesCache();
+  }
 
-    const allSummaries = querySnapshot.docs.map((doc) => {
-      const summary = doc.data()
-      summary.date = new Date(summary.date)
-      return summary
-    })
+  // 2. If cache is empty, fetch from Firestore and save to IndexedDB cache.
+  console.log("%cCACHE MISS & SAVE:", "color: #f97316; font-weight: bold;", "Fetching from Firestore and saving to IndexedDB for premium view.");
+  showLoading({ message: 'Fetching all daily summaries...', value: 10 });
+  try {
+    const summariesQuery = query(collectionGroup(db, 'dailySummaries'), where('userId', '==', currentUser.uid));
+    const querySnapshot = await getDocs(summariesQuery);
+    const allSummaries = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id, date: new Date(doc.data().date)}));
+    const validSummaries = allSummaries.filter(s => s.date instanceof Date && !isNaN(s.date.getTime()));
 
-    const validSummaries = allSummaries.filter((s) => s.date instanceof Date && !isNaN(s.date.getTime()))
     if (validSummaries.length === 0) {
-      alert('No valid summarized data found. Please upload a file first.')
-      hideLoading()
-      return
+      alert('No valid summarized data found. Please upload a file first.');
+      hideLoading();
+      return;
     }
 
-    validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime())
+    validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    $store.setAllSalesData(validSummaries.map((d: any) => ({ ...d, date: new Date(d.date) })))
-    $store.setAiAnalysisResults({})
-
-    document.getElementById('analysis-title')!.textContent = 'Compiled Financial Analysis'
-    hideLoading()
-
-    // Use the targetView parameter to show the correct page
-    showView(targetView)
-
-    // This logic is specific to the original analysis view, so we'll guard it.
-    if (targetView === 'analysis') {
-      const targetLink = document.querySelector('a.sidebar-link[data-target="general-keuangan"]') as HTMLElement
-      if (targetLink) {
-        targetLink.click()
-      } else {
-        await setupGeneralFinance()
-      }
+    try {
+      await saveSummariesToCache(validSummaries);
+      console.log("Daily summaries saved to IndexedDB cache.");
+    } catch (e) {
+      console.error("Failed to save data to IndexedDB.", e);
     }
+    
+    $store.setAllSalesData(validSummaries);
+    hideLoading();
+    showView(targetView);
   } catch (error: any) {
-    console.error('Failed to compile analysis from summaries:', error)
-    hideLoading()
-    alert(`An error occurred while fetching your data: ${error.message}`)
+    console.error('Failed to compile analysis from summaries:', error);
+    hideLoading();
+    alert(`An error occurred while fetching your data: ${error.message}`);
   }
 }
 
