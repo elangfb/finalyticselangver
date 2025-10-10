@@ -47,6 +47,11 @@ import {
 } from '@/analysis/sections/general/product-channel';
 import { generateTop10MenuTable } from './sales-tables';
 
+import { 
+    generatePnlComparisonTable, 
+    generateRatioComparisonChart 
+} from '@/analysis/sections/time-comparison/finance/generators';
+import { generatePremiumSubCategoryComparisonChart } from './finance-charts';
 
 import { deepmerge } from 'deepmerge-ts';
 import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string';
@@ -113,7 +118,6 @@ function generatePremiumAnalysis() {
   }
 }
 
-// Add these two functions before setupPremiumAnalysisView
 async function generatePremiumGeneralFinance() {
   if (!currentUser) return
   const branchSelect = document.getElementById('premium-finance-branch-select') as HTMLSelectElement
@@ -415,6 +419,8 @@ export function setupPremiumAnalysisView() {
                 await setupPremiumGeneralSales();
             } else if (targetId === 'premium-placeholder-general-produk') {
                 await setupPremiumProductChannel();
+            } else if (targetId === 'premium-placeholder-waktu-keuangan') {
+                await setupPremiumTimeFinance();
             }
     }
   })
@@ -1013,4 +1019,96 @@ async function setupPremiumProductChannel() {
     setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
     $store.setInitFlag('premiumProductChannelInitialized', true);
     updatePeriodSelector(); // Initial population and default selection
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumTimeFinance() {
+    if (!currentUser) return;
+    const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement;
+    const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement;
+    const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement;
+    
+    const selectedBranch = branchSelect.value;
+    const periodA = periodASelect.value;
+    const periodB = periodBSelect.value;
+
+    if (!selectedBranch || !periodA || !periodB) return;
+
+    showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
+    
+    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(pnlReportsRef);
+    const allReports = reportsSnap.docs.map((doc) => doc.data());
+
+    const findReport = (period: string, branch: string) => allReports.find((r) => r.period === period && r.branchName === branch);
+
+    const reportA = findReport(periodA, selectedBranch);
+    const reportB = findReport(periodB, selectedBranch);
+
+    // Populate the view
+    generatePnlComparisonTable(reportA, reportB, 'premium-time-finance-pnl-comparison-container');
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
+    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-wages-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Wages', title: 'Wages' });
+    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-rent-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Rent', title: 'Rent' });
+    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-advertising-chart', mainCategory: 'Beban Non Operasional', subCategory: 'Advertising', title: 'Advertising' });
+    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+
+    hideLoading();
+}
+
+async function setupPremiumTimeFinance() {
+    const pageId = 'premium-placeholder-waktu-keuangan';
+    if ($store.getInitFlag('premiumTimeFinanceInitialized')) {
+        await generatePremiumTimeFinance();
+        return;
+    }
+    if (!currentUser) return;
+
+    const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement;
+    const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement;
+    const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement;
+
+    const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+    const reportsSnap = await getDocs(reportsRef);
+    const allReports = reportsSnap.docs.map(doc => doc.data());
+    const branches = [...new Set(allReports.map(report => report.branchName))].sort();
+
+    if (branches.length === 0) {
+        branchSelect.innerHTML = '<option>No P&L data found</option>';
+        return;
+    }
+    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    const updatePeriodSelectors = async () => {
+        const selectedBranch = branchSelect.value;
+        const periods = [...new Set(allReports.filter(r => r.branchName === selectedBranch).map(r => r.period))].sort().reverse();
+
+        if (periods.length < 2) {
+            periodASelect.innerHTML = '<option>Not enough data</option>';
+            periodBSelect.innerHTML = '<option>Not enough data</option>';
+            return;
+        }
+
+        const optionsHtml = periods.map(p => {
+            const label = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+            return `<option value="${p}">${label}</option>`;
+        }).join('');
+
+        periodASelect.innerHTML = optionsHtml;
+        periodBSelect.innerHTML = optionsHtml;
+        periodASelect.value = periods[1] || periods[0];
+        periodBSelect.value = periods[0];
+
+        await generatePremiumTimeFinance();
+    };
+
+    branchSelect.addEventListener('change', updatePeriodSelectors);
+    periodASelect.addEventListener('change', generatePremiumTimeFinance);
+    periodBSelect.addEventListener('change', generatePremiumTimeFinance);
+
+    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
+    $store.setInitFlag('premiumTimeFinanceInitialized', true);
+    await updatePeriodSelectors();
 }

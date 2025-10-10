@@ -910,8 +910,94 @@
                         <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis General, Aspek Investasi</h2>
                     </main>
                     <main id="premium-placeholder-waktu-keuangan" class="premium-analysis-content flex-1 space-y-6 hidden">
-                        <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Waktu, Aspek Keuangan</h2>
-                    </main>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Analisis Perbandingan Waktu: Aspek Keuangan</h2>
+            <p class="text-sm text-gray-500 mt-1">Compare financial performance between two periods.</p>
+        </div>
+        <div class="flex items-center gap-2 mt-4 sm:mt-0">
+            <div>
+                <label for="premium-time-finance-branch-select" class="sr-only">Select Branch</label>
+                <select id="premium-time-finance-branch-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>Placeholder Branch</option>
+                </select>
+            </div>
+            <div>
+                <label for="premium-time-finance-period-a-select" class="sr-only">Compare Period A</label>
+                <select id="premium-time-finance-period-a-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>Placeholder Period A</option>
+                </select>
+            </div>
+            <div>
+                <label for="premium-time-finance-period-b-select" class="sr-only">With Period B</label>
+                <select id="premium-time-finance-period-b-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>Placeholder Period B</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div data-el="analyze-page-summary">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div data-state="init">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-semibold text-gray-700">AI Summary</h3>
+                    <button class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition" data-el="analyze-page-summary" data-target="premium-placeholder-waktu-keuangan">
+                        Analyze with AI
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700 mb-4">Tabel P&L Comparison</h4>
+            <div id="premium-time-finance-pnl-comparison-container" class="overflow-x-auto">
+                <p class="text-gray-400 text-center py-8">P&L Comparison table will be displayed here.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">COGS % terhadap Pendapatan</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-cogs-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Gross Profit Margin</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-gpm-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Biaya Gaji (Wages) % dari Pendapatan</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-wages-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Biaya Sewa (Rent) % dari Pendapatan</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-rent-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Biaya Iklan (Advertising) % dari Pendapatan</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-advertising-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h4 class="font-semibold text-gray-700">Net Profit</h4>
+            <div class="chart-container mt-4">
+                <canvas id="premium-time-finance-npm-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</main>
                     <main id="premium-placeholder-waktu-penjualan" class="premium-analysis-content flex-1 space-y-6 hidden">
                         <h2 class="text-2xl font-bold p-6">THIS IS A PLACEHOLDER FOR // Analisis Perbandingan Waktu, Aspek Penjualan</h2>
                     </main>
