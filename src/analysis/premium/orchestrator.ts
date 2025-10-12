@@ -536,7 +536,22 @@ export function setupPremiumAnalysisView() {
     downloadPnlTargetTemplate()
   })
 
-  // Helper to handle file selection for any of the four types
+  const salesDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-sales-data-input"]') as HTMLLabelElement
+  const formatButtons = uploadModal?.querySelectorAll('.upload-format-btn')
+  let selectedSalesFormat: 'ESB' | 'MOKA' | null = null
+
+  formatButtons?.forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedSalesFormat = button.getAttribute('data-format') as 'ESB' | 'MOKA'
+      // Visually indicate selection
+      formatButtons.forEach((btn) => btn.classList.remove('bg-indigo-100', 'border-indigo-500'))
+      button.classList.add('bg-indigo-100', 'border-indigo-500')
+      // Show the upload zone
+      salesDataUploadZone?.classList.remove('hidden')
+      salesDataUploadZone?.classList.add('flex')
+    })
+  })
+
   const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'salesTarget' | 'pnlData' | 'pnlTarget') => {
     if (!file) {
       alert('Please select a file.')
@@ -548,8 +563,10 @@ export function setupPremiumAnalysisView() {
     try {
       switch (type) {
         case 'salesData':
-          // Defaulting to 'ESB' format. The UI could be updated to ask the user.
-          await handleSalesDataUpload(file, 'ESB')
+          if (!selectedSalesFormat) {
+            throw new Error('Sales data format (ESB/Moka) was not selected.')
+          }
+          await handleSalesDataUpload(file, selectedSalesFormat)
           break
         case 'salesTarget':
           await handleTargetUpload(file, 'sales')
@@ -561,7 +578,6 @@ export function setupPremiumAnalysisView() {
           await handleTargetUpload(file, 'pnl')
           break
       }
-      // The success flow (progress bar, cache clearing) is handled by the functions above.
     } catch (error: any) {
       alert(`Upload failed: ${error.message}`)
       console.error(`Error during ${type} upload:`, error)

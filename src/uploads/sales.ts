@@ -7,7 +7,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { ref, uploadBytesResumable, UploadTask } from 'firebase/storage'
 import { db, storage } from '@/core/firebase'
 import { currentUser } from '@/core/state'
-import { getPeriodRangeFromEsbData, getPeriodRangeFromMokaData, getPeriodFromFile } from './utils'
+import { getPeriodRangeFromEsbData, getPeriodRangeFromMokaData, getPeriodFromFile, detectSalesDataFormat } from './utils';
 import { listenForProcessingStatus } from './processing'
 import type { WorkSheet } from 'xlsx'
 
@@ -16,57 +16,53 @@ import type { WorkSheet } from 'xlsx'
  * It now creates the job document BEFORE uploading to prevent a race condition.
  */
 export async function handleSalesDataUpload(file: File, format: 'ESB' | 'MOKA') {
-  if (!currentUser) return
+  if (!currentUser) return;
 
-  const progressContainer = document.getElementById('upload-progress-container')
-  const statusText = document.getElementById('upload-status-text')
+  const progressContainer = document.getElementById('upload-progress-container');
+  const statusText = document.getElementById('upload-status-text');
 
   if (!progressContainer || !statusText) {
-    console.error('Progress UI elements not found')
-    return
+    console.error('Progress UI elements not found');
+    return;
   }
 
-  progressContainer.classList.remove('hidden')
-  setTimeout(() => progressContainer.classList.add('show'), 10)
-  statusText.textContent = `Analyzing and compressing ${format} file...`
+  progressContainer.classList.remove('hidden');
+  setTimeout(() => progressContainer.classList.add('show'), 10);
+  statusText.textContent = `Analyzing and compressing ${format} file...`;
 
   try {
-    const fileBuffer = await file.arrayBuffer()
-    const compressedData = pako.gzip(fileBuffer)
+    const fileBuffer = await file.arrayBuffer();
+    const compressedData = pako.gzip(fileBuffer);
 
-    const workbook = XLSX.read(fileBuffer)
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+    const workbook = XLSX.read(fileBuffer);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
     const { startPeriod, endPeriod } = format === 'MOKA'
       ? getPeriodRangeFromMokaData(worksheet)
-      : getPeriodRangeFromEsbData(worksheet)
+      : getPeriodRangeFromEsbData(worksheet);
 
-    const periodRangeText = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`
-    statusText.textContent = `Period(s) ${periodRangeText} found. Preparing upload...`
+    const periodRangeText = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`;
+    statusText.textContent = `Period(s) ${periodRangeText} found. Preparing upload...`;
 
-    const jobId = `job_${Date.now()}`
-
-    // --- FIX START: Create the job document and start listening BEFORE the upload ---
-    const jobDocRef = doc(db, `processingJobs`, jobId)
+    const jobId = `job_${Date.now()}`;
+    const jobDocRef = doc(db, `processingJobs`, jobId);
     await setDoc(jobDocRef, {
       userId: currentUser.uid,
       jobId: jobId,
       fileName: file.name,
-      status: 'preparing', // A new initial status
+      status: 'preparing',
       createdAt: new Date(),
       format: format,
       periodRange: periodRangeText,
-    })
+    });
 
-    // Start listening for backend progress immediately
-    listenForProcessingStatus(jobId)
-    // --- FIX END ---
+    listenForProcessingStatus(jobId);
 
-    const storagePath = `user_uploads/${currentUser.uid}/${jobId}/${file.name}.gz`
-    const storageRef = ref(storage, storagePath)
+    const storagePath = `user_uploads/${currentUser.uid}/${jobId}/${file.name}.gz`;
+    const storageRef = ref(storage, storagePath);
 
     const metadata = {
-      contentEncoding: 'gzip', // Re-adding this as it's standard and the backend handles it
+      contentEncoding: 'gzip',
       customMetadata: {
         userId: currentUser.uid,
         jobId: jobId,
@@ -74,36 +70,32 @@ export async function handleSalesDataUpload(file: File, format: 'ESB' | 'MOKA') 
         startPeriod: startPeriod,
         endPeriod: endPeriod,
       },
-    }
+    };
 
-    const uploadTask = uploadBytesResumable(storageRef, compressedData, metadata)
+    const uploadTask = uploadBytesResumable(storageRef, compressedData, metadata);
 
     uploadTask.on('state_changed',
       (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        // This part of the UI is now handled by listenForProcessingStatus,
-        // but we can log progress if needed.
-        console.log(`Upload is ${progress}% done`)
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log(`Upload is ${progress}% done`);
       },
       (error) => {
-        console.error(`${format} upload failed:`, error)
-        // Update the job document to show the error
-        setDoc(jobDocRef, { 'status': 'error', 'progress.message': 'File upload failed.' }, { merge: true })
+        console.error(`${format} upload failed:`, error);
+        setDoc(jobDocRef, { 'status': 'error', 'progress.message': 'File upload failed.' }, { merge: true });
       },
       async () => {
-        // On success, the backend is already triggered. We just need to update the status.
-        console.log('File upload complete. Backend is processing...')
-        await setDoc(jobDocRef, { status: 'uploaded' }, { merge: true })
+        console.log('File upload complete. Backend is processing...');
+        await setDoc(jobDocRef, { status: 'uploaded' }, { merge: true });
       },
-    )
+    );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    statusText.textContent = `Error: ${errorMessage}`
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if(statusText) statusText.textContent = `Error: ${errorMessage}`;
     setTimeout(() => {
-      progressContainer.classList.remove('show')
-      setTimeout(() => progressContainer.classList.add('hidden'), 300)
-    }, 5000)
-    alert(`Error processing ${format} file: ${errorMessage}`)
+      progressContainer?.classList.remove('show');
+      setTimeout(() => progressContainer?.classList.add('hidden'), 300);
+    }, 5000);
+    alert(`Error processing ${format} file: ${errorMessage}`);
   }
 }
 
