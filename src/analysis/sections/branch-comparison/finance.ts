@@ -31,7 +31,7 @@ function calculatePnlMetrics(pnlData: any) {
 /**
  * Generates a comparison table for key P&L metrics between two branches.
  */
-function generateBranchPnlComparisonTable(reportA: any, reportB: any, containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
+export function generateBranchPnlComparisonTable(reportA: any, reportB: any, containerId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const metricsA = calculatePnlMetrics(reportA?.pnlData)
   const metricsB = calculatePnlMetrics(reportB?.pnlData)
   const container = document.getElementById(containerId)
@@ -76,7 +76,7 @@ function generateBranchPnlComparisonTable(reportA: any, reportB: any, containerI
 /**
  * Generates a dual-axis chart comparing a financial ratio between two branches.
  */
-function generateBranchRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
+export function generateBranchRatioComparisonChart(reportA: any, reportB: any, config: { canvasId: string, metric: string, title: string, alsoStore?: AlsoStoreFn }) {
   const metricsA = calculatePnlMetrics(reportA?.pnlData)
   const metricsB = calculatePnlMetrics(reportB?.pnlData)
   const valueA = metricsA[config.metric as keyof typeof metricsA] || 0

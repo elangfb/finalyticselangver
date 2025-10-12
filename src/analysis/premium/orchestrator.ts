@@ -40,31 +40,46 @@ import { generateOmzetHeatmapFromSummaries, generateSalesTrendHourlyDailyChartFr
 import { generateOmzetYearlyChart, generateOmzetQuarterlyChart, generateOmzetWeeklyChart } from './sales-charts'
 
 // Add these imports to the top of src/analysis/premium/orchestrator.ts
-import { 
-    drawGeneralMenuTrendChart,
-    generateChannelDonutChart, 
-    generateOrderByCategoryDonutChart
-} from '@/analysis/sections/general/product-channel';
-import { generateTop10MenuTable } from './sales-tables';
+import {
+  drawGeneralMenuTrendChart,
+  generateChannelDonutChart,
+  generateOrderByCategoryDonutChart,
+} from '@/analysis/sections/general/product-channel'
+import { generateTop10MenuTable } from './sales-tables'
 
-import { 
-    generatePnlComparisonTable, 
-    generateRatioComparisonChart 
-} from '@/analysis/sections/time-comparison/finance/generators';
-import { generatePremiumSubCategoryComparisonChart } from './finance-charts';
+import {
+  generatePnlComparisonTable,
+  generateRatioComparisonChart,
+} from '@/analysis/sections/time-comparison/finance/generators'
+import { generatePremiumSubCategoryComparisonChart } from './finance-charts'
 
-import { populateTimeComparisonKPIs, generatePremiumTimeComparisonChart } from './sales-charts';
+import { populateTimeComparisonKPIs, generatePremiumTimeComparisonChart } from './sales-charts'
 
 // Add these imports to the top of src/analysis/premium/orchestrator.ts
-import { generateTop10ComparisonTable } from './sales-tables';
-import { generateCategoryComparisonChart, generateChannelComparisonChart } from '@/analysis/sections/time-comparison/product-channel';
-import { generatePremiumMenuTrendComparisonChart } from './sales-charts';
+import { generateTop10ComparisonTable } from './sales-tables'
+import { generateCategoryComparisonChart, generateChannelComparisonChart } from '@/analysis/sections/time-comparison/product-channel'
+import { generatePremiumMenuTrendComparisonChart } from './sales-charts'
 
+import {
+  generateBranchPnlComparisonTable,
+  generateBranchRatioComparisonChart,
+} from '@/analysis/sections/branch-comparison/finance'
 
-import { deepmerge } from 'deepmerge-ts';
-import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string';
+import { populateBranchComparisonKPIs, generatePremiumBranchComparisonChart } from './sales-charts'
 
-declare const SlimSelect: any;
+import {
+  drawBranchMenuTrendChart,
+  generateBranchChannelComparisonChart,
+} from '@/analysis/sections/branch-comparison/product-channel'
+
+import { handleSalesDataUpload } from '@/uploads/sales'
+import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from '@/uploads/targets'
+import { uploadAndProcessPnlFile, downloadPnlTemplate } from '@/uploads/pnl'
+
+import { deepmerge } from 'deepmerge-ts'
+import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string'
+
+declare const SlimSelect: any
 
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
@@ -76,29 +91,61 @@ function generatePremiumAnalysis() {
 
   if (!selectedBranch) return
 
-  // 1. Filter data by the selected branch
   const branchData = selectedBranch === 'ALL'
     ? allSalesData
     : allSalesData.filter((s) => s.branches.includes(selectedBranch))
 
-  // 2. Determine date ranges (last month vs month before)
-  const now = new Date() // Use consistent time
-  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
-  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+  if (branchData.length === 0) {
+    // If there is no data at all for this branch, clear the view and exit.
+    // Calling the generators with empty arrays will reset the view.
+    generateRingkasanFromSummaries([], [], { omzet: 'premium-total-omzet', check: 'premium-total-check', avgCheck: 'premium-avg-check', omzetGrowth: 'premium-omzet-growth', checkGrowth: 'premium-check-growth', avgCheckGrowth: 'premium-avg-check-growth' })
+    createChart('premium-tc-apc-chart', 'line', { labels: [], datasets: [] })
+    createChart('premium-omzet-chart', 'line', { labels: [], datasets: [] })
+    const heatmap = document.getElementById('premium-heatmap-container')
+    if (heatmap) heatmap.innerHTML = '<div class="h-full bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">No Data Available</span></div>'
+    createChart('premium-omzet-by-outlet-chart', 'bar', { labels: [], datasets: [] })
+    return
+  }
 
-  const comparisonMonthYear = lastMonth === 0 ? lastMonthYear - 1 : lastMonthYear
-  const comparisonMonth = lastMonth === 0 ? 11 : lastMonth - 1
+  let primarySummaries: SalesSummary[] = []
+  let comparisonSummaries: SalesSummary[] = []
 
-  // 3. Filter the branch-specific data for each period
-  const lastMonthSummaries = branchData.filter((summary) =>
-    summary.date.getFullYear() === lastMonthYear && summary.date.getMonth() === lastMonth,
+  // 1. First, try to get data for the previous full month.
+  const now = new Date()
+  const prevMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+  const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+
+  primarySummaries = branchData.filter((summary) =>
+    summary.date.getFullYear() === prevMonthYear && summary.date.getMonth() === prevMonth,
   )
 
-  const comparisonMonthSummaries = branchData.filter((summary) =>
-    summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
-  )
+  // 2. If no data exists for the previous month, fall back to the latest month with data.
+  if (primarySummaries.length > 0) {
+    // Data found for last month. The comparison period is the month before that.
+    const comparisonMonthYear = prevMonth === 0 ? prevMonthYear - 1 : prevMonthYear
+    const comparisonMonth = prevMonth === 0 ? 11 : prevMonth - 1
+    comparisonSummaries = branchData.filter((summary) =>
+      summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
+    )
+  } else {
+    // Fallback logic: Find the most recent month that has data.
+    const latestDate = branchData.reduce((max, s) => s.date > max ? s.date : max, branchData[0].date)
+    const latestMonthYear = latestDate.getFullYear()
+    const latestMonth = latestDate.getMonth()
 
-  // 4. Define element IDs and update the UI
+    primarySummaries = branchData.filter((summary) =>
+      summary.date.getFullYear() === latestMonthYear && summary.date.getMonth() === latestMonth,
+    )
+
+    // The comparison for the latest month is the month immediately preceding it.
+    const comparisonMonthYear = latestMonth === 0 ? latestMonthYear - 1 : latestMonthYear
+    const comparisonMonth = latestMonth === 0 ? 11 : latestMonth - 1
+    comparisonSummaries = branchData.filter((summary) =>
+      summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
+    )
+  }
+
+  // 3. Define element IDs and update the UI with the determined data.
   const premiumKpiIds = {
     omzet: 'premium-total-omzet',
     check: 'premium-total-check',
@@ -108,19 +155,17 @@ function generatePremiumAnalysis() {
     avgCheckGrowth: 'premium-avg-check-growth',
   }
 
-  generateRingkasanFromSummaries(lastMonthSummaries, comparisonMonthSummaries, premiumKpiIds)
+  generateRingkasanFromSummaries(primarySummaries, comparisonSummaries, premiumKpiIds)
 
-  if (lastMonthSummaries.length > 0) {
-    generateTcApcHarianChartFromSummaries(lastMonthSummaries, 'premium-tc-apc-chart')
-    generateOmzetHarianChartFromSummaries(lastMonthSummaries, 'premium-omzet-chart')
-    generateOmzetHeatmapFromSummaries(lastMonthSummaries, 'premium-heatmap-container')
+  if (primarySummaries.length > 0) {
+    generateTcApcHarianChartFromSummaries(primarySummaries, 'premium-tc-apc-chart')
+    generateOmzetHarianChartFromSummaries(primarySummaries, 'premium-omzet-chart')
+    generateOmzetHeatmapFromSummaries(primarySummaries, 'premium-heatmap-container')
 
-    // Only show Omzet by Outlet if "All Branches" is selected
     if (selectedBranch === 'ALL') {
       document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.remove('hidden')
-      generateOmzetByOutletChart(lastMonthSummaries, 'premium-omzet-by-outlet-chart')
+      generateOmzetByOutletChart(primarySummaries, 'premium-omzet-by-outlet-chart')
     } else {
-      // Hide the chart if a single branch is selected as it's redundant
       document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.add('hidden')
     }
   }
@@ -250,6 +295,16 @@ export function setupPremiumAnalysisView() {
   const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement
   const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement
   const pageInfo = document.getElementById('premium-data-page-info')
+
+  const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
+  const uploadModal = document.getElementById('premium-upload-modal')
+  const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
+  const uploadModalContent = uploadModal?.querySelector('.bg-white')
+  const downloadTemplateBtn = uploadModal?.querySelector('button')
+  const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement
+  const salesTargetInput = document.getElementById('premium-upload-sales-target-input') as HTMLInputElement
+  const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement
+  const pnlTargetInput = document.getElementById('premium-upload-pnl-target-input') as HTMLInputElement
 
   if (!branchSelect || !manageDataBranchSelect || !gridContainer || !prevBtn || !nextBtn || !pageInfo) return
 
@@ -421,24 +476,103 @@ export function setupPremiumAnalysisView() {
       parentToggle?.classList.add('font-semibold')
 
       // --- TRIGGER THE SETUP FOR THE SPECIFIC VIEW ---
-        if (targetId === 'premium-placeholder-general-keuangan') {
-                await setupPremiumGeneralFinance();
-            } else if (targetId === 'premium-placeholder-general-penjualan') {
-                await setupPremiumGeneralSales();
-            } else if (targetId === 'premium-placeholder-general-produk') {
-                await setupPremiumProductChannel();
-            } else if (targetId === 'premium-placeholder-waktu-keuangan') {
-                await setupPremiumTimeFinance();
-            } else if (targetId === 'premium-placeholder-waktu-penjualan') {
-                await setupPremiumTimeSales();
-            } else if (targetId === 'premium-placeholder-waktu-produk') {
-                await setupPremiumTimeProductChannel();
-            }
-
+      if (targetId === 'premium-placeholder-general-keuangan') {
+        await setupPremiumGeneralFinance()
+      } else if (targetId === 'premium-placeholder-general-penjualan') {
+        await setupPremiumGeneralSales()
+      } else if (targetId === 'premium-placeholder-general-produk') {
+        await setupPremiumProductChannel()
+      } else if (targetId === 'premium-placeholder-waktu-keuangan') {
+        await setupPremiumTimeFinance()
+      } else if (targetId === 'premium-placeholder-waktu-penjualan') {
+        await setupPremiumTimeSales()
+      } else if (targetId === 'premium-placeholder-waktu-produk') {
+        await setupPremiumTimeProductChannel()
+      } else if (targetId === 'premium-placeholder-cabang-keuangan') {
+        await setupPremiumBranchFinance()
+      } else if (targetId === 'premium-placeholder-cabang-penjualan') {
+        await setupPremiumBranchSales()
+      } else if (targetId === 'premium-placeholder-cabang-produk') {
+        await setupPremiumBranchProductChannel()
+      }
     }
   })
 
-  // --- Initial Setup for Dashboard View ---
+  const openUploadModal = () => {
+    if (uploadModal && uploadModalContent) {
+      uploadModal.classList.remove('hidden')
+      setTimeout(() => { // Allow the display property to apply before starting animation
+        uploadModal.classList.remove('opacity-0')
+        uploadModalContent.classList.remove('scale-95', 'opacity-0')
+      }, 10)
+    }
+  }
+
+  const closeUploadModal = () => {
+    if (uploadModal && uploadModalContent) {
+      uploadModal.classList.add('opacity-0')
+      uploadModalContent.classList.add('scale-95', 'opacity-0')
+      setTimeout(() => { // Wait for animation to finish before hiding
+        uploadModal.classList.add('hidden')
+      }, 300)
+    }
+  }
+
+  uploadBtn?.addEventListener('click', (e) => {
+    e.preventDefault()
+    openUploadModal()
+  })
+
+  uploadModalCloseBtn?.addEventListener('click', closeUploadModal)
+  uploadModal?.addEventListener('click', (e) => {
+    if (e.target === uploadModal) {
+      closeUploadModal()
+    }
+  })
+
+  downloadTemplateBtn?.addEventListener('click', () => {
+    downloadPnlTemplate()
+    downloadSalesTargetTemplate()
+    downloadPnlTargetTemplate()
+  })
+
+  // Helper to handle file selection for any of the four types
+  const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'salesTarget' | 'pnlData' | 'pnlTarget') => {
+    if (!file) {
+      alert('Please select a file.')
+      return
+    }
+
+    closeUploadModal()
+
+    try {
+      switch (type) {
+        case 'salesData':
+          // Defaulting to 'ESB' format. The UI could be updated to ask the user.
+          await handleSalesDataUpload(file, 'ESB')
+          break
+        case 'salesTarget':
+          await handleTargetUpload(file, 'sales')
+          break
+        case 'pnlData':
+          await uploadAndProcessPnlFile(file)
+          break
+        case 'pnlTarget':
+          await handleTargetUpload(file, 'pnl')
+          break
+      }
+      // The success flow (progress bar, cache clearing) is handled by the functions above.
+    } catch (error: any) {
+      alert(`Upload failed: ${error.message}`)
+      console.error(`Error during ${type} upload:`, error)
+    }
+  }
+
+  salesDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
+  salesTargetInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesTarget'))
+  pnlDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
+  pnlTargetInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlTarget'))
+
   const allSalesData: SalesSummary[] = $store.getAllSalesData()
   const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
   branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + dashboardBranches.map((b) => `<option value="${b}">${b}</option>`).join('')
@@ -809,667 +943,1001 @@ async function setupPremiumGeneralSales() {
 // Add these two new functions to src/analysis/premium/orchestrator.ts
 
 async function generatePremiumProductChannel() {
-    if (!currentUser) return;
+  if (!currentUser) return
 
-    // Get filter values
-    const branchSelect = document.getElementById('premium-product-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-product-range-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('premium-product-period-select') as HTMLSelectElement;
-    const slimSelectInstance = $store.getUIComponent('premiumProductMenuSelect');
+  // Get filter values
+  const branchSelect = document.getElementById('premium-product-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-product-range-select') as HTMLSelectElement
+  const periodSelect = document.getElementById('premium-product-period-select') as HTMLSelectElement
+  const slimSelectInstance = $store.getUIComponent('premiumProductMenuSelect')
 
-    const selectedBranch = branchSelect.value;
-    const selectedRange = rangeSelect.value;
-    const selectedPeriod = periodSelect.value;
+  const selectedBranch = branchSelect.value
+  const selectedRange = rangeSelect.value
+  const selectedPeriod = periodSelect.value
 
-    if (!selectedBranch || !selectedRange || !selectedPeriod) return;
+  if (!selectedBranch || !selectedRange || !selectedPeriod) return
 
-    // --- START MODIFIED SECTION ---
-    const allSalesData = $store.getAllSalesData();
-    let branchData = allSalesData;
-    if (selectedBranch !== 'ALL') {
-        branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+  // --- START MODIFIED SECTION ---
+  const allSalesData = $store.getAllSalesData()
+  let branchData = allSalesData
+  if (selectedBranch !== 'ALL') {
+    branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
+  }
+
+  let startDate: Date, endDate: Date
+  // This logic correctly parses year, quarter, month, or week from the selected period
+  try {
+    const [year, part, dayPart] = selectedPeriod.split('-')
+
+    switch (selectedRange) {
+      case 'yearly':
+        startDate = new Date(parseInt(year), 0, 1)
+        endDate = new Date(parseInt(year), 11, 31, 23, 59, 59)
+        break
+      case 'quarterly':
+        const quarter = parseInt(part.replace('Q', ''))
+        const startMonth = (quarter - 1) * 3
+        startDate = new Date(parseInt(year), startMonth, 1)
+        endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59)
+        break
+      case 'monthly':
+        startDate = new Date(parseInt(year), parseInt(part) - 1, 1)
+        endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59)
+        break
+      case 'weekly':
+        startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart))
+        endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + 6)
+        endDate.setHours(23, 59, 59)
+        break
+      default:
+        // If something goes wrong, filter nothing to show an empty state
+        startDate = new Date(9999, 0, 1)
+        endDate = new Date(9999, 0, 1)
+        break
     }
+  } catch (e) {
+    console.error('Error parsing date range, showing empty data.', e)
+    // On error, filter nothing to show an empty state
+    startDate = new Date(9999, 0, 1)
+    endDate = new Date(9999, 0, 1)
+  }
 
-    let startDate: Date, endDate: Date;
-    // This logic correctly parses year, quarter, month, or week from the selected period
-    try {
-        const [year, part, dayPart] = selectedPeriod.split('-');
+  const filteredData = branchData.filter((s) => s.date >= startDate && s.date <= endDate)
+  // --- END MODIFIED SECTION ---
 
-        switch (selectedRange) {
-            case 'yearly':
-                startDate = new Date(parseInt(year), 0, 1);
-                endDate = new Date(parseInt(year), 11, 31, 23, 59, 59);
-                break;
-            case 'quarterly':
-                const quarter = parseInt(part.replace('Q', ''));
-                const startMonth = (quarter - 1) * 3;
-                startDate = new Date(parseInt(year), startMonth, 1);
-                endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59);
-                break;
-            case 'monthly':
-                startDate = new Date(parseInt(year), parseInt(part) - 1, 1);
-                endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59);
-                break;
-            case 'weekly':
-                startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart));
-                endDate = new Date(startDate);
-                endDate.setDate(startDate.getDate() + 6);
-                endDate.setHours(23, 59, 59);
-                break;
-            default:
-                // If something goes wrong, filter nothing to show an empty state
-                startDate = new Date(9999, 0, 1);
-                endDate = new Date(9999, 0, 1);
-                break;
-        }
-    } catch (e) {
-        console.error("Error parsing date range, showing empty data.", e);
-        // On error, filter nothing to show an empty state
-        startDate = new Date(9999, 0, 1);
-        endDate = new Date(9999, 0, 1);
-    }
-    
-    const filteredData = branchData.filter(s => s.date >= startDate && s.date <= endDate);
-    // --- END MODIFIED SECTION ---
-
-    // Populate charts and tables
-    if (slimSelectInstance) {
-        drawGeneralMenuTrendChart(filteredData, 'premium-product-menu-trend-chart', slimSelectInstance);
-    }
-    generateChannelDonutChart(filteredData, 'premium-product-channel-chart');
-    generateOrderByCategoryDonutChart(filteredData, 'premium-product-category-chart');
-    generateTop10MenuTable(filteredData, 'premium-product-top-quantity-container', 'quantity');
-    generateTop10MenuTable(filteredData, 'premium-product-top-revenue-container', 'revenue');
+  // Populate charts and tables
+  if (slimSelectInstance) {
+    drawGeneralMenuTrendChart(filteredData, 'premium-product-menu-trend-chart', slimSelectInstance)
+  }
+  generateChannelDonutChart(filteredData, 'premium-product-channel-chart')
+  generateOrderByCategoryDonutChart(filteredData, 'premium-product-category-chart')
+  generateTop10MenuTable(filteredData, 'premium-product-top-quantity-container', 'quantity')
+  generateTop10MenuTable(filteredData, 'premium-product-top-revenue-container', 'revenue')
 }
 
 async function setupPremiumProductChannel() {
-    const pageId = 'premium-placeholder-general-produk';
-    if ($store.getInitFlag('premiumProductChannelInitialized')) {
-        await generatePremiumProductChannel();
-        return;
+  const pageId = 'premium-placeholder-general-produk'
+  if ($store.getInitFlag('premiumProductChannelInitialized')) {
+    await generatePremiumProductChannel()
+    return
+  }
+  if (!currentUser) return
+
+  // --- Get Filter Elements ---
+  const branchSelect = document.getElementById('premium-product-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-product-range-select') as HTMLSelectElement
+  const periodSelect = document.getElementById('premium-product-period-select') as HTMLSelectElement
+
+  const allSalesData = $store.getAllSalesData()
+  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  // --- Setup Menu Multi-Select (before listeners) ---
+  const menuSelectElement = document.getElementById('premium-product-menu-select') as HTMLSelectElement
+  const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort()
+  menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('')
+
+  const slimSelectInstance = new SlimSelect({
+    select: '#premium-product-menu-select',
+    events: { afterChange: () => generatePremiumProductChannel() },
+  })
+  $store.setUIComponent('premiumProductMenuSelect', slimSelectInstance)
+
+  const updatePeriodSelector = () => {
+    const range = rangeSelect.value
+    const selectedBranch = branchSelect.value
+    let branchData = allSalesData
+    if (selectedBranch !== 'ALL') {
+      branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
     }
-    if (!currentUser) return;
-    
-    // --- Get Filter Elements ---
-    const branchSelect = document.getElementById('premium-product-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-product-range-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('premium-product-period-select') as HTMLSelectElement;
-    
-    const allSalesData = $store.getAllSalesData();
-    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
-    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
+    const allDates = branchData.map((s) => s.date)
 
-    // --- Setup Menu Multi-Select (before listeners) ---
-    const menuSelectElement = document.getElementById('premium-product-menu-select') as HTMLSelectElement;
-    const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort();
-    menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('');
+    if (allDates.length === 0) {
+      periodSelect.innerHTML = '<option>No data available</option>'
+      generatePremiumProductChannel()
+      return
+    }
 
-    const slimSelectInstance = new SlimSelect({
-        select: '#premium-product-menu-select',
-        events: { afterChange: () => generatePremiumProductChannel() },
-    });
-    $store.setUIComponent('premiumProductMenuSelect', slimSelectInstance);
-    
-    const updatePeriodSelector = () => {
-        const range = rangeSelect.value;
-        const selectedBranch = branchSelect.value;
-        let branchData = allSalesData;
-        if (selectedBranch !== 'ALL') {
-            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const periods = new Set<string>()
+
+    if (range === 'yearly') { allDates.forEach((d) => periods.add(String(d.getFullYear()))) } else if (range === 'monthly') { allDates.forEach((d) => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)) } else if (range === 'quarterly') { allDates.forEach((d) => { const q = Math.floor(d.getMonth() / 3) + 1; periods.add(`${d.getFullYear()}-Q${q}`) }) } else if (range === 'weekly') {
+      const getMonday = (d: Date) => {
+        const date = new Date(d)
+        const day = date.getDay()
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+        return new Date(date.setDate(diff))
+      }
+      allDates.forEach((d) => {
+        const monday = getMonday(d)
+        const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+        periods.add(weekKey)
+      })
+    }
+
+    const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a))
+    if (sortedPeriods.length === 0) {
+      periodSelect.innerHTML = '<option>No data for this range</option>'
+      generatePremiumProductChannel()
+      return
+    }
+
+    const optionsHtml = sortedPeriods.map((p) => {
+      if (range === 'yearly') return `<option value="${p}">${p}</option>`
+      if (range === 'monthly') {
+        const [year, month] = p.split('-')
+        const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        return `<option value="${p}">${label}</option>`
+      }
+      if (range === 'quarterly') {
+        return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`
+      }
+      if (range === 'weekly') {
+        const [year, month, day] = p.split('-')
+        const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`
+        return `<option value="${p}">${label}</option>`
+      }
+      return ''
+    }).join('')
+    periodSelect.innerHTML = optionsHtml
+
+    // --- START: CORRECTED LOGIC FOR DEFAULT SELECTION ---
+    const initialPeriod = sortedPeriods[0]
+    let initialFilteredData: any[] = []
+    if (initialPeriod) {
+      let startDate: Date, endDate: Date
+      const [year, part, dayPart] = initialPeriod.split('-')
+
+      switch (range) {
+        case 'yearly':
+          startDate = new Date(parseInt(year), 0, 1)
+          endDate = new Date(parseInt(year), 11, 31, 23, 59, 59)
+          break
+        case 'quarterly':
+          const quarter = parseInt(part.replace('Q', ''))
+          const startMonth = (quarter - 1) * 3
+          startDate = new Date(parseInt(year), startMonth, 1)
+          endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59)
+          break
+        case 'monthly':
+          startDate = new Date(parseInt(year), parseInt(part) - 1, 1)
+          endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59)
+          break
+        case 'weekly':
+          startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart))
+          endDate = new Date(startDate)
+          endDate.setDate(startDate.getDate() + 6)
+          endDate.setHours(23, 59, 59)
+          break
+      }
+      initialFilteredData = branchData.filter((s) => s.date >= startDate && s.date <= endDate)
+    }
+
+    const menuQuantities = new Map<string, number>()
+    initialFilteredData.forEach((summary) => {
+      if (!summary.menuItemQuantities) return
+      for (const category in summary.menuItemQuantities) {
+        for (const itemName in summary.menuItemQuantities[category]) {
+          const quantity = summary.menuItemQuantities[category][itemName]
+          menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity)
         }
-        const allDates = branchData.map(s => s.date);
-        
-        if (allDates.length === 0) {
-            periodSelect.innerHTML = '<option>No data available</option>';
-            generatePremiumProductChannel();
-            return;
-        }
+      }
+    })
 
-        const periods = new Set<string>();
-        
-        if (range === 'yearly') { allDates.forEach(d => periods.add(String(d.getFullYear()))); }
-        else if (range === 'monthly') { allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)); }
-        else if (range === 'quarterly') { allDates.forEach(d => { const q = Math.floor(d.getMonth() / 3) + 1; periods.add(`${d.getFullYear()}-Q${q}`); }); }
-        else if (range === 'weekly') {
-            const getMonday = (d: Date) => {
-                const date = new Date(d);
-                const day = date.getDay();
-                const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-                return new Date(date.setDate(diff));
-            };
-            allDates.forEach(d => {
-                const monday = getMonday(d);
-                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-                periods.add(weekKey);
-            });
-        }
+    const top3MenuNames = Array.from(menuQuantities.entries())
+      .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
+      .slice(0, 3)
+      .map(([name]) => name)
 
-        const sortedPeriods = Array.from(periods).sort((a,b) => b.localeCompare(a));
-        if (sortedPeriods.length === 0) {
-            periodSelect.innerHTML = '<option>No data for this range</option>';
-            generatePremiumProductChannel();
-            return;
-        }
-        
-        const optionsHtml = sortedPeriods.map(p => {
-            if (range === 'yearly') return `<option value="${p}">${p}</option>`;
-            if (range === 'monthly') {
-                const [year, month] = p.split('-');
-                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-                return `<option value="${p}">${label}</option>`;
-            }
-            if (range === 'quarterly') {
-                return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
-            }
-            if (range === 'weekly') {
-                const [year, month, day] = p.split('-');
-                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
-                return `<option value="${p}">${label}</option>`;
-            }
-            return '';
-        }).join('');
-        periodSelect.innerHTML = optionsHtml;
-        
-        // --- START: CORRECTED LOGIC FOR DEFAULT SELECTION ---
-        const initialPeriod = sortedPeriods[0];
-        let initialFilteredData: any[] = [];
-        if (initialPeriod) {
-            let startDate: Date, endDate: Date;
-            const [year, part, dayPart] = initialPeriod.split('-');
+    slimSelectInstance.setSelected(top3MenuNames)
+    // --- END: CORRECTED LOGIC ---
+  }
 
-            switch (range) {
-                case 'yearly':
-                    startDate = new Date(parseInt(year), 0, 1);
-                    endDate = new Date(parseInt(year), 11, 31, 23, 59, 59);
-                    break;
-                case 'quarterly':
-                    const quarter = parseInt(part.replace('Q', ''));
-                    const startMonth = (quarter - 1) * 3;
-                    startDate = new Date(parseInt(year), startMonth, 1);
-                    endDate = new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59);
-                    break;
-                case 'monthly':
-                    startDate = new Date(parseInt(year), parseInt(part) - 1, 1);
-                    endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59);
-                    break;
-                case 'weekly':
-                    startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart));
-                    endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + 6);
-                    endDate.setHours(23, 59, 59);
-                    break;
-            }
-            initialFilteredData = branchData.filter(s => s.date >= startDate && s.date <= endDate);
-        }
+  // Attach event listeners
+  branchSelect.addEventListener('change', updatePeriodSelector)
+  rangeSelect.addEventListener('change', updatePeriodSelector)
+  periodSelect.addEventListener('change', generatePremiumProductChannel)
 
-        const menuQuantities: Map<string, number> = new Map();
-        initialFilteredData.forEach(summary => {
-            if (!summary.menuItemQuantities) return;
-            for (const category in summary.menuItemQuantities) {
-                for (const itemName in summary.menuItemQuantities[category]) {
-                    const quantity = summary.menuItemQuantities[category][itemName];
-                    menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity);
-                }
-            }
-        });
-
-        const top3MenuNames = Array.from(menuQuantities.entries())
-            .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
-            .slice(0, 3)
-            .map(([name]) => name);
-
-        slimSelectInstance.setSelected(top3MenuNames);
-        // --- END: CORRECTED LOGIC ---
-    };
-
-    // Attach event listeners
-    branchSelect.addEventListener('change', updatePeriodSelector);
-    rangeSelect.addEventListener('change', updatePeriodSelector);
-    periodSelect.addEventListener('change', generatePremiumProductChannel);
-
-    // Initialize AI summary and set flag
-    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
-    $store.setInitFlag('premiumProductChannelInitialized', true);
-    updatePeriodSelector(); // Initial population and default selection
+  // Initialize AI summary and set flag
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumProductChannelInitialized', true)
+  updatePeriodSelector() // Initial population and default selection
 }
 
 // Add these two new functions to src/analysis/premium/orchestrator.ts
 
 async function generatePremiumTimeFinance() {
-    if (!currentUser) return;
-    const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement;
-    
-    const selectedBranch = branchSelect.value;
-    const periodA = periodASelect.value;
-    const periodB = periodBSelect.value;
+  if (!currentUser) return
+  const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement
 
-    if (!selectedBranch || !periodA || !periodB) return;
+  const selectedBranch = branchSelect.value
+  const periodA = periodASelect.value
+  const periodB = periodBSelect.value
 
-    showLoading({ message: 'Fetching P&L data for comparison...', value: 30 });
-    
-    const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-    const reportsSnap = await getDocs(pnlReportsRef);
-    const allReports = reportsSnap.docs.map((doc) => doc.data());
+  if (!selectedBranch || !periodA || !periodB) return
 
-    const findReport = (period: string, branch: string) => allReports.find((r) => r.period === period && r.branchName === branch);
+  showLoading({ message: 'Fetching P&L data for comparison...', value: 30 })
 
-    const reportA = findReport(periodA, selectedBranch);
-    const reportB = findReport(periodB, selectedBranch);
+  const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
+  const reportsSnap = await getDocs(pnlReportsRef)
+  const allReports = reportsSnap.docs.map((doc) => doc.data())
 
-    // Populate the view
-    generatePnlComparisonTable(reportA, reportB, 'premium-time-finance-pnl-comparison-container');
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' });
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' });
-    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-wages-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Wages', title: 'Wages' });
-    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-rent-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Rent', title: 'Rent' });
-    generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-advertising-chart', mainCategory: 'Beban Non Operasional', subCategory: 'Advertising', title: 'Advertising' });
-    generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' });
+  const findReport = (period: string, branch: string) => allReports.find((r) => r.period === period && r.branchName === branch)
 
-    hideLoading();
+  const reportA = findReport(periodA, selectedBranch)
+  const reportB = findReport(periodB, selectedBranch)
+
+  // Populate the view
+  generatePnlComparisonTable(reportA, reportB, 'premium-time-finance-pnl-comparison-container')
+  generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' })
+  generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-wages-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Wages', title: 'Wages' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-rent-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Rent', title: 'Rent' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-advertising-chart', mainCategory: 'Beban Non Operasional', subCategory: 'Advertising', title: 'Advertising' })
+  generateRatioComparisonChart(reportA, reportB, { canvasId: 'premium-time-finance-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' })
+
+  hideLoading()
 }
 
 async function setupPremiumTimeFinance() {
-    const pageId = 'premium-placeholder-waktu-keuangan';
-    if ($store.getInitFlag('premiumTimeFinanceInitialized')) {
-        await generatePremiumTimeFinance();
-        return;
+  const pageId = 'premium-placeholder-waktu-keuangan'
+  if ($store.getInitFlag('premiumTimeFinanceInitialized')) {
+    await generatePremiumTimeFinance()
+    return
+  }
+  if (!currentUser) return
+
+  const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement
+
+  const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
+  const reportsSnap = await getDocs(reportsRef)
+  const allReports = reportsSnap.docs.map((doc) => doc.data())
+  const branches = [...new Set(allReports.map((report) => report.branchName))].sort()
+
+  if (branches.length === 0) {
+    branchSelect.innerHTML = '<option>No P&L data found</option>'
+    return
+  }
+  branchSelect.innerHTML = branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  const updatePeriodSelectors = async () => {
+    const selectedBranch = branchSelect.value
+    const periods = [...new Set(allReports.filter((r) => r.branchName === selectedBranch).map((r) => r.period))].sort().reverse()
+
+    if (periods.length < 2) {
+      periodASelect.innerHTML = '<option>Not enough data</option>'
+      periodBSelect.innerHTML = '<option>Not enough data</option>'
+      return
     }
-    if (!currentUser) return;
 
-    const branchSelect = document.getElementById('premium-time-finance-branch-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-finance-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-finance-period-b-select') as HTMLSelectElement;
+    const optionsHtml = periods.map((p) => {
+      const label = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })
+      return `<option value="${p}">${label}</option>`
+    }).join('')
 
-    const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-    const reportsSnap = await getDocs(reportsRef);
-    const allReports = reportsSnap.docs.map(doc => doc.data());
-    const branches = [...new Set(allReports.map(report => report.branchName))].sort();
+    periodASelect.innerHTML = optionsHtml
+    periodBSelect.innerHTML = optionsHtml
+    periodASelect.value = periods[1] || periods[0]
+    periodBSelect.value = periods[0]
 
-    if (branches.length === 0) {
-        branchSelect.innerHTML = '<option>No P&L data found</option>';
-        return;
-    }
-    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    await generatePremiumTimeFinance()
+  }
 
-    const updatePeriodSelectors = async () => {
-        const selectedBranch = branchSelect.value;
-        const periods = [...new Set(allReports.filter(r => r.branchName === selectedBranch).map(r => r.period))].sort().reverse();
+  branchSelect.addEventListener('change', updatePeriodSelectors)
+  periodASelect.addEventListener('change', generatePremiumTimeFinance)
+  periodBSelect.addEventListener('change', generatePremiumTimeFinance)
 
-        if (periods.length < 2) {
-            periodASelect.innerHTML = '<option>Not enough data</option>';
-            periodBSelect.innerHTML = '<option>Not enough data</option>';
-            return;
-        }
-
-        const optionsHtml = periods.map(p => {
-            const label = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
-            return `<option value="${p}">${label}</option>`;
-        }).join('');
-
-        periodASelect.innerHTML = optionsHtml;
-        periodBSelect.innerHTML = optionsHtml;
-        periodASelect.value = periods[1] || periods[0];
-        periodBSelect.value = periods[0];
-
-        await generatePremiumTimeFinance();
-    };
-
-    branchSelect.addEventListener('change', updatePeriodSelectors);
-    periodASelect.addEventListener('change', generatePremiumTimeFinance);
-    periodBSelect.addEventListener('change', generatePremiumTimeFinance);
-
-    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
-    $store.setInitFlag('premiumTimeFinanceInitialized', true);
-    await updatePeriodSelectors();
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumTimeFinanceInitialized', true)
+  await updatePeriodSelectors()
 }
 
 // Add these two new functions to src/analysis/premium/orchestrator.ts
 
 async function generatePremiumTimeSales() {
-    if (!currentUser) return;
-    
-    const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement;
+  if (!currentUser) return
 
-    const selectedBranch = branchSelect.value;
-    const selectedRange = rangeSelect.value;
-    const periodA = periodASelect.value;
-    const periodB = periodBSelect.value;
+  const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement
 
-    if (!selectedBranch || !selectedRange || !periodA || !periodB) return;
+  const selectedBranch = branchSelect.value
+  const selectedRange = rangeSelect.value
+  const periodA = periodASelect.value
+  const periodB = periodBSelect.value
 
-    // --- Filter Data for Both Periods ---
-    const allSalesData = $store.getAllSalesData();
-    let branchData = allSalesData;
-    if (selectedBranch !== 'ALL') {
-        branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+  if (!selectedBranch || !selectedRange || !periodA || !periodB) return
+
+  // --- Filter Data for Both Periods ---
+  const allSalesData = $store.getAllSalesData()
+  let branchData = allSalesData
+  if (selectedBranch !== 'ALL') {
+    branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
+  }
+
+  const parsePeriod = (period: string, range: string) => {
+    const [year, part, dayPart] = period.split('-')
+    let startDate: Date, endDate: Date
+    // ... (insert the full date parsing logic from previous steps)
+    switch (range) {
+      case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break
+      case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break
+      case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break
+      case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break
+      default: startDate = new Date(); endDate = new Date()
     }
-    
-    const parsePeriod = (period: string, range: string) => {
-        const [year, part, dayPart] = period.split('-');
-        let startDate: Date, endDate: Date;
-        // ... (insert the full date parsing logic from previous steps)
-        switch (range) {
-            case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break;
-            case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break;
-            case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break;
-            case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break;
-            default: startDate = new Date(); endDate = new Date();
-        }
-        return { startDate, endDate };
-    };
-    
-    const rangeA = parsePeriod(periodA, selectedRange);
-    const rangeB = parsePeriod(periodB, selectedRange);
-    
-    const periodAData = branchData.filter(s => s.date >= rangeA.startDate && s.date <= rangeA.endDate);
-    const periodBData = branchData.filter(s => s.date >= rangeB.startDate && s.date <= rangeB.endDate);
+    return { startDate, endDate }
+  }
 
-    // Update UI
-    populateTimeComparisonKPIs(periodAData, periodBData);
-    generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-omzet-chart', 'totalOmzet');
-    generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-tc-apc-chart', 'apc'); // Simplified to just show APC for comparison
-    generateOmzetHeatmapFromSummaries(periodBData, 'premium-time-sales-heatmap-container'); // Show heatmap for the more recent period (B)
+  const rangeA = parsePeriod(periodA, selectedRange)
+  const rangeB = parsePeriod(periodB, selectedRange)
+
+  const periodAData = branchData.filter((s) => s.date >= rangeA.startDate && s.date <= rangeA.endDate)
+  const periodBData = branchData.filter((s) => s.date >= rangeB.startDate && s.date <= rangeB.endDate)
+
+  // Update UI
+  populateTimeComparisonKPIs(periodAData, periodBData)
+  generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-omzet-chart', 'totalOmzet')
+  generatePremiumTimeComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-sales-tc-apc-chart', 'apc') // Simplified to just show APC for comparison
+  generateOmzetHeatmapFromSummaries(periodBData, 'premium-time-sales-heatmap-container') // Show heatmap for the more recent period (B)
 }
 
 async function setupPremiumTimeSales() {
-    const pageId = 'premium-placeholder-waktu-penjualan';
-    if ($store.getInitFlag('premiumTimeSalesInitialized')) {
-        await generatePremiumTimeSales();
-        return;
+  const pageId = 'premium-placeholder-waktu-penjualan'
+  if ($store.getInitFlag('premiumTimeSalesInitialized')) {
+    await generatePremiumTimeSales()
+    return
+  }
+  if (!currentUser) return
+
+  const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement
+
+  const allSalesData = $store.getAllSalesData()
+  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+  branchSelect.innerHTML = branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  const updatePeriodSelectors = async () => {
+    const range = rangeSelect.value
+    const selectedBranch = branchSelect.value
+    let branchData = allSalesData
+    if (selectedBranch !== 'ALL') {
+      branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
     }
-    if (!currentUser) return;
+    const allDates = branchData.map((s) => s.date)
 
-    const branchSelect = document.getElementById('premium-time-sales-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-time-sales-range-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-sales-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-sales-period-b-select') as HTMLSelectElement;
+    if (allDates.length === 0) {
+      periodASelect.innerHTML = '<option>No data available</option>'
+      periodBSelect.innerHTML = '<option>No data available</option>'
+      return
+    }
 
-    const allSalesData = $store.getAllSalesData();
-    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
-    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    const periods = new Set<string>()
 
-    const updatePeriodSelectors = async () => {
-        const range = rangeSelect.value;
-        const selectedBranch = branchSelect.value;
-        let branchData = allSalesData;
-        if (selectedBranch !== 'ALL') {
-            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
-        }
-        const allDates = branchData.map(s => s.date);
-        
-        if (allDates.length === 0) {
-            periodASelect.innerHTML = '<option>No data available</option>';
-            periodBSelect.innerHTML = '<option>No data available</option>';
-            return;
-        }
+    // --- START: This is the corrected logic ---
+    if (range === 'yearly') {
+      allDates.forEach((d) => periods.add(String(d.getFullYear())))
+    } else if (range === 'monthly') {
+      allDates.forEach((d) => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`))
+    } else if (range === 'quarterly') {
+      allDates.forEach((d) => {
+        const quarter = Math.floor(d.getMonth() / 3) + 1
+        periods.add(`${d.getFullYear()}-Q${quarter}`)
+      })
+    } else if (range === 'weekly') {
+      const getMonday = (d: Date) => {
+        const date = new Date(d)
+        const day = date.getDay()
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+        return new Date(date.setDate(diff))
+      }
+      allDates.forEach((d) => {
+        const monday = getMonday(d)
+        const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+        periods.add(weekKey)
+      })
+    }
+    // --- END: This is the corrected logic ---
 
-        const periods = new Set<string>();
-        
-        // --- START: This is the corrected logic ---
-        if (range === 'yearly') {
-            allDates.forEach(d => periods.add(String(d.getFullYear())));
-        } else if (range === 'monthly') {
-            allDates.forEach(d => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`));
-        } else if (range === 'quarterly') {
-            allDates.forEach(d => {
-                const quarter = Math.floor(d.getMonth() / 3) + 1;
-                periods.add(`${d.getFullYear()}-Q${quarter}`);
-            });
-        } else if (range === 'weekly') {
-            const getMonday = (d: Date) => {
-                const date = new Date(d);
-                const day = date.getDay();
-                const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-                return new Date(date.setDate(diff));
-            };
-            allDates.forEach(d => {
-                const monday = getMonday(d);
-                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-                periods.add(weekKey);
-            });
-        }
-        // --- END: This is the corrected logic ---
+    const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a))
+    if (sortedPeriods.length < 2) {
+      periodASelect.innerHTML = '<option>Not enough data</option>'
+      periodBSelect.innerHTML = '<option>Not enough data</option>'
+      return
+    }
 
-        const sortedPeriods = Array.from(periods).sort((a,b) => b.localeCompare(a));
-        if (sortedPeriods.length < 2) {
-            periodASelect.innerHTML = '<option>Not enough data</option>';
-            periodBSelect.innerHTML = '<option>Not enough data</option>';
-            return;
-        }
-        
-        const optionsHtml = sortedPeriods.map(p => {
-            if (range === 'yearly') {
-                return `<option value="${p}">${p}</option>`;
-            }
-            if (range === 'monthly') {
-                const [year, month] = p.split('-');
-                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-                return `<option value="${p}">${label}</option>`;
-            }
-            if (range === 'quarterly') {
-                return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
-            }
-            if (range === 'weekly') {
-                const [year, month, day] = p.split('-');
-                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
-                return `<option value="${p}">${label}</option>`;
-            }
-            return '';
-        }).join('');
+    const optionsHtml = sortedPeriods.map((p) => {
+      if (range === 'yearly') {
+        return `<option value="${p}">${p}</option>`
+      }
+      if (range === 'monthly') {
+        const [year, month] = p.split('-')
+        const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        return `<option value="${p}">${label}</option>`
+      }
+      if (range === 'quarterly') {
+        return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`
+      }
+      if (range === 'weekly') {
+        const [year, month, day] = p.split('-')
+        const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`
+        return `<option value="${p}">${label}</option>`
+      }
+      return ''
+    }).join('')
 
-        periodASelect.innerHTML = optionsHtml;
-        periodBSelect.innerHTML = optionsHtml;
-        periodASelect.value = sortedPeriods[1] || sortedPeriods[0];
-        periodBSelect.value = sortedPeriods[0];
-        
-        await generatePremiumTimeSales();
-    };
+    periodASelect.innerHTML = optionsHtml
+    periodBSelect.innerHTML = optionsHtml
+    periodASelect.value = sortedPeriods[1] || sortedPeriods[0]
+    periodBSelect.value = sortedPeriods[0]
 
-    branchSelect.addEventListener('change', updatePeriodSelectors);
-    rangeSelect.addEventListener('change', updatePeriodSelectors);
-    periodASelect.addEventListener('change', generatePremiumTimeSales);
-    periodBSelect.addEventListener('change', generatePremiumTimeSales);
+    await generatePremiumTimeSales()
+  }
 
-    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
-    $store.setInitFlag('premiumTimeSalesInitialized', true);
-    await updatePeriodSelectors();
+  branchSelect.addEventListener('change', updatePeriodSelectors)
+  rangeSelect.addEventListener('change', updatePeriodSelectors)
+  periodASelect.addEventListener('change', generatePremiumTimeSales)
+  periodBSelect.addEventListener('change', generatePremiumTimeSales)
+
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumTimeSalesInitialized', true)
+  await updatePeriodSelectors()
 }
 
 // Add these two new functions to src/analysis/premium/orchestrator.ts
 
 async function generatePremiumTimeProductChannel() {
-    if (!currentUser) return;
+  if (!currentUser) return
 
-    const branchSelect = document.getElementById('premium-time-product-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-time-product-range-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-product-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-product-period-b-select') as HTMLSelectElement;
-    const slimSelectInstance = $store.getUIComponent('premiumTimeProductMenuSelect');
+  const branchSelect = document.getElementById('premium-time-product-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-time-product-range-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-product-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-product-period-b-select') as HTMLSelectElement
+  const slimSelectInstance = $store.getUIComponent('premiumTimeProductMenuSelect')
 
-    const selectedBranch = branchSelect.value;
-    const selectedRange = rangeSelect.value;
-    const periodA = periodASelect.value;
-    const periodB = periodBSelect.value;
+  const selectedBranch = branchSelect.value
+  const selectedRange = rangeSelect.value
+  const periodA = periodASelect.value
+  const periodB = periodBSelect.value
 
-    if (!selectedBranch || !selectedRange || !periodA || !periodB) return;
+  if (!selectedBranch || !selectedRange || !periodA || !periodB) return
 
-    const allSalesData = $store.getAllSalesData();
-    let branchData = allSalesData;
-    if (selectedBranch !== 'ALL') {
-        branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+  const allSalesData = $store.getAllSalesData()
+  let branchData = allSalesData
+  if (selectedBranch !== 'ALL') {
+    branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
+  }
+
+  const parsePeriod = (period: string, range: string) => {
+    const [year, part, dayPart] = period.split('-')
+    let startDate: Date, endDate: Date
+    switch (range) {
+      case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break
+      case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break
+      case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break
+      case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break
+      default: startDate = new Date(); endDate = new Date()
     }
-    
-    const parsePeriod = (period: string, range: string) => {
-        const [year, part, dayPart] = period.split('-');
-        let startDate: Date, endDate: Date;
-        switch (range) {
-            case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break;
-            case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break;
-            case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break;
-            case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break;
-            default: startDate = new Date(); endDate = new Date();
-        }
-        return { startDate, endDate };
-    };
-    
-    const rangeA = parsePeriod(periodA, selectedRange);
-    const rangeB = parsePeriod(periodB, selectedRange);
-    
-    const periodAData = branchData.filter(s => s.date >= rangeA.startDate && s.date <= rangeA.endDate);
-    const periodBData = branchData.filter(s => s.date >= rangeB.startDate && s.date <= rangeB.endDate);
+    return { startDate, endDate }
+  }
 
-    if (slimSelectInstance) {
-        generatePremiumMenuTrendComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-product-menu-trend-chart', slimSelectInstance.getSelected());
-    }
-    generateChannelComparisonChart(periodAData, periodBData, 'premium-time-product-channel-chart');
-    generateCategoryComparisonChart(periodAData, periodBData, 'premium-time-product-category-chart');
-    generateTop10ComparisonTable(periodAData, periodBData, 'premium-time-product-top-quantity-container', 'quantity');
-    generateTop10ComparisonTable(periodAData, periodBData, 'premium-time-product-top-revenue-container', 'revenue');
+  const rangeA = parsePeriod(periodA, selectedRange)
+  const rangeB = parsePeriod(periodB, selectedRange)
+
+  const periodAData = branchData.filter((s) => s.date >= rangeA.startDate && s.date <= rangeA.endDate)
+  const periodBData = branchData.filter((s) => s.date >= rangeB.startDate && s.date <= rangeB.endDate)
+
+  if (slimSelectInstance) {
+    generatePremiumMenuTrendComparisonChart(periodAData, periodBData, selectedRange, 'premium-time-product-menu-trend-chart', slimSelectInstance.getSelected())
+  }
+  generateChannelComparisonChart(periodAData, periodBData, 'premium-time-product-channel-chart')
+  generateCategoryComparisonChart(periodAData, periodBData, 'premium-time-product-category-chart')
+  generateTop10ComparisonTable(periodAData, periodBData, 'premium-time-product-top-quantity-container', 'quantity')
+  generateTop10ComparisonTable(periodAData, periodBData, 'premium-time-product-top-revenue-container', 'revenue')
 }
 
 async function setupPremiumTimeProductChannel() {
-    const pageId = 'premium-placeholder-waktu-produk';
-    if ($store.getInitFlag('premiumTimeProductInitialized')) {
-        await generatePremiumTimeProductChannel();
-        return;
+  const pageId = 'premium-placeholder-waktu-produk'
+  if ($store.getInitFlag('premiumTimeProductInitialized')) {
+    await generatePremiumTimeProductChannel()
+    return
+  }
+  if (!currentUser) return
+
+  // --- Setup Filters ---
+  const branchSelect = document.getElementById('premium-time-product-branch-select') as HTMLSelectElement
+  const rangeSelect = document.getElementById('premium-time-product-range-select') as HTMLSelectElement
+  const periodASelect = document.getElementById('premium-time-product-period-a-select') as HTMLSelectElement
+  const periodBSelect = document.getElementById('premium-time-product-period-b-select') as HTMLSelectElement
+
+  const allSalesData = $store.getAllSalesData()
+  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+  branchSelect.innerHTML = branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  const updatePeriodSelectors = async () => {
+    const range = rangeSelect.value
+    const selectedBranch = branchSelect.value
+    let branchData = allSalesData
+    if (selectedBranch !== 'ALL') {
+      branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
     }
-    if (!currentUser) return;
 
-    // --- Setup Filters ---
-    const branchSelect = document.getElementById('premium-time-product-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('premium-time-product-range-select') as HTMLSelectElement;
-    const periodASelect = document.getElementById('premium-time-product-period-a-select') as HTMLSelectElement;
-    const periodBSelect = document.getElementById('premium-time-product-period-b-select') as HTMLSelectElement;
+    const allDates = branchData.map((s) => new Date(s.date))
 
-    const allSalesData = $store.getAllSalesData();
-    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort();
-    branchSelect.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    if (allDates.length === 0) {
+      periodASelect.innerHTML = '<option>No data available</option>'
+      periodBSelect.innerHTML = '<option>No data available</option>'
+      return
+    }
 
-    const updatePeriodSelectors = async () => {
-        const range = rangeSelect.value;
-        const selectedBranch = branchSelect.value;
-        let branchData = allSalesData;
-        if (selectedBranch !== 'ALL') {
-            branchData = allSalesData.filter(s => s.branches.includes(selectedBranch));
+    const periods = new Set<string>()
+
+    if (range === 'yearly') {
+      allDates.forEach((d) => { if (!isNaN(d.getTime())) periods.add(String(d.getFullYear())) })
+    } else if (range === 'monthly') {
+      allDates.forEach((d) => { if (!isNaN(d.getTime())) periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`) })
+    } else if (range === 'quarterly') {
+      allDates.forEach((d) => {
+        if (isNaN(d.getTime())) return
+        const quarter = Math.floor(d.getMonth() / 3) + 1
+        periods.add(`${d.getFullYear()}-Q${quarter}`)
+      })
+    } else if (range === 'weekly') {
+      const getMonday = (d: Date) => {
+        const date = new Date(d)
+        const day = date.getDay()
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+        return new Date(date.setDate(diff))
+      }
+      allDates.forEach((d) => {
+        if (isNaN(d.getTime())) return
+        const monday = getMonday(d)
+        const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+        periods.add(weekKey)
+      })
+    }
+
+    const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a))
+    if (sortedPeriods.length < 2) {
+      periodASelect.innerHTML = '<option>Not enough data</option>'
+      periodBSelect.innerHTML = '<option>Not enough data</option>'
+      return
+    }
+
+    const optionsHtml = sortedPeriods.map((p) => {
+      if (range === 'yearly') return `<option value="${p}">${p}</option>`
+      if (range === 'monthly') {
+        const [year, month] = p.split('-')
+        const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+        return `<option value="${p}">${label}</option>`
+      }
+      if (range === 'quarterly') return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`
+      if (range === 'weekly') {
+        const [year, month, day] = p.split('-')
+        const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`
+        return `<option value="${p}">${label}</option>`
+      }
+      return ''
+    }).join('')
+
+    periodASelect.innerHTML = optionsHtml
+    periodBSelect.innerHTML = optionsHtml
+    periodASelect.value = sortedPeriods[1] || sortedPeriods[0]
+    periodBSelect.value = sortedPeriods[0]
+
+    // --- Logic to find and set the Top 3 Menu Items by default ---
+    const initialPeriodB = sortedPeriods[0]
+    let initialDataB: any[] = []
+    if (initialPeriodB) {
+      const parsePeriod = (period: string, range: string) => { const [year, part, dayPart] = period.split('-'); let startDate: Date, endDate: Date; switch (range) { case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break; case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break; case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break; case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break; default: startDate = new Date(); endDate = new Date() } return { startDate, endDate } }
+      const rangeB = parsePeriod(initialPeriodB, range)
+      initialDataB = branchData.filter((s) => s.date >= rangeB.startDate && s.date <= rangeB.endDate)
+    }
+
+    const menuQuantities = new Map<string, number>()
+    initialDataB.forEach((summary) => {
+      if (!summary.menuItemQuantities) return
+      for (const category in summary.menuItemQuantities) {
+        for (const itemName in summary.menuItemQuantities[category]) {
+          const quantity = summary.menuItemQuantities[category][itemName]
+          menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity)
         }
-        
-        const allDates = branchData.map(s => new Date(s.date));
-        
-        if (allDates.length === 0) {
-            periodASelect.innerHTML = '<option>No data available</option>';
-            periodBSelect.innerHTML = '<option>No data available</option>';
-            return;
+      }
+    })
+
+    const top3MenuNames = Array.from(menuQuantities.entries())
+      .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
+      .slice(0, 3)
+      .map(([name]) => name)
+
+    slimSelectInstance.setSelected(top3MenuNames)
+  }
+
+  // --- Setup Menu Multi-Select ---
+  const menuSelectElement = document.getElementById('premium-time-product-menu-select') as HTMLSelectElement
+  const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort()
+  menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('')
+
+  const slimSelectInstance = new SlimSelect({
+    select: '#premium-time-product-menu-select',
+    events: { afterChange: () => generatePremiumTimeProductChannel() },
+  })
+  $store.setUIComponent('premiumTimeProductMenuSelect', slimSelectInstance)
+
+  // Attach listeners
+  branchSelect.addEventListener('change', updatePeriodSelectors)
+  rangeSelect.addEventListener('change', updatePeriodSelectors)
+  periodASelect.addEventListener('change', generatePremiumTimeProductChannel)
+  periodBSelect.addEventListener('change', generatePremiumTimeProductChannel)
+
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumTimeProductInitialized', true)
+  await updatePeriodSelectors()
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumBranchFinance() {
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-finance-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-finance-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-finance-branch-b-select') as HTMLSelectElement
+
+  const selectedPeriod = periodSelect.value
+  const branchA = branchASelect.value
+  const branchB = branchBSelect.value
+
+  if (!selectedPeriod || !branchA || !branchB || branchA === branchB) return
+
+  showLoading({ message: 'Comparing P&L data for branches...', value: 30 })
+
+  const pnlReportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
+  const q = query(pnlReportsRef, where('period', '==', selectedPeriod))
+  const reportsSnap = await getDocs(q)
+
+  const reportA = reportsSnap.docs.find((doc) => doc.data().branchName === branchA)?.data()
+  const reportB = reportsSnap.docs.find((doc) => doc.data().branchName === branchB)?.data()
+
+  generateBranchPnlComparisonTable(reportA, reportB, 'premium-branch-finance-pnl-comparison-container')
+  generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-cogs-chart', metric: 'Harga Pokok Produksi', title: 'COGS' })
+  generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-gpm-chart', metric: 'Laba Kotor (Gross Profit)', title: 'Gross Profit' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-wages-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Wages', title: 'Wages' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-rent-chart', mainCategory: 'Beban Operasional (OPEX)', subCategory: 'Rent', title: 'Rent' })
+  generatePremiumSubCategoryComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-advertising-chart', mainCategory: 'Beban Non Operasional', subCategory: 'Advertising', title: 'Advertising' })
+  generateBranchRatioComparisonChart(reportA, reportB, { canvasId: 'premium-branch-finance-npm-chart', metric: 'Pendapatan Bersih (Net Income)', title: 'Net Income' })
+
+  hideLoading()
+}
+
+async function setupPremiumBranchFinance() {
+  const pageId = 'premium-placeholder-cabang-keuangan'
+  if ($store.getInitFlag('premiumBranchFinanceInitialized')) {
+    await generatePremiumBranchFinance()
+    return
+  }
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-finance-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-finance-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-finance-branch-b-select') as HTMLSelectElement
+
+  const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
+  const reportsSnap = await getDocs(reportsRef)
+  const allReports = reportsSnap.docs.map((doc) => doc.data())
+
+  // --- START: MODIFIED LOGIC ---
+  // 1. Group all reports by their period
+  const reportsByPeriod = allReports.reduce((acc, report) => {
+    const period = report.period
+    if (!acc[period]) {
+      acc[period] = []
+    }
+    (acc[period] as any[]).push(report)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  // 2. Filter out periods that have less than 2 branches
+  const availablePeriods = Object.keys(reportsByPeriod)
+    .filter((period) => {
+      const branchesInPeriod = new Set(reportsByPeriod[period].map((r) => r.branchName))
+      return branchesInPeriod.size >= 2
+    })
+    .sort()
+    .reverse()
+    // --- END: MODIFIED LOGIC ---
+
+  if (availablePeriods.length === 0) {
+    periodSelect.innerHTML = '<option>No periods with enough data for comparison</option>'
+    branchASelect.innerHTML = ''
+    branchBSelect.innerHTML = ''
+    return
+  }
+
+  periodSelect.innerHTML = availablePeriods.map((p) => {
+    const label = new Date(p + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })
+    return `<option value="${p}">${label}</option>`
+  }).join('')
+
+  const updateBranchSelectors = async () => {
+    const selectedPeriod = periodSelect.value
+    const branchesForPeriod = [...new Set(allReports.filter((r) => r.period === selectedPeriod).map((r) => r.branchName))].sort()
+
+    if (branchesForPeriod.length < 2) {
+      branchASelect.innerHTML = '<option>Not enough branches</option>'
+      branchBSelect.innerHTML = '<option>Not enough branches</option>'
+      // Clear charts if no comparison is possible
+      // (You might want to add a function here to clear the chart area)
+      return
+    }
+
+    const optionsHtml = branchesForPeriod.map((b) => `<option value="${b}">${b}</option>`).join('')
+    branchASelect.innerHTML = optionsHtml
+    branchBSelect.innerHTML = optionsHtml
+
+    branchASelect.value = branchesForPeriod[0]
+    branchBSelect.value = branchesForPeriod[1]
+
+    await generatePremiumBranchFinance()
+  }
+
+  periodSelect.addEventListener('change', updateBranchSelectors)
+  branchASelect.addEventListener('change', generatePremiumBranchFinance)
+  branchBSelect.addEventListener('change', generatePremiumBranchFinance)
+
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumBranchFinanceInitialized', true)
+  await updateBranchSelectors()
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumBranchSales() {
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-sales-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-sales-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-sales-branch-b-select') as HTMLSelectElement
+
+  const selectedPeriod = periodSelect.value
+  const branchA = branchASelect.value
+  const branchB = branchBSelect.value
+
+  if (!selectedPeriod || !branchA || !branchB || branchA === branchB) return
+
+  const allSalesData = $store.getAllSalesData()
+  const periodData = allSalesData.filter((s) => s.date.toISOString().startsWith(selectedPeriod))
+
+  if (periodData.length === 0) return
+
+  populateBranchComparisonKPIs(periodData, branchA, branchB)
+  generatePremiumBranchComparisonChart(periodData, branchA, branchB, 'premium-branch-sales-omzet-chart', 'totalOmzet')
+  generatePremiumBranchComparisonChart(periodData, branchA, branchB, 'premium-branch-sales-tc-apc-chart', 'apc')
+}
+
+async function setupPremiumBranchSales() {
+  const pageId = 'premium-placeholder-cabang-penjualan'
+  if ($store.getInitFlag('premiumBranchSalesInitialized')) {
+    await generatePremiumBranchSales()
+    return
+  }
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-sales-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-sales-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-sales-branch-b-select') as HTMLSelectElement
+
+  const allSalesData = $store.getAllSalesData()
+
+  const periodsWithMultipleBranches = Object.entries(
+    allSalesData.reduce((acc, s) => {
+      const period = s.date.toISOString().slice(0, 7)
+      if (!acc[period]) acc[period] = new Set()
+      s.branches.forEach((b) => acc[period].add(b))
+      return acc
+    }, {} as Record<string, Set<string>>),
+  ).filter(([, branches]) => branches.size >= 2).map(([period]) => period)
+
+  const sortedPeriods = periodsWithMultipleBranches.sort().reverse()
+
+  if (sortedPeriods.length === 0) {
+    periodSelect.innerHTML = '<option>No periods with enough data</option>'
+    return
+  }
+
+  periodSelect.innerHTML = sortedPeriods.map((p) => {
+    const [year, month] = p.split('-')
+    const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+    return `<option value="${p}">${label}</option>`
+  }).join('')
+
+  const updateBranchSelectors = async () => {
+    const selectedPeriod = periodSelect.value
+    const branchesForPeriod = [...new Set(allSalesData.filter((s) => s.date.toISOString().startsWith(selectedPeriod)).flatMap((s) => s.branches))].sort()
+
+    if (branchesForPeriod.length < 2) {
+      branchASelect.innerHTML = '<option>Not enough branches</option>'
+      branchBSelect.innerHTML = '<option>Not enough branches</option>'
+      return
+    }
+
+    const optionsHtml = branchesForPeriod.map((b) => `<option value="${b}">${b}</option>`).join('')
+    branchASelect.innerHTML = optionsHtml
+    branchBSelect.innerHTML = optionsHtml
+    branchASelect.value = branchesForPeriod[0]
+    branchBSelect.value = branchesForPeriod[1]
+
+    await generatePremiumBranchSales()
+  }
+
+  periodSelect.addEventListener('change', updateBranchSelectors)
+  branchASelect.addEventListener('change', generatePremiumBranchSales)
+  branchBSelect.addEventListener('change', generatePremiumBranchSales)
+
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumBranchSalesInitialized', true)
+  await updateBranchSelectors()
+}
+
+// Add these two new functions to src/analysis/premium/orchestrator.ts
+
+async function generatePremiumBranchProductChannel() {
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-product-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-product-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-product-branch-b-select') as HTMLSelectElement
+  const slimSelectInstance = $store.getUIComponent('premiumBranchProductMenuSelect')
+
+  const selectedPeriod = periodSelect.value
+  const branchA = branchASelect.value
+  const branchB = branchBSelect.value
+
+  if (!selectedPeriod || !branchA || !branchB || branchA === branchB) return
+
+  const allSalesData = $store.getAllSalesData()
+  const periodData = allSalesData.filter((s) => s.date.toISOString().startsWith(selectedPeriod))
+  const branchAData = periodData.filter((s) => s.branches.includes(branchA))
+  const branchBData = periodData.filter((s) => s.branches.includes(branchB))
+
+  // Populate charts and tables
+  if (slimSelectInstance) {
+    drawBranchMenuTrendChart(periodData, branchA, branchB, 'premium-branch-product-menu-trend-chart', slimSelectInstance)
+  }
+  generateBranchChannelComparisonChart(periodData, branchA, branchB, 'premium-branch-product-channel-chart')
+  generateCategoryComparisonChart(branchAData, branchBData, 'premium-branch-product-category-chart')
+  generateTop10ComparisonTable(branchAData, branchBData, 'premium-branch-product-top-quantity-container', 'quantity')
+  generateTop10ComparisonTable(branchAData, branchBData, 'premium-branch-product-top-revenue-container', 'revenue')
+}
+
+async function setupPremiumBranchProductChannel() {
+  const pageId = 'premium-placeholder-cabang-produk'
+  if ($store.getInitFlag('premiumBranchProductInitialized')) {
+    await generatePremiumBranchProductChannel()
+    return
+  }
+  if (!currentUser) return
+
+  const periodSelect = document.getElementById('premium-branch-product-period-select') as HTMLSelectElement
+  const branchASelect = document.getElementById('premium-branch-product-branch-a-select') as HTMLSelectElement
+  const branchBSelect = document.getElementById('premium-branch-product-branch-b-select') as HTMLSelectElement
+
+  const allSalesData = $store.getAllSalesData()
+
+  const menuSelectElement = document.getElementById('premium-branch-product-menu-select') as HTMLSelectElement
+  const allMenuItems = [...new Set(allSalesData.flatMap((s) => Object.keys(s.menuItemQuantities || {}).flatMap((cat) => Object.keys(s.menuItemQuantities[cat]))))].sort()
+  menuSelectElement.innerHTML = allMenuItems.map((name) => `<option value="${name}">${name}</option>`).join('')
+
+  const slimSelectInstance = new SlimSelect({
+    select: '#premium-branch-product-menu-select',
+    events: { afterChange: () => generatePremiumBranchProductChannel() },
+  })
+  $store.setUIComponent('premiumBranchProductMenuSelect', slimSelectInstance)
+
+  const updateBranchSelectors = async () => {
+    const selectedPeriod = periodSelect.value
+    const branchesForPeriod = [...new Set(allSalesData.filter((s) => s.date.toISOString().startsWith(selectedPeriod)).flatMap((s) => s.branches))].sort()
+
+    if (branchesForPeriod.length < 2) {
+      branchASelect.innerHTML = '<option>Not enough branches</option>'
+      branchBSelect.innerHTML = '<option>Not enough branches</option>'
+      return
+    }
+
+    const optionsHtml = branchesForPeriod.map((b) => `<option value="${b}">${b}</option>`).join('')
+    branchASelect.innerHTML = optionsHtml
+    branchBSelect.innerHTML = optionsHtml
+
+    const initialBranchA = branchesForPeriod[0]
+    const initialBranchB = branchesForPeriod[1]
+    branchASelect.value = initialBranchA
+    branchBSelect.value = initialBranchB
+
+    const periodData = allSalesData.filter((s) => s.date.toISOString().startsWith(selectedPeriod))
+    const branchAData = periodData.filter((s) => s.branches.includes(initialBranchA))
+
+    const menuQuantities = new Map<string, number>()
+    branchAData.forEach((summary) => {
+      if (!summary.menuItemQuantities) return
+      for (const category in summary.menuItemQuantities) {
+        for (const itemName in summary.menuItemQuantities[category]) {
+          const quantity = summary.menuItemQuantities[category][itemName]
+          menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity)
         }
+      }
+    })
 
-        const periods = new Set<string>();
-        
-        if (range === 'yearly') {
-            allDates.forEach(d => { if (!isNaN(d.getTime())) periods.add(String(d.getFullYear())) });
-        } else if (range === 'monthly') {
-            allDates.forEach(d => { if (!isNaN(d.getTime())) periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)});
-        } else if (range === 'quarterly') {
-            allDates.forEach(d => {
-                if (isNaN(d.getTime())) return;
-                const quarter = Math.floor(d.getMonth() / 3) + 1;
-                periods.add(`${d.getFullYear()}-Q${quarter}`);
-            });
-        } else if (range === 'weekly') {
-            const getMonday = (d: Date) => {
-                const date = new Date(d);
-                const day = date.getDay();
-                const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-                return new Date(date.setDate(diff));
-            };
-            allDates.forEach(d => {
-                if (isNaN(d.getTime())) return;
-                const monday = getMonday(d);
-                const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-                periods.add(weekKey);
-            });
-        }
+    const top3MenuNames = Array.from(menuQuantities.entries())
+      .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
+      .slice(0, 3)
+      .map(([name]) => name)
 
-        const sortedPeriods = Array.from(periods).sort((a,b) => b.localeCompare(a));
-        if (sortedPeriods.length < 2) {
-            periodASelect.innerHTML = '<option>Not enough data</option>';
-            periodBSelect.innerHTML = '<option>Not enough data</option>';
-            return;
-        }
-        
-        const optionsHtml = sortedPeriods.map(p => {
-            if (range === 'yearly') return `<option value="${p}">${p}</option>`;
-            if (range === 'monthly') {
-                const [year, month] = p.split('-');
-                const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-                return `<option value="${p}">${label}</option>`;
-            }
-            if (range === 'quarterly') return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`;
-            if (range === 'weekly') {
-                const [year, month, day] = p.split('-');
-                const mondayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                const label = `Week of ${mondayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
-                return `<option value="${p}">${label}</option>`;
-            }
-            return '';
-        }).join('');
+    // --- START MODIFIED SECTION ---
+    // Set the default selection WITHOUT triggering the 'afterChange' event.
+    slimSelectInstance.setSelected(top3MenuNames, false)
 
-        periodASelect.innerHTML = optionsHtml;
-        periodBSelect.innerHTML = optionsHtml;
-        periodASelect.value = sortedPeriods[1] || sortedPeriods[0];
-        periodBSelect.value = sortedPeriods[0];
-        
-        // --- Logic to find and set the Top 3 Menu Items by default ---
-        const initialPeriodB = sortedPeriods[0];
-        let initialDataB: any[] = [];
-        if (initialPeriodB) {
-            const parsePeriod = (period: string, range: string) => { const [year, part, dayPart] = period.split('-'); let startDate: Date, endDate: Date; switch (range) { case 'yearly': startDate = new Date(parseInt(year), 0, 1); endDate = new Date(parseInt(year), 11, 31, 23, 59, 59); break; case 'quarterly': const q = parseInt(part.replace('Q', '')); const sm = (q - 1) * 3; startDate = new Date(parseInt(year), sm, 1); endDate = new Date(parseInt(year), sm + 3, 0, 23, 59, 59); break; case 'monthly': startDate = new Date(parseInt(year), parseInt(part) - 1, 1); endDate = new Date(parseInt(year), parseInt(part), 0, 23, 59, 59); break; case 'weekly': startDate = new Date(parseInt(year), parseInt(part) - 1, parseInt(dayPart)); endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59); break; default: startDate = new Date(); endDate = new Date(); } return { startDate, endDate }; };
-            const rangeB = parsePeriod(initialPeriodB, range);
-            initialDataB = branchData.filter(s => s.date >= rangeB.startDate && s.date <= rangeB.endDate);
-        }
+    // Explicitly call the render function to guarantee a refresh.
+    await generatePremiumBranchProductChannel()
+    // --- END MODIFIED SECTION ---
+  }
 
-        const menuQuantities: Map<string, number> = new Map();
-        initialDataB.forEach(summary => {
-            if (!summary.menuItemQuantities) return;
-            for (const category in summary.menuItemQuantities) {
-                for (const itemName in summary.menuItemQuantities[category]) {
-                    const quantity = summary.menuItemQuantities[category][itemName];
-                    menuQuantities.set(itemName, (menuQuantities.get(itemName) || 0) + quantity);
-                }
-            }
-        });
+  const periodsWithMultipleBranches = Object.entries(
+    allSalesData.reduce((acc, s) => {
+      const period = s.date.toISOString().slice(0, 7)
+      if (!acc[period]) acc[period] = new Set()
+      s.branches.forEach((b) => acc[period].add(b))
+      return acc
+    }, {} as Record<string, Set<string>>),
+  ).filter(([, branches]) => branches.size >= 2).map(([period]) => period)
+  const sortedPeriods = periodsWithMultipleBranches.sort().reverse()
 
-        const top3MenuNames = Array.from(menuQuantities.entries())
-            .sort(([, qtyA], [, qtyB]) => qtyB - qtyA)
-            .slice(0, 3)
-            .map(([name]) => name);
+  if (sortedPeriods.length === 0) {
+    periodSelect.innerHTML = '<option>No periods with enough data</option>'
+    return
+  }
 
-        slimSelectInstance.setSelected(top3MenuNames);
-    };
+  periodSelect.innerHTML = sortedPeriods.map((p) => {
+    const [year, month] = p.split('-')
+    const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+    return `<option value="${p}">${label}</option>`
+  }).join('')
 
-    // --- Setup Menu Multi-Select ---
-    const menuSelectElement = document.getElementById('premium-time-product-menu-select') as HTMLSelectElement;
-    const allMenuItems = [...new Set(allSalesData.flatMap(s => Object.keys(s.menuItemQuantities || {}).flatMap(cat => Object.keys(s.menuItemQuantities[cat]))))].sort();
-    menuSelectElement.innerHTML = allMenuItems.map(name => `<option value="${name}">${name}</option>`).join('');
-    
-    const slimSelectInstance = new SlimSelect({
-        select: '#premium-time-product-menu-select',
-        events: { afterChange: () => generatePremiumTimeProductChannel() },
-    });
-    $store.setUIComponent('premiumTimeProductMenuSelect', slimSelectInstance);
+  // Attach listeners
+  periodSelect.addEventListener('change', updateBranchSelectors)
+  branchASelect.addEventListener('change', generatePremiumBranchProductChannel)
+  branchBSelect.addEventListener('change', generatePremiumBranchProductChannel)
 
-    // Attach listeners
-    branchSelect.addEventListener('change', updatePeriodSelectors);
-    rangeSelect.addEventListener('change', updatePeriodSelectors);
-    periodASelect.addEventListener('change', generatePremiumTimeProductChannel);
-    periodBSelect.addEventListener('change', generatePremiumTimeProductChannel);
-
-    setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis });
-    $store.setInitFlag('premiumTimeProductInitialized', true);
-    await updatePeriodSelectors();
+  setupPageSummary({ pageId, analyzeUsingAI: getGeminiAnalysis })
+  $store.setInitFlag('premiumBranchProductInitialized', true)
+  await updateBranchSelectors()
 }

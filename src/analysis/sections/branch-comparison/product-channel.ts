@@ -9,14 +9,14 @@ import { deepmerge } from 'deepmerge-ts'
 
 declare const SlimSelect: any
 
+
 /**
  * Draws the menu trend chart comparing selected menus between two branches.
  */
-function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string, config?: { alsoStore?: AlsoStoreFn }) {
-  const cabangMenuSelect = $store.getUIComponent('cabangMenuTrendSelect')
-  if (!cabangMenuSelect) return
+export function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string, canvasId: string, slimSelectInstance: any, config?: { alsoStore?: AlsoStoreFn }) {
+  if (!slimSelectInstance) return
 
-  const selectedMenus = cabangMenuSelect.getSelected() as string[]
+  const selectedMenus = slimSelectInstance.getSelected() as string[]
   const labels = ['Week 1 (1-7)', 'Week 2 (8-14)', 'Week 3 (15-21)', 'Week 4 (22-28)', 'Week 5 (29-31)']
   const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444']
 
@@ -72,7 +72,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
     }
   })
 
-  createChart('cabang-menu-trend-chart', 'line', { labels, datasets }, mergeChartOptions(
+  createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
     { plugins: { tooltip: { mode: 'index', intersect: false } }, scales: { x: { title: { display: true, text: 'Week of Month' } }, y: { title: { display: true, text: 'Quantity Sold' } } } },
     chartYTicks(shortenNumber),
     chartTooltip({ label: (context: any) => `${context.dataset.label || ''}: ${formatNumber(context.parsed.y)} items` }),
@@ -83,6 +83,7 @@ function drawBranchMenuTrendChart(periodData: any[], branchA: string, branchB: s
  * Sets up the interactive multi-select menu trend chart for comparing two branches.
  */
 function setupBranchMenuTrendChart(periodData: any[], branchA: string, branchB: string, config?: { alsoStore?: AlsoStoreFn }) {
+
   const existingSelect = $store.getUIComponent('cabangMenuTrendSelect')
   if (existingSelect) existingSelect.destroy()
 
@@ -152,7 +153,7 @@ function generateOrderCompositionChart(dataA: any[], dataB: any[], labelA: strin
 /**
  * Generates a grouped bar chart comparing channel revenue between two branches.
  */
-function generateBranchChannelComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+export function generateBranchChannelComparisonChart(periodData: any[], branchA: string, branchB: string, canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
   const branchAData = periodData.filter((s) => s.revenueByBranch?.[branchA] !== undefined)
   const branchBData = periodData.filter((s) => s.revenueByBranch?.[branchB] !== undefined)
   const allChannels = [...new Set([...branchAData, ...branchBData].flatMap((s) => Object.keys(s.revenueByVisitPurpose || {})))]
