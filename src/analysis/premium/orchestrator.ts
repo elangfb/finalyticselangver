@@ -296,11 +296,16 @@ export function setupPremiumAnalysisView() {
   const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement
   const pageInfo = document.getElementById('premium-data-page-info')
 
+  // Upload Modal Elements
   const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
   const uploadModal = document.getElementById('premium-upload-modal')
   const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
   const uploadModalContent = uploadModal?.querySelector('.bg-white')
-  const downloadTemplateBtn = uploadModal?.querySelector('button')
+
+  const downloadSalesTargetBtn = document.getElementById('premium-download-sales-target-btn')
+  const downloadPnlDataBtn = document.getElementById('premium-download-pnl-data-btn')
+  const downloadPnlTargetBtn = document.getElementById('premium-download-pnl-target-btn')
+
   const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement
   const salesTargetInput = document.getElementById('premium-upload-sales-target-input') as HTMLInputElement
   const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement
@@ -518,65 +523,45 @@ export function setupPremiumAnalysisView() {
     }
   }
 
-  uploadBtn?.addEventListener('click', (e) => {
-    e.preventDefault()
-    openUploadModal()
-  })
-
+  uploadBtn?.addEventListener('click', (e) => { e.preventDefault(); openUploadModal() })
   uploadModalCloseBtn?.addEventListener('click', closeUploadModal)
-  uploadModal?.addEventListener('click', (e) => {
-    if (e.target === uploadModal) {
-      closeUploadModal()
-    }
-  })
+  uploadModal?.addEventListener('click', (e) => { if (e.target === uploadModal) closeUploadModal() })
 
-  downloadTemplateBtn?.addEventListener('click', () => {
-    downloadPnlTemplate()
-    downloadSalesTargetTemplate()
-    downloadPnlTargetTemplate()
-  })
+  // Link download buttons to their respective functions
+  downloadSalesTargetBtn?.addEventListener('click', downloadSalesTargetTemplate)
+  downloadPnlDataBtn?.addEventListener('click', downloadPnlTemplate)
+  downloadPnlTargetBtn?.addEventListener('click', downloadPnlTargetTemplate)
 
+  // Sales Data format chooser logic
   const salesDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-sales-data-input"]') as HTMLLabelElement
-  const formatButtons = uploadModal?.querySelectorAll('.upload-format-btn')
+  const esbBtn = document.getElementById('premium-upload-esb-btn')
+  const mokaBtn = document.getElementById('premium-upload-moka-btn')
+  const formatButtons = [esbBtn, mokaBtn]
   let selectedSalesFormat: 'ESB' | 'MOKA' | null = null
 
-  formatButtons?.forEach((button) => {
-    button.addEventListener('click', () => {
+  formatButtons.forEach((button) => {
+    button?.addEventListener('click', () => {
       selectedSalesFormat = button.getAttribute('data-format') as 'ESB' | 'MOKA'
-      // Visually indicate selection
-      formatButtons.forEach((btn) => btn.classList.remove('bg-indigo-100', 'border-indigo-500'))
+      formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
       button.classList.add('bg-indigo-100', 'border-indigo-500')
-      // Show the upload zone
       salesDataUploadZone?.classList.remove('hidden')
       salesDataUploadZone?.classList.add('flex')
     })
   })
 
+  // Helper to handle all file uploads
   const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'salesTarget' | 'pnlData' | 'pnlTarget') => {
-    if (!file) {
-      alert('Please select a file.')
-      return
-    }
-
+    if (!file) { alert('Please select a file.'); return }
     closeUploadModal()
-
     try {
       switch (type) {
         case 'salesData':
-          if (!selectedSalesFormat) {
-            throw new Error('Sales data format (ESB/Moka) was not selected.')
-          }
+          if (!selectedSalesFormat) throw new Error('Sales data format (ESB/Moka) was not selected.')
           await handleSalesDataUpload(file, selectedSalesFormat)
           break
-        case 'salesTarget':
-          await handleTargetUpload(file, 'sales')
-          break
-        case 'pnlData':
-          await uploadAndProcessPnlFile(file)
-          break
-        case 'pnlTarget':
-          await handleTargetUpload(file, 'pnl')
-          break
+        case 'salesTarget': await handleTargetUpload(file, 'sales'); break
+        case 'pnlData': await uploadAndProcessPnlFile(file); break
+        case 'pnlTarget': await handleTargetUpload(file, 'pnl'); break
       }
     } catch (error: any) {
       alert(`Upload failed: ${error.message}`)
