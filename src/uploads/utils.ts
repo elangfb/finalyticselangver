@@ -42,29 +42,43 @@ export function getPeriodFromFile(worksheet: WorkSheet): string {
  * Finds the earliest and latest month (YYYY-MM) in an ESB Excel file.
  */
 export function getPeriodRangeFromEsbData(worksheet: WorkSheet): { startPeriod: string, endPeriod: string } {
-  const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { range: 11, raw: false }) // raw: false to get formatted dates
+  const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { range: 11 })
   if (jsonRows.length === 0) throw new Error('ESB file has no data rows.')
 
   let earliestDate: Date | null = null
   let latestDate: Date | null = null
 
   jsonRows.forEach((row) => {
-    const dateString = row['Sales Date In']
-    if (dateString) {
-      // The xlsx library with raw:false often returns dates in MM/DD/YY format
-      const parts = dateString.split('/')
-      if (parts.length === 3) {
-        const month = parseInt(parts[0], 10) - 1
-        const day = parseInt(parts[1], 10)
-        let year = parseInt(parts[2], 10)
-        if (year < 100) year += 2000 // Handle YY format
+    const dateValue = row['Sales Date In']
+    if (dateValue === undefined || dateValue === null) return
 
-        const currentDate = new Date(year, month, day)
-        if (!isNaN(currentDate.getTime())) {
-          if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate
-          if (!latestDate || currentDate > latestDate) latestDate = currentDate
+    let currentDate: Date | null = null
+
+    // --- START: NEW HYBRID PARSING LOGIC ---
+    if (typeof dateValue === 'number') {
+      currentDate = convertExcelDate(dateValue)
+    } else if (typeof dateValue === 'string') {
+      // Fallback for string-based dates, assuming DD-MM-YYYY or MM/DD/YYYY
+      const parts = dateValue.includes('/') ? dateValue.split('/') : dateValue.split('-')
+      if (parts.length === 3) {
+        // A simple heuristic to guess between MM/DD and DD/MM
+        const part1 = parseInt(parts[0], 10)
+        const part2 = parseInt(parts[1], 10)
+        let year = parseInt(parts[2], 10)
+        if (year < 100) year += 2000
+
+        if (part1 > 12) { // Definitely DD/MM/YYYY
+          currentDate = new Date(year, part2 - 1, part1)
+        } else { // Assume MM/DD/YYYY as it's a common xlsx library default
+          currentDate = new Date(year, part1 - 1, part2)
         }
       }
+    }
+    // --- END: NEW HYBRID PARSING LOGIC ---
+
+    if (currentDate && !isNaN(currentDate.getTime())) {
+      if (!earliestDate || currentDate < earliestDate) earliestDate = currentDate
+      if (!latestDate || currentDate > latestDate) latestDate = currentDate
     }
   })
 
@@ -72,12 +86,8 @@ export function getPeriodRangeFromEsbData(worksheet: WorkSheet): { startPeriod: 
     throw new Error('Could not find any valid dates in the \'Sales Date In\' column.')
   }
 
-  // TypeScript assertions after the null check
-  const earliest = earliestDate as Date
-  const latest = latestDate as Date
-
-  const startPeriod = `${earliest.getFullYear()}-${(earliest.getMonth() + 1).toString().padStart(2, '0')}`
-  const endPeriod = `${latest.getFullYear()}-${(latest.getMonth() + 1).toString().padStart(2, '0')}`
+  const startPeriod = `${earliestDate.getFullYear()}-${(earliestDate.getMonth() + 1).toString().padStart(2, '0')}`
+  const endPeriod = `${latestDate.getFullYear()}-${(latestDate.getMonth() + 1).toString().padStart(2, '0')}`
 
   return { startPeriod, endPeriod }
 }
@@ -130,3 +140,17 @@ export function getPeriodRangeFromMokaData(worksheet: WorkSheet): { startPeriod:
   return { startPeriod, endPeriod }
 }
 
+/**
+ * Converts an Excel serial date number to a JavaScript Date object.
+ */
+function convertExcelDate(serial: number): Date | null {
+  if (isNaN(serial) || serial < 0) {
+    return null
+  }
+  // Formula to convert Excel serial number to a JS Date
+  const excelToUnixEpochDays = 25569
+  const unixTimestampMilliseconds = (serial - excelToUnixEpochDays) * 86400 * 1000
+  const date = new Date(unixTimestampMilliseconds)
+  const adjustedDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60 * 1000))
+  return !isNaN(adjustedDate.getTime()) ? adjustedDate : null
+}
