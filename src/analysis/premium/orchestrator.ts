@@ -92,8 +92,6 @@ const CARDS_PER_PAGE = 8
 
 declare const SlimSelect: any
 
-
-
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
  */
@@ -292,19 +290,44 @@ export function setupPremiumAnalysisView() {
     return
   }
 
+  async function loadGlobalConfig() {
+    if (!currentUser) return
+    try {
+      const configDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+      const docSnap = await getDoc(configDocRef)
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        // Load exclusions
+        $store.setConfigValue('hiddenCategories', data.hiddenCategories || [])
+        $store.setConfigValue('hiddenMenus', data.hiddenMenus || [])
+        // Load global sales targets (we can centralize this here)
+        if (data.sales) {
+          const mappedTargets = {
+            'Omzet Harian': data.sales.totalOmzet > 0 ? data.sales.totalOmzet / 30 : 0,
+            'Total Transaksi Per Hari': data.sales.totalTransactions > 0 ? data.sales.totalTransactions / 30 : 0,
+            'Average Check': data.sales.avgCheck || 0,
+          }
+          $store.setConfigValue('activeSalesTarget', mappedTargets)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading global configuration:', error)
+    }
+  }
+
   // --- Get all necessary DOM elements ---
   const premiumView = document.getElementById('premium-analysis-view')
   const dashboardContent = document.getElementById('premium-dashboard-content')
   const manageDataContent = document.getElementById('premium-manage-data-content')
   const userManagementContent = document.getElementById('premium-user-management-content')
-  const configurationContent = document.getElementById('premium-configuration-content');
+  const configurationContent = document.getElementById('premium-configuration-content')
   const allMainContent = document.querySelectorAll('.premium-analysis-content')
   const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
   const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
   const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
   const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
-  const configurationBtn = document.getElementById('premium-goto-configuration-btn');
-  const configBackBtn = document.getElementById('premium-config-back-btn');
+  const configurationBtn = document.getElementById('premium-goto-configuration-btn')
+  const configBackBtn = document.getElementById('premium-config-back-btn')
   const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
   const uploadModal = document.getElementById('premium-upload-modal')
   const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
@@ -322,37 +345,121 @@ export function setupPremiumAnalysisView() {
   // --- State variables in a shared scope for nested functions ---
   let hasLoadedManageData = false
   let hasLoadedUserData = false
+  let hasLoadedGlobalTargets = false
+  let hasInitializedExclusions = false // <-- New flag for this feature
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
   const CARDS_PER_PAGE = 8
+
+  async function setupExclusionControls() {
+    if (!currentUser) return
+
+    // 1. Get all unique categories and menus from the store
+    const allSalesData: SalesSummary[] = $store.getAllSalesData()
+    const uniqueCategories = new Set<string>()
+    const uniqueMenus = new Set<string>()
+
+    allSalesData.forEach((summary) => {
+      if (summary.menuItemQuantities) {
+        for (const category in summary.menuItemQuantities) {
+          if (category !== 'Uncategorized') uniqueCategories.add(category)
+          for (const menuName in summary.menuItemQuantities[category]) {
+            uniqueMenus.add(menuName)
+          }
+        }
+      }
+    })
+
+    // 2. Initialize the SlimSelect dropdowns
+    const categorySelectEl = document.getElementById('hide-menu-category-select') as HTMLSelectElement
+    const menuSelectEl = document.getElementById('hide-menu-select') as HTMLSelectElement
+
+    const categorySelect = new SlimSelect({
+      select: categorySelectEl,
+      data: Array.from(uniqueCategories).sort().map((name) => ({ text: name, value: name })),
+      settings: { placeholderText: 'Select categories to hide' },
+    })
+
+    const menuSelect = new SlimSelect({
+      select: menuSelectEl,
+      data: Array.from(uniqueMenus).sort().map((name) => ({ text: name, value: name })),
+      settings: { placeholderText: 'Select menu items to hide' },
+    })
+
+    // 3. Load saved settings from Firestore and apply them
+    try {
+      const configDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+      const docSnap = await getDoc(configDocRef)
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        if (data.hiddenCategories) {
+          categorySelect.setSelected(data.hiddenCategories)
+        }
+        if (data.hiddenMenus) {
+          menuSelect.setSelected(data.hiddenMenus)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading exclusion settings:', error)
+    }
+
+    // 4. Attach the save listener
+    const saveBtn = document.getElementById('save-exclusions-btn')
+    const feedbackEl = document.getElementById('global-targets-feedback')
+
+    saveBtn?.addEventListener('click', async () => {
+      if (!currentUser || !feedbackEl) return
+
+      const selectedCategories = categorySelect.getSelected()
+      const selectedMenus = menuSelect.getSelected()
+
+      try {
+        const configDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+        await setDoc(configDocRef, {
+          hiddenCategories: selectedCategories,
+          hiddenMenus: selectedMenus,
+        }, { merge: true })
+
+        feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800'
+        feedbackEl.textContent = 'Exclusion settings saved successfully!'
+        feedbackEl.classList.remove('hidden')
+      } catch (error) {
+        feedbackEl.className = 'p-4 text-sm rounded-md bg-red-100 text-red-800'
+        feedbackEl.textContent = 'Error saving exclusion settings. Please try again.'
+        feedbackEl.classList.remove('hidden')
+      }
+      setTimeout(() => feedbackEl.classList.add('hidden'), 4000)
+    })
+  }
+
   async function loadGlobalTargets() {
-    if (!currentUser) return;
-    showLoading({ message: 'Loading global targets...' });
+    if (!currentUser) return
+    showLoading({ message: 'Loading global targets...' })
 
     try {
-      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets');
-      const docSnap = await getDoc(targetsDocRef);
+      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+      const docSnap = await getDoc(targetsDocRef)
 
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = docSnap.data()
         // Populate Sales Target Form
         if (data.sales) {
           (document.getElementById('global-target-omzet') as HTMLInputElement).value = data.sales.totalOmzet || '';
           (document.getElementById('global-target-transactions') as HTMLInputElement).value = data.sales.totalTransactions || '';
-          (document.getElementById('global-target-avg-check') as HTMLInputElement).value = data.sales.avgCheck || '';
+          (document.getElementById('global-target-avg-check') as HTMLInputElement).value = data.sales.avgCheck || ''
         }
         // Populate P&L Target Form
         if (data.pnl) {
           (document.getElementById('global-target-cogs') as HTMLInputElement).value = data.pnl.cogsPercent || '';
           (document.getElementById('global-target-wages') as HTMLInputElement).value = data.pnl.wagesPercent || '';
-          (document.getElementById('global-target-rent') as HTMLInputElement).value = data.pnl.rentPercent || '';
+          (document.getElementById('global-target-rent') as HTMLInputElement).value = data.pnl.rentPercent || ''
         }
       }
     } catch (error) {
-      console.error("Error loading global targets:", error);
-      alert("Could not load global targets.");
+      console.error('Error loading global targets:', error)
+      alert('Could not load global targets.')
     } finally {
-      hideLoading();
+      hideLoading()
     }
   }
 
@@ -583,7 +690,18 @@ export function setupPremiumAnalysisView() {
     }
   }
 
-const showConfiguration = () => showContent(configurationContent, configurationBtn);
+  const showConfiguration = () => {
+    showContent(configurationContent, configurationBtn)
+    if (!hasLoadedGlobalTargets) {
+      loadGlobalTargets()
+      hasLoadedGlobalTargets = true
+    }
+    // --- NEW: Initialize exclusion controls when showing the page ---
+    if (!hasInitializedExclusions) {
+      setupExclusionControls()
+      hasInitializedExclusions = true
+    }
+  }
 
   const showManageData = () => {
     showContent(manageDataContent, manageDataBtn)
@@ -598,58 +716,58 @@ const showConfiguration = () => showContent(configurationContent, configurationB
   manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData() })
 
   userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
-  configurationBtn?.addEventListener('click', (e) => { e.preventDefault(); showConfiguration(); });
-  configBackBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard(); }); 
+  configurationBtn?.addEventListener('click', (e) => { e.preventDefault(); showConfiguration() })
+  configBackBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
 
-  const saveSalesBtn = document.getElementById('save-global-sales-target-btn');
-  const savePnlBtn = document.getElementById('save-global-pnl-target-btn');
-  const feedbackEl = document.getElementById('global-targets-feedback');
+  const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
+  const savePnlBtn = document.getElementById('save-global-pnl-target-btn')
+  const feedbackEl = document.getElementById('global-targets-feedback')
 
   saveSalesBtn?.addEventListener('click', async () => {
-    if (!currentUser || !feedbackEl) return;
-    
+    if (!currentUser || !feedbackEl) return
+
     const salesTargetData = {
       totalOmzet: parseFloat((document.getElementById('global-target-omzet') as HTMLInputElement).value) || 0,
       totalTransactions: parseInt((document.getElementById('global-target-transactions') as HTMLInputElement).value, 10) || 0,
       avgCheck: parseFloat((document.getElementById('global-target-avg-check') as HTMLInputElement).value) || 0,
-    };
+    }
 
     try {
-      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets');
-      await setDoc(targetsDocRef, { sales: salesTargetData }, { merge: true });
-      feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800';
-      feedbackEl.textContent = 'Global Sales Target saved successfully!';
-      feedbackEl.classList.remove('hidden');
+      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+      await setDoc(targetsDocRef, { sales: salesTargetData }, { merge: true })
+      feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800'
+      feedbackEl.textContent = 'Global Sales Target saved successfully!'
+      feedbackEl.classList.remove('hidden')
     } catch (error) {
-      feedbackEl.className = 'p-4 text-sm rounded-md bg-red-100 text-red-800';
-      feedbackEl.textContent = 'Error saving sales target. Please try again.';
-      feedbackEl.classList.remove('hidden');
+      feedbackEl.className = 'p-4 text-sm rounded-md bg-red-100 text-red-800'
+      feedbackEl.textContent = 'Error saving sales target. Please try again.'
+      feedbackEl.classList.remove('hidden')
     }
-    setTimeout(() => feedbackEl.classList.add('hidden'), 4000);
-  });
+    setTimeout(() => feedbackEl.classList.add('hidden'), 4000)
+  })
 
   savePnlBtn?.addEventListener('click', async () => {
-    if (!currentUser || !feedbackEl) return;
+    if (!currentUser || !feedbackEl) return
 
     const pnlTargetData = {
       cogsPercent: parseFloat((document.getElementById('global-target-cogs') as HTMLInputElement).value) || 0,
       wagesPercent: parseFloat((document.getElementById('global-target-wages') as HTMLInputElement).value) || 0,
       rentPercent: parseFloat((document.getElementById('global-target-rent') as HTMLInputElement).value) || 0,
-    };
+    }
 
     try {
-      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets');
-      await setDoc(targetsDocRef, { pnl: pnlTargetData }, { merge: true });
-      feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800';
-      feedbackEl.textContent = 'Global P&L Target saved successfully!';
-      feedbackEl.classList.remove('hidden');
+      const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+      await setDoc(targetsDocRef, { pnl: pnlTargetData }, { merge: true })
+      feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800'
+      feedbackEl.textContent = 'Global P&L Target saved successfully!'
+      feedbackEl.classList.remove('hidden')
     } catch (error) {
-      feedbackEl.className = 'p-4 text-sm rounded-md bg-red-100 text-red-800';
-      feedbackEl.textContent = 'Error saving P&L target. Please try again.';
-      feedbackEl.classList.remove('hidden');
+      feedbackEl.className = 'p-4 text-sm rounded-md bg-red-100 text-red-800'
+      feedbackEl.textContent = 'Error saving P&L target. Please try again.'
+      feedbackEl.classList.remove('hidden')
     }
-    setTimeout(() => feedbackEl.classList.add('hidden'), 4000);
-  });
+    setTimeout(() => feedbackEl.classList.add('hidden'), 4000)
+  })
 
   const addUserModal = document.getElementById('add-user-modal')
   const addUserBtn = document.getElementById('premium-add-user-btn') // FIX: Select button by its new ID
@@ -874,7 +992,7 @@ const showConfiguration = () => showContent(configurationContent, configurationB
   })
 
   // Helper to handle all file uploads
-  const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'salesTarget' | 'pnlData' | 'pnlTarget') => {
+  const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'pnlData') => {
     if (!file) { alert('Please select a file.'); return }
     closeUploadModal()
     try {
@@ -883,9 +1001,10 @@ const showConfiguration = () => showContent(configurationContent, configurationB
           if (!selectedSalesFormat) throw new Error('Sales data format (ESB/Moka) was not selected.')
           await handleSalesDataUpload(file, selectedSalesFormat)
           break
-        case 'salesTarget': await handleTargetUpload(file, 'sales'); break
-        case 'pnlData': await uploadAndProcessPnlFile(file); break
-        case 'pnlTarget': await handleTargetUpload(file, 'pnl'); break
+        case 'pnlData':
+          await uploadAndProcessPnlFile(file)
+          break
+        // REMOVED: Cases for 'salesTarget' and 'pnlTarget'
       }
     } catch (error: any) {
       alert(`Upload failed: ${error.message}`)
@@ -894,9 +1013,7 @@ const showConfiguration = () => showContent(configurationContent, configurationB
   }
 
   salesDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
-  salesTargetInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesTarget'))
   pnlDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
-  pnlTargetInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlTarget'))
 
   const allSalesData: SalesSummary[] = $store.getAllSalesData()
   const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
@@ -904,7 +1021,9 @@ const showConfiguration = () => showContent(configurationContent, configurationB
   branchSelect.addEventListener('change', generatePremiumAnalysis)
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
-  generatePremiumAnalysis()
+  loadGlobalConfig().then(() => {
+    generatePremiumAnalysis(); // Renders the initial dashboard view
+  });
 }
 
 async function generatePremiumGeneralSales() {
@@ -921,27 +1040,27 @@ async function generatePremiumGeneralSales() {
   if (!selectedBranch || !selectedRange || !selectedPeriod) return
 
   try {
-    const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets');
-    const docSnap = await getDoc(targetsDocRef);
+    const targetsDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+    const docSnap = await getDoc(targetsDocRef)
     if (docSnap.exists() && docSnap.data().sales) {
-      const globalSalesTargets = docSnap.data().sales;
-      
+      const globalSalesTargets = docSnap.data().sales
+
       // Map the global targets to the structure the chart functions expect
       const mappedTargets = {
         // Calculate a daily average for the daily omzet chart
         'Omzet Harian': globalSalesTargets.totalOmzet > 0 ? globalSalesTargets.totalOmzet / 30 : 0,
         'Total Transaksi Per Hari': globalSalesTargets.totalTransactions > 0 ? globalSalesTargets.totalTransactions / 30 : 0,
         'Average Check': globalSalesTargets.avgCheck || 0,
-      };
+      }
 
-      $store.setConfigValue('activeSalesTarget', mappedTargets);
+      $store.setConfigValue('activeSalesTarget', mappedTargets)
     } else {
       // If no global targets are found, clear any existing ones from the state
-      $store.setConfigValue('activeSalesTarget', {});
+      $store.setConfigValue('activeSalesTarget', {})
     }
   } catch (error) {
-    console.error("Error fetching global sales targets:", error);
-    $store.setConfigValue('activeSalesTarget', {});
+    console.error('Error fetching global sales targets:', error)
+    $store.setConfigValue('activeSalesTarget', {})
   }
 
   // --- START: Real Date Filtering Logic ---

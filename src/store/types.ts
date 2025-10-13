@@ -45,6 +45,8 @@ export interface AnalysisState {
     monthlyComparisonTargets: Record<string, any>
     currentPnlPeriod: string | null
     activeSalesTarget: Record<string, any>
+    hiddenCategories: string[]
+    hiddenMenus: string[]
   }
 }
 

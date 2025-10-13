@@ -7,6 +7,7 @@ import { AlsoStoreFn, createAlsoStoreFn } from '../../../utils/store-helpers'
 import { formatNumber, formatNumberUtil, formatCurrencyUtil, formatMachineYearMonthDay } from '../../../utils/string-formatters'
 import { deepmerge } from 'deepmerge-ts'
 
+
 declare const SlimSelect: any
 
 /**
@@ -41,14 +42,19 @@ export function generateChannelDonutChart(summaries: any[], canvasId: string, co
  * Generates an "Order by Menu Category" doughnut chart.
  */
 export function generateOrderByCategoryDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+  const hiddenCategories = $store.getConfigValue('hiddenCategories') || []
   const byMenuCategory = summaries.reduce((acc, s) => {
     if (s.menuCategories) {
       for (const category in s.menuCategories) {
-        acc[category] = (acc[category] || 0) + s.menuCategories[category].quantity
+        // FIX: Add a check to skip hidden categories
+        if (!hiddenCategories.includes(category)) {
+          acc[category] = (acc[category] || 0) + s.menuCategories[category].quantity;
+        }
       }
     }
-    return acc
-  }, {})
+    return acc;
+  }, {});
+
 
   config?.alsoStore?.(byMenuCategory, (v) => ({
     totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
@@ -113,35 +119,35 @@ function generateTopItemsDonutChart(summaries: any[], canvasId: string, category
  * Draws the general menu trend chart based on the current dropdown selection.
  */
 export function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, slimSelectInstance: any, config?: { alsoStore?: AlsoStoreFn }) {
-  if (!slimSelectInstance) return;
+  if (!slimSelectInstance) return
 
-  const selectedMenus = slimSelectInstance.getSelected() as string[];
-  const labels = [...new Set(summaries.map((s) => s.date.toISOString().split('T')[0]))].sort();
+  const selectedMenus = slimSelectInstance.getSelected() as string[]
+  const labels = [...new Set(summaries.map((s) => s.date.toISOString().split('T')[0]))].sort()
 
   const datasets = selectedMenus.map((menuName, index) => {
     const dataPoints = labels.map((dateStr) => {
-      const summaryForDay = summaries.find((s) => s.date.toISOString().startsWith(dateStr));
-      let quantity = 0;
+      const summaryForDay = summaries.find((s) => s.date.toISOString().startsWith(dateStr))
+      let quantity = 0
       if (summaryForDay && summaryForDay.menuItemQuantities) {
         for (const category in summaryForDay.menuItemQuantities) {
           if (summaryForDay.menuItemQuantities[category][menuName]) {
-            quantity = summaryForDay.menuItemQuantities[category][menuName];
-            break;
+            quantity = summaryForDay.menuItemQuantities[category][menuName]
+            break
           }
         }
       }
-      return quantity;
-    });
+      return quantity
+    })
 
-    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444'];
+    const colors = ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EF4444']
     return {
       label: menuName,
       data: dataPoints,
       borderColor: colors[index % colors.length],
       tension: 0.1,
       fill: false,
-    };
-  });
+    }
+  })
 
   config?.alsoStore?.(datasets, (v) => ({
     menuTrend: deepmerge(...v.map((d) => ({
@@ -149,7 +155,7 @@ export function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, sl
         [formatMachineYearMonthDay(labels[index])]: formatNumberUtil(v),
       }))),
     }))),
-  }));
+  }))
 
   createChart(canvasId, 'line', { labels, datasets }, mergeChartOptions(
     chartYTicks(shortenNumber),
@@ -157,7 +163,7 @@ export function drawGeneralMenuTrendChart(summaries: any[], canvasId: string, sl
     chartTooltip({
       label: (context: any) => `${context.dataset.label || ''}: ${formatNumber(context.parsed.y)} items`,
     }),
-  ));
+  ))
 }
 
 /**

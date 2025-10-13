@@ -1,51 +1,49 @@
 import { formatNumber, formatCurrency } from '@/utils/string'
+import * as $store from '@/store';
+
 
 export function generateTop10MenuTable(summaries: any[], containerId: string, sortBy: 'quantity' | 'revenue') {
-  const container = document.getElementById(containerId);
-  if (!container) return;
+  const container = document.getElementById(containerId)
+  if (!container) return
 
-  const menuData = new Map<string, { quantity: number, revenue: number, category: string }>();
+  const menuData = new Map<string, { quantity: number, revenue: number, category: string }>()
 
-  // --- IMPROVEMENT: Define non-menu items and categories to exclude from the list ---
-  const itemsToExclude = ['BAGI PLASTIK', 'PAPER BOWL', 'TUTUP'];
-  const categoriesToExclude = ['Uncategorized'];
+  const hiddenMenus = $store.getConfigValue('hiddenMenus') || []
+  const hiddenCategories = $store.getConfigValue('hiddenCategories') || []
 
   // Aggregate data from all summaries
   summaries.forEach((summary) => {
-    if (!summary.menuItemQuantities) return;
-
+    if (!summary.menuItemQuantities) return
     for (const category in summary.menuItemQuantities) {
-      // IMPROVEMENT: Skip categories that are in the exclusion list
-      if (categoriesToExclude.includes(category)) continue;
+      // FIX: Check for hidden categories
+      if (hiddenCategories.includes(category)) continue
 
       for (const itemName in summary.menuItemQuantities[category]) {
-        // IMPROVEMENT: Skip items that contain excluded keywords
-        if (itemsToExclude.some(excludeItem => itemName.toUpperCase().includes(excludeItem))) continue;
+        // FIX: Check for hidden menu items
+        if (hiddenMenus.includes(itemName)) continue
 
-        const quantity = summary.menuItemQuantities[category][itemName];
-        // --- FIX: Use the pre-calculated `menuItemRevenues` field instead of trying to calculate on the fly ---
-        const revenue = summary.menuItemRevenues?.[category]?.[itemName] || 0;
+        const quantity = summary.menuItemQuantities[category][itemName]
+        const revenue = summary.menuItemRevenues?.[category]?.[itemName] || 0
 
         if (menuData.has(itemName)) {
-          const existing = menuData.get(itemName)!;
-          existing.quantity += quantity;
-          existing.revenue += revenue;
+          const existing = menuData.get(itemName)!
+          existing.quantity += quantity
+          existing.revenue += revenue
         } else {
-          menuData.set(itemName, { quantity, revenue, category });
+          menuData.set(itemName, { quantity, revenue, category })
         }
       }
     }
-  });
-
+  })
 
   // Convert map to array, sort, and take top 10
   const sortedData = Array.from(menuData.entries())
     .sort(([, a], [, b]) => b[sortBy] - a[sortBy])
-    .slice(0, 10);
+    .slice(0, 10)
 
   if (sortedData.length === 0) {
-    container.innerHTML = '<p class="text-gray-400 text-center py-8">No menu data available for this period.</p>';
-    return;
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">No menu data available for this period.</p>'
+    return
   }
 
   // Generate HTML table
@@ -60,21 +58,21 @@ export function generateTop10MenuTable(summaries: any[], containerId: string, so
                         <th class="p-2 font-medium text-right">${sortBy === 'quantity' ? 'Quantity' : 'Revenue'}</th>
                     </tr>
                 </thead>
-                <tbody>`;
+                <tbody>`
 
   sortedData.forEach(([name, data], index) => {
-    const value = sortBy === 'quantity' ? formatNumber(data.quantity) : formatCurrency(data.revenue);
+    const value = sortBy === 'quantity' ? formatNumber(data.quantity) : formatCurrency(data.revenue)
     tableHtml += `
             <tr class="border-t">
                 <td class="p-2 text-center font-medium text-gray-600">${index + 1}</td>
                 <td class="p-2 font-medium text-gray-800">${name}</td>
                 <td class="p-2 text-gray-600">${data.category}</td>
                 <td class="p-2 text-right font-mono">${value}</td>
-            </tr>`;
-  });
+            </tr>`
+  })
 
-  tableHtml += `</tbody></table></div>`;
-  container.innerHTML = tableHtml;
+  tableHtml += `</tbody></table></div>`
+  container.innerHTML = tableHtml
 }
 
 // Add this new function to src/analysis/premium/sales-tables.ts

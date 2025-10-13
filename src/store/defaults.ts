@@ -41,6 +41,8 @@ export function createDefaultAnalysisState(): AnalysisState {
       monthlyComparisonTargets: {},
       currentPnlPeriod: null,
       activeSalesTarget: {},
+      hiddenCategories: [],
+      hiddenMenus: [],
     },
   }
 }

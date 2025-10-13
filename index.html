@@ -196,6 +196,11 @@
         .chevron-icon.rotate-180 {
             transform: rotate(180deg);
         }
+
+        .ss-main .ss-values {
+  max-height: 120px; /* Limits the height to about 3-4 lines of text */
+  overflow-y: auto;  /* Adds a scrollbar if the content overflows */
+}
         </style>
     </head>
     <body class="bg-gray-100 text-gray-800">
@@ -705,6 +710,30 @@
                 </button>
             </div>
         </div>
+        <div class="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col lg:col-span-2">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold text-gray-700 mb-1">Analysis Exclusions</h3>
+            <p class="text-sm text-gray-500 mb-6">Hide specific menu items or entire categories from all charts and tables.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="hide-menu-category-select" class="block text-sm font-medium text-gray-600 mb-1">Hide Menu Categories</label>
+                    <select id="hide-menu-category-select" multiple>
+                        </select>
+                </div>
+                <div>
+                    <label for="hide-menu-select" class="block text-sm font-medium text-gray-600 mb-1">Hide Individual Menu Items</label>
+                    <select id="hide-menu-select" multiple>
+                        </select>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-6 py-3 mt-auto text-right rounded-b-lg">
+            <button id="save-exclusions-btn" class="bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-black text-sm">
+                Save Exclusions
+            </button>
+        </div>
+    </div>
+    
 
     </div>
 </main>
@@ -3276,70 +3305,39 @@
         <div class="p-6 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-    <h3 class="font-semibold text-gray-700 mb-2">Sales Data</h3>
-    <div class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-            <button id="premium-upload-esb-btn" data-format="ESB" class="upload-format-btn w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
-                Upload From ESB
-            </button>
-            <button id="premium-upload-moka-btn" data-format="MOKA" class="upload-format-btn w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
-                Upload From MOKA
-            </button>
-        </div>
-        <label for="premium-upload-sales-data-input" class="hidden w-full flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path></svg>
-            <p class="text-sm font-medium">Choose a file or drag & drop it here.</p>
-            <p class="text-xs text-gray-400 mt-1">Only support .xlsx and .csv</p>
-            <span class="mt-4 bg-gray-200 text-gray-700 text-xs font-semibold py-1 px-3 rounded-md">Browse File</span>
-            <input type="file" id="premium-upload-sales-data-input" class="hidden">
-        </label>
-    </div>
-</div>
-                <div>
-                    <h3 class="font-semibold text-gray-700 mb-2">Sales Target</h3>
-                     <div class="space-y-2">
-                        <button id="premium-download-sales-target-btn" class="w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                            Download Target Template
-                        </button>
-                        <label for="premium-upload-sales-target-input" class="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z" /></svg>
+                    <h3 class="font-semibold text-gray-700 mb-2">Sales Data</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <button id="premium-upload-esb-btn" data-format="ESB" class="upload-format-btn w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
+                                Upload From ESB
+                            </button>
+                            <button id="premium-upload-moka-btn" data-format="MOKA" class="upload-format-btn w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
+                                Upload From MOKA
+                            </button>
+                        </div>
+                        <label for="premium-upload-sales-data-input" class="hidden w-full flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path></svg>
                             <p class="text-sm font-medium">Choose a file or drag & drop it here.</p>
-                            <p class="text-xs text-gray-400 mt-1">Only support .xlsx</p>
+                            <p class="text-xs text-gray-400 mt-1">Only support .xlsx and .csv</p>
                             <span class="mt-4 bg-gray-200 text-gray-700 text-xs font-semibold py-1 px-3 rounded-md">Browse File</span>
-                            <input type="file" id="premium-upload-sales-target-input" class="hidden">
+                            <input type="file" id="premium-upload-sales-data-input" class="hidden">
                         </label>
                     </div>
                 </div>
+
                 <div>
                     <h3 class="font-semibold text-gray-700 mb-2">Profit & Loss Data</h3>
-                     <div class="space-y-2">
+                    <div class="space-y-2">
                         <button id="premium-download-pnl-data-btn" class="w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                             Download P&L Template
                         </button>
                         <label for="premium-upload-pnl-data-input" class="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z" /></svg>
                             <p class="text-sm font-medium">Choose a file or drag & drop it here.</p>
                             <p class="text-xs text-gray-400 mt-1">Only support .xlsx</p>
                             <span class="mt-4 bg-gray-200 text-gray-700 text-xs font-semibold py-1 px-3 rounded-md">Browse File</span>
                             <input type="file" id="premium-upload-pnl-data-input" class="hidden">
-                        </label>
-                    </div>
-                </div>
-                <div>
-                    <h3 class="font-semibold text-gray-700 mb-2">Profit & Loss Target</h3>
-                     <div class="space-y-2">
-                        <button id="premium-download-pnl-target-btn" class="w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                            Download P&L Target Template
-                        </button>
-                        <label for="premium-upload-pnl-target-input" class="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z" /></svg>
-                            <p class="text-sm font-medium">Choose a file or drag & drop it here.</p>
-                            <p class="text-xs text-gray-400 mt-1">Only support .xlsx</p>
-                            <span class="mt-4 bg-gray-200 text-gray-700 text-xs font-semibold py-1 px-3 rounded-md">Browse File</span>
-                            <input type="file" id="premium-upload-pnl-target-input" class="hidden">
                         </label>
                     </div>
                 </div>
