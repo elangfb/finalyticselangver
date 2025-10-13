@@ -463,8 +463,10 @@
                         <!-- END MODIFIED SECTION -->
                         </nav>
                         <div class="mt-auto pt-6 border-t">
-                            <a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Configuration</a>
-                            <a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>Logout</a>
+                            <a href="#" id="premium-goto-configuration-btn" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50">
+    Configuration
+</a>
+<a href="#" class="flex items-center p-2 rounded-lg text-gray-600 hover:bg-gray-50"><svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>Logout</a>
                         </div>
                     </aside>
 
@@ -611,6 +613,101 @@
         </table>
     </div>
                     </main>
+
+                    <main id="premium-configuration-content" class="premium-analysis-content flex-1 space-y-6 hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <div class="flex items-center gap-2">
+                <button id="premium-config-back-btn" class="text-gray-500 hover:text-gray-800">&larr;</button>
+                <h2 class="text-2xl font-bold text-gray-800">Global Target Configuration</h2>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Set default targets that apply to all periods.</p>
+        </div>
+    </div>
+
+    <div id="global-targets-feedback" class="hidden p-4 text-sm rounded-md"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
+
+        <div class="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col">
+            <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-1">Global Sales Target</h3>
+                <p class="text-sm text-gray-500 mb-6">These values will be used for any period without a specific monthly sales target file.</p>
+                <form id="global-sales-target-form" class="space-y-4">
+                    <div>
+                        <label for="global-target-omzet" class="block text-sm font-medium text-gray-600">Total Omzet (Monthly)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <span class="text-gray-500 sm:text-sm">Rp</span>
+                            </div>
+                            <input type="text" id="global-target-omzet" class="block w-full rounded-md border-gray-300 pl-8 pr-12 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="300000000">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="global-target-transactions" class="block text-sm font-medium text-gray-600">Total Transactions (Monthly)</label>
+                        <input type="text" id="global-target-transactions" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="6000">
+                    </div>
+                    <div>
+                        <label for="global-target-avg-check" class="block text-sm font-medium text-gray-600">Average Check</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <span class="text-gray-500 sm:text-sm">Rp</span>
+                            </div>
+                            <input type="text" id="global-target-avg-check" class="block w-full rounded-md border-gray-300 pl-8 pr-12 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="50000">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 mt-auto text-right rounded-b-lg">
+                <button id="save-global-sales-target-btn" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm">
+                    Save Sales Target
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col">
+            <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-1">Global P&L Target</h3>
+                <p class="text-sm text-gray-500 mb-6">Values are percentages (%) of total revenue.</p>
+                <form id="global-pnl-target-form" class="space-y-4">
+                    <div>
+                        <label for="global-target-cogs" class="block text-sm font-medium text-gray-600">Harga Pokok Produksi (COGS)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <input type="text" id="global-target-cogs" class="block w-full rounded-md border-gray-300 pr-8 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="40">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span class="text-gray-500 sm:text-sm">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="global-target-wages" class="block text-sm font-medium text-gray-600">Biaya Gaji (Wages)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <input type="text" id="global-target-wages" class="block w-full rounded-md border-gray-300 pr-8 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="25">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span class="text-gray-500 sm:text-sm">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="global-target-rent" class="block text-sm font-medium text-gray-600">Biaya Sewa (Rent)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <input type="text" id="global-target-rent" class="block w-full rounded-md border-gray-300 pr-8 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="10">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span class="text-gray-500 sm:text-sm">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 mt-auto text-right rounded-b-lg">
+                <button id="save-global-pnl-target-btn" class="bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-teal-700 text-sm">
+                    Save P&L Target
+                </button>
+            </div>
+        </div>
+
+    </div>
+</main>
 
                     <main id="premium-placeholder-general-keuangan" class="premium-analysis-content flex-1 space-y-6 hidden">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
