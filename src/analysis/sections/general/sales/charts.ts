@@ -108,61 +108,101 @@ export function generateOmzetMingguanChartFromSummaries(summaries: SalesSummary[
   ))
 }
 
+// In src/analysis/sections/general/sales/charts.ts
+
 export function generateTcApcHarianChartFromSummaries(summaries: SalesSummary[], canvasId: string, config?: AlsoStoreConfig) {
-  const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime())
-  const labels = sortedSummaries.map((s) => s.date.toISOString().split('T')[0])
-  const tcData = sortedSummaries.map((s) => s.totalTransactions)
-  const apcData = sortedSummaries.map((s) => s.apc)
+  const sortedSummaries = summaries.toSorted((a, b) => a.date.getTime() - b.date.getTime());
+  const labels = sortedSummaries.map((s) => s.date.toISOString().split('T')[0]);
+  const tcData = sortedSummaries.map((s) => s.totalTransactions);
+  const apcData = sortedSummaries.map((s) => s.apc);
 
-  const datasets: ChartDataset<'bar' | 'line', number[]>[] = [
-    {
-      type: 'bar',
-      label: 'Total Check (TC)',
-      data: maybeAlsoStore(config?.alsoStore, tcData, (v) => ({ totalCheckHarian: deepmerge(...v.map((v, index) => ({ [`Day ${index + 1}`]: formatNumberUtil(v) }))) })),
-      backgroundColor: '#60A5FA',
-      yAxisID: 'y-tc',
-      order: 2,
-    },
-    {
+  const totalTC = tcData.reduce((sum, val) => sum + val, 0);
+  const totalAPC = apcData.reduce((sum, val) => sum + val, 0);
+  const averageTC = tcData.length > 0 ? totalTC / tcData.length : 0;
+  const averageAPC = apcData.length > 0 ? totalAPC / apcData.length : 0;
+
+  // --- REORDERED DATASETS ---
+  const datasets: ChartDataset<'bar' | 'line', (number | null)[]>[] = [];
+
+  // --- TC Group (will appear on the left) ---
+  datasets.push({
+    type: 'bar',
+    label: 'Total Check (TC)',
+    data: tcData,
+    backgroundColor: '#60A5FA',
+    yAxisID: 'y-tc',
+    order: 0,
+  });
+
+  if (averageTC > 0) {
+    datasets.push({
       type: 'line',
-      label: 'Average Check (APC)',
-      data: maybeAlsoStore(config?.alsoStore, apcData, (v) => ({ avgPerCheckHarian: deepmerge(...v.map((v, index) => ({ [`Day ${index + 1}`]: formatNumberUtil(v) }))) })),
-      borderColor: '#F97316',
-      tension: 0.1,
-      yAxisID: 'y-apc',
-      order: 1,
-    },
-  ]
+      label: 'Average TC',
+      data: Array(labels.length).fill(averageTC),
+      borderColor: '#60A5FA',
+      borderDash: [5, 5],
+      borderWidth: 2,
+      pointRadius: 0,
+      yAxisID: 'y-tc',
+      order: 0,
+    });
+  }
 
-  const salesTarget = $store.getConfigValue('activeSalesTarget') || {}
+  const salesTarget = $store.getConfigValue('activeSalesTarget') || {};
   if (salesTarget && salesTarget['Total Transaksi Per Hari']) {
-    config?.alsoStore?.(salesTarget['Total Transaksi Per Hari'], (v) => ({ targetTotalCheckHarian: formatNumberUtil(v) }))
     datasets.push({
       type: 'line',
       label: 'Target TC Harian',
       data: Array(labels.length).fill(salesTarget['Total Transaksi Per Hari']),
-      borderColor: '#3B82F6',
+      borderColor: '#3B82F6', // Darker blue for target
       borderDash: [5, 5],
       borderWidth: 2,
       pointRadius: 0,
       yAxisID: 'y-tc',
-    } as ChartDataset<'line', number[]>)
+      order: 0,
+    });
   }
+  
+  // --- APC Group (will appear on the right) ---
+  datasets.push({
+    type: 'line',
+    label: 'Average Check (APC)',
+    data: apcData,
+    borderColor: '#F97316',
+    tension: 0.1,
+    yAxisID: 'y-apc',
+    order: 1,
+  });
 
-  if (salesTarget && salesTarget['Average Check']) {
-    config?.alsoStore?.(salesTarget['Average Check'], (v) => ({ targetAvgPerCheckHarian: formatCurrencyUtil(v) }))
+  if (averageAPC > 0) {
     datasets.push({
       type: 'line',
-      label: 'Target Average Check',
-      data: Array(labels.length).fill(salesTarget['Average Check']),
-      borderColor: '#EF4444',
+      label: 'Average APC',
+      data: Array(labels.length).fill(averageAPC),
+      borderColor: '#F97316', // Light orange
       borderDash: [5, 5],
       borderWidth: 2,
       pointRadius: 0,
       yAxisID: 'y-apc',
-    } as ChartDataset<'line', number[]>)
+      order: 0,
+    });
   }
 
+  if (salesTarget && salesTarget['Average Check']) {
+    datasets.push({
+      type: 'line',
+      label: 'Target Average Check',
+      data: Array(labels.length).fill(salesTarget['Average Check']),
+      borderColor: '#EF4444', // Red for target
+      borderDash: [5, 5],
+      borderWidth: 2,
+      pointRadius: 0,
+      yAxisID: 'y-apc',
+      order: 0,
+    });
+  }
+  
+  // The rest of the function remains the same
   createChart(canvasId, 'bar', { labels, datasets }, mergeChartOptions(
     ({
       scales: {
@@ -181,5 +221,5 @@ export function generateTcApcHarianChartFromSummaries(summaries: SalesSummary[],
         return `${label}: ${formatNumberUtil(value)}`
       },
     }),
-  ))
+  ));
 }
