@@ -314,28 +314,31 @@ export function setupPremiumAnalysisView() {
       console.error('Error loading global configuration:', error)
     }
   }
-
+  const userEmailDisplay = document.getElementById('premium-user-email-display');
+  if (userEmailDisplay && currentUser?.email) {
+    userEmailDisplay.textContent = `Hello //${currentUser.email}`;
+  }
   // --- Get all necessary DOM elements ---
   const premiumView = document.getElementById('premium-analysis-view')
   const dashboardContent = document.getElementById('premium-dashboard-content')
   const manageDataContent = document.getElementById('premium-manage-data-content')
   const userManagementContent = document.getElementById('premium-user-management-content')
   const configurationContent = document.getElementById('premium-configuration-content')
+  const exportPdfContent = document.getElementById('premium-export-pdf-content');
   const allMainContent = document.querySelectorAll('.premium-analysis-content')
   const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
   const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
   const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
   const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
   const configurationBtn = document.getElementById('premium-goto-configuration-btn')
+  const exportPdfBtn = document.getElementById('premium-goto-export-pdf-btn');
   const configBackBtn = document.getElementById('premium-config-back-btn')
   const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
   const uploadModal = document.getElementById('premium-upload-modal')
   const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
   const uploadModalContent = uploadModal?.querySelector('.bg-white')
   const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement
-  const salesTargetInput = document.getElementById('premium-upload-sales-target-input') as HTMLInputElement
   const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement
-  const pnlTargetInput = document.getElementById('premium-upload-pnl-target-input') as HTMLInputElement
   const downloadSalesTargetBtn = document.getElementById('premium-download-sales-target-btn')
   const downloadPnlDataBtn = document.getElementById('premium-download-pnl-data-btn')
   const downloadPnlTargetBtn = document.getElementById('premium-download-pnl-target-btn')
@@ -350,6 +353,8 @@ export function setupPremiumAnalysisView() {
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
   const CARDS_PER_PAGE = 8
+
+  // In src/analysis/premium/orchestrator.ts
 
   async function setupExclusionControls() {
     if (!currentUser) return
@@ -377,13 +382,21 @@ export function setupPremiumAnalysisView() {
     const categorySelect = new SlimSelect({
       select: categorySelectEl,
       data: Array.from(uniqueCategories).sort().map((name) => ({ text: name, value: name })),
-      settings: { placeholderText: 'Select categories to hide' },
+      settings: {
+        placeholderText: 'Select categories to hide',
+        closeOnSelect: false,
+        allowDeselect: true,
+      },
     })
 
     const menuSelect = new SlimSelect({
       select: menuSelectEl,
       data: Array.from(uniqueMenus).sort().map((name) => ({ text: name, value: name })),
-      settings: { placeholderText: 'Select menu items to hide' },
+      settings: {
+        placeholderText: 'Select menu items to hide',
+        closeOnSelect: false,
+        allowDeselect: true,
+      },
     })
 
     // 3. Load saved settings from Firestore and apply them
@@ -703,6 +716,8 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  const showExportPdf = () => showContent(exportPdfContent, exportPdfBtn);
+
   const showManageData = () => {
     showContent(manageDataContent, manageDataBtn)
     if (!hasLoadedManageData) {
@@ -717,6 +732,7 @@ export function setupPremiumAnalysisView() {
 
   userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
   configurationBtn?.addEventListener('click', (e) => { e.preventDefault(); showConfiguration() })
+  exportPdfBtn?.addEventListener('click', (e) => { e.preventDefault(); showExportPdf(); });
   configBackBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
 
   const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
@@ -1022,8 +1038,8 @@ export function setupPremiumAnalysisView() {
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
   loadGlobalConfig().then(() => {
-    generatePremiumAnalysis(); // Renders the initial dashboard view
-  });
+    generatePremiumAnalysis() // Renders the initial dashboard view
+  })
 }
 
 async function generatePremiumGeneralSales() {
