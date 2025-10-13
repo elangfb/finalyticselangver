@@ -13,8 +13,8 @@ import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/core/firebase'
 import { currentUser } from '@/core/state'
 
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/core/firebase';
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '@/core/firebase'
 
 // Add these imports at the top of src/analysis/premium/orchestrator.ts
 import { collection, getDocs, query, where } from 'firebase/firestore'
@@ -282,83 +282,83 @@ async function setupPremiumGeneralFinance() {
 export function setupPremiumAnalysisView() {
   // Prevent re-initialization on subsequent views
   if ($store.getInitFlag('premiumAnalysisInitialized')) {
-    return;
+    return
   }
 
   // --- Get all necessary DOM elements ---
-  const premiumView = document.getElementById('premium-analysis-view');
-  const dashboardContent = document.getElementById('premium-dashboard-content');
-  const manageDataContent = document.getElementById('premium-manage-data-content');
-  const userManagementContent = document.getElementById('premium-user-management-content');
-  const allMainContent = document.querySelectorAll('.premium-analysis-content');
-  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement;
-  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn');
-  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn');
-  const userManagementBtn = document.getElementById('premium-goto-user-management-btn');
-  const uploadBtn = document.getElementById('premium-manage-data-upload-btn');
-  const uploadModal = document.getElementById('premium-upload-modal');
-  const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close');
-  const uploadModalContent = uploadModal?.querySelector('.bg-white');
-  const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement;
-  const salesTargetInput = document.getElementById('premium-upload-sales-target-input') as HTMLInputElement;
-  const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement;
-  const pnlTargetInput = document.getElementById('premium-upload-pnl-target-input') as HTMLInputElement;
-  const downloadSalesTargetBtn = document.getElementById('premium-download-sales-target-btn');
-  const downloadPnlDataBtn = document.getElementById('premium-download-pnl-data-btn');
-  const downloadPnlTargetBtn = document.getElementById('premium-download-pnl-target-btn');
+  const premiumView = document.getElementById('premium-analysis-view')
+  const dashboardContent = document.getElementById('premium-dashboard-content')
+  const manageDataContent = document.getElementById('premium-manage-data-content')
+  const userManagementContent = document.getElementById('premium-user-management-content')
+  const allMainContent = document.querySelectorAll('.premium-analysis-content')
+  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
+  const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
+  const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
+  const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
+  const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
+  const uploadModal = document.getElementById('premium-upload-modal')
+  const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
+  const uploadModalContent = uploadModal?.querySelector('.bg-white')
+  const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement
+  const salesTargetInput = document.getElementById('premium-upload-sales-target-input') as HTMLInputElement
+  const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement
+  const pnlTargetInput = document.getElementById('premium-upload-pnl-target-input') as HTMLInputElement
+  const downloadSalesTargetBtn = document.getElementById('premium-download-sales-target-btn')
+  const downloadPnlDataBtn = document.getElementById('premium-download-pnl-data-btn')
+  const downloadPnlTargetBtn = document.getElementById('premium-download-pnl-target-btn')
 
-  if (!premiumView) return;
+  if (!premiumView) return
 
   // --- State variables in a shared scope for nested functions ---
-  let hasLoadedManageData = false;
-  let hasLoadedUserData = false;
-  let aggregatedData: Record<string, any> = {};
-  let currentPage = 1;
-  const CARDS_PER_PAGE = 8;
+  let hasLoadedManageData = false
+  let hasLoadedUserData = false
+  let aggregatedData: Record<string, any> = {}
+  let currentPage = 1
+  const CARDS_PER_PAGE = 8
 
   // --- Nested Helper Functions for Manage Data View ---
   function renderFilteredCards() {
-    const gridContainer = document.getElementById('premium-data-cards-grid');
-    const branchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement;
-    const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement;
-    const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement;
-    const pageInfo = document.getElementById('premium-data-page-info');
+    const gridContainer = document.getElementById('premium-data-cards-grid')
+    const branchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement
+    const prevBtn = document.getElementById('premium-data-prev-btn') as HTMLButtonElement
+    const nextBtn = document.getElementById('premium-data-next-btn') as HTMLButtonElement
+    const pageInfo = document.getElementById('premium-data-page-info')
 
-    if (!gridContainer || !branchSelect || !prevBtn || !nextBtn || !pageInfo) return;
+    if (!gridContainer || !branchSelect || !prevBtn || !nextBtn || !pageInfo) return
 
-    const selectedBranch = branchSelect.value;
+    const selectedBranch = branchSelect.value
     const allKeys = Object.keys(aggregatedData).sort((a, b) => {
-      const [, periodA] = a.split('|');
-      const [, periodB] = b.split('|');
-      return periodB.localeCompare(periodA);
-    });
+      const [, periodA] = a.split('|')
+      const [, periodB] = b.split('|')
+      return periodB.localeCompare(periodA)
+    })
 
-    const filteredKeys = selectedBranch === 'ALL' ? allKeys : allKeys.filter((key) => aggregatedData[key].branch === selectedBranch);
+    const filteredKeys = selectedBranch === 'ALL' ? allKeys : allKeys.filter((key) => aggregatedData[key].branch === selectedBranch)
 
-    const totalPages = Math.ceil(filteredKeys.length / CARDS_PER_PAGE);
-    currentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+    const totalPages = Math.ceil(filteredKeys.length / CARDS_PER_PAGE)
+    currentPage = Math.max(1, Math.min(currentPage, totalPages || 1))
 
-    const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
-    const pageKeys = filteredKeys.slice(startIndex, startIndex + CARDS_PER_PAGE);
+    const startIndex = (currentPage - 1) * CARDS_PER_PAGE
+    const pageKeys = filteredKeys.slice(startIndex, startIndex + CARDS_PER_PAGE)
 
     if (pageKeys.length === 0) {
-      gridContainer.innerHTML = '<p class="text-gray-500 col-span-4 text-center mt-4">No data found for the selected branch.</p>';
+      gridContainer.innerHTML = '<p class="text-gray-500 col-span-4 text-center mt-4">No data found for the selected branch.</p>'
     } else {
       gridContainer.innerHTML = pageKeys.map((key) => {
-        const item = aggregatedData[key];
-        const [year, month] = item.period.split('-');
-        const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-        
-        const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target'];
-        const typeKeys = ['salesData', 'salesTarget', 'pnlData', 'pnlTarget'];
-        
-        const count = typeKeys.filter(t => item.types[t]?.exists).length;
-        const progress = (count / 4) * 100;
-        const status = progress === 100 ? 'Complete' : 'In Progress';
-        const statusColor = progress === 100 ? 'green' : 'yellow';
+        const item = aggregatedData[key]
+        const [year, month] = item.period.split('-')
+        const formattedPeriod = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
 
-        const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
-        const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`;
+        const dataTypes = ['Sales Data', 'Sales Target', 'P&L Data', 'P&L Target']
+        const typeKeys = ['salesData', 'salesTarget', 'pnlData', 'pnlTarget']
+
+        const count = typeKeys.filter((t) => item.types[t]?.exists).length
+        const progress = (count / 4) * 100
+        const status = progress === 100 ? 'Complete' : 'In Progress'
+        const statusColor = progress === 100 ? 'green' : 'yellow'
+
+        const checkmarkIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`
+        const circleIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`
 
         return `
           <div class="bg-white p-4 rounded-lg shadow-md border border-gray-200 flex flex-col">
@@ -389,143 +389,141 @@ export function setupPremiumAnalysisView() {
                   </div>
                 `).join('')}
               </div>
-          </div>`;
-      }).join('');
+          </div>`
+      }).join('')
     }
 
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`;
-    prevBtn.disabled = currentPage === 1;
-    nextBtn.disabled = currentPage >= totalPages;
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`
+    prevBtn.disabled = currentPage === 1
+    nextBtn.disabled = currentPage >= totalPages
 
-    prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderFilteredCards(); } };
-    nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderFilteredCards(); } };
+    prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderFilteredCards() } }
+    nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderFilteredCards() } }
   }
 
   async function renderPremiumManageDataView() {
-    if (!currentUser) return;
-    const gridContainer = document.getElementById('premium-data-cards-grid');
-    const branchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement;
-    if (!gridContainer || !branchSelect) return;
-    
-    gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>';
+    if (!currentUser) return
+    const gridContainer = document.getElementById('premium-data-cards-grid')
+    const branchSelect = document.getElementById('premium-manage-data-branch-select') as HTMLSelectElement
+    if (!gridContainer || !branchSelect) return
+
+    gridContainer.innerHTML = '<p class="text-gray-500 col-span-4">Loading compiled data...</p>'
 
     try {
-        const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
-            getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
-            getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
-            getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
-            getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
-        ]);
+      const [salesSnap, salesTargetSnap, pnlSnap, pnlTargetSnap] = await Promise.all([
+        getDocs(collection(db, `artifacts/sales-app/users/${currentUser.uid}/uploads`)),
+        getDocs(collection(db, `users/${currentUser.uid}/monthlySalesTargets`)),
+        getDocs(collection(db, `users/${currentUser.uid}/pnlReports`)),
+        getDocs(collection(db, `users/${currentUser.uid}/monthlyPnlTargets`)),
+      ])
 
-        const localAggregatedData: Record<string, any> = {};
-        const processSnap = (snap: any, type: string) => {
-            snap.forEach((doc: any) => {
-                const data = doc.data();
-                const period = data.period || doc.id;
-                if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
-                const branch = data.branchName || 'Company-Wide';
-                const key = `${branch}|${period}`;
+      const localAggregatedData: Record<string, any> = {}
+      const processSnap = (snap: any, type: string) => {
+        snap.forEach((doc: any) => {
+          const data = doc.data()
+          const period = data.period || doc.id
+          if (!period || !/^\d{4}-\d{2}$/.test(period)) return
+          const branch = data.branchName || 'Company-Wide'
+          const key = `${branch}|${period}`
 
-                if (!localAggregatedData[key]) {
-                    localAggregatedData[key] = { branch: branch, period: period, types: {} };
-                }
-                localAggregatedData[key].types[type] = { id: doc.id, exists: true };
-            });
-        };
+          if (!localAggregatedData[key]) {
+            localAggregatedData[key] = { branch: branch, period: period, types: {} }
+          }
+          localAggregatedData[key].types[type] = { id: doc.id, exists: true }
+        })
+      }
 
-        processSnap(salesSnap, 'salesData');
-        processSnap(salesTargetSnap, 'salesTarget');
-        processSnap(pnlSnap, 'pnlData');
-        processSnap(pnlTargetSnap, 'pnlTarget');
-        
-        aggregatedData = localAggregatedData; // Update the shared state
+      processSnap(salesSnap, 'salesData')
+      processSnap(salesTargetSnap, 'salesTarget')
+      processSnap(pnlSnap, 'pnlData')
+      processSnap(pnlTargetSnap, 'pnlTarget')
 
-        const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort();
-        branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('');
+      aggregatedData = localAggregatedData // Update the shared state
 
-        renderFilteredCards();
+      const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort()
+      branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
 
-        branchSelect.removeEventListener('change', renderFilteredCards);
-        branchSelect.addEventListener('change', () => {
-          currentPage = 1; // Reset to first page on filter change
-          renderFilteredCards();
-        });
+      renderFilteredCards()
 
+      branchSelect.removeEventListener('change', renderFilteredCards)
+      branchSelect.addEventListener('change', () => {
+        currentPage = 1 // Reset to first page on filter change
+        renderFilteredCards()
+      })
     } catch (error) {
-        console.error('Error populating premium manage data view:', error);
-        if (gridContainer) gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>';
+      console.error('Error populating premium manage data view:', error)
+      if (gridContainer) gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>'
     }
   }
 
   // --- View Switching Logic ---
   const showContent = (contentElement: HTMLElement | null, buttonElement: HTMLElement | null) => {
-    allMainContent.forEach((el) => el.classList.add('hidden'));
-    contentElement?.classList.remove('hidden');
-    document.querySelectorAll('aside nav a').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'));
-    buttonElement?.classList.add('bg-gray-100', 'font-semibold');
-  };
-  
-  const showDashboard = () => showContent(dashboardContent, dashboardBtn);
+    allMainContent.forEach((el) => el.classList.add('hidden'))
+    contentElement?.classList.remove('hidden')
+    document.querySelectorAll('aside nav a').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
+    buttonElement?.classList.add('bg-gray-100', 'font-semibold')
+  }
+
+  const showDashboard = () => showContent(dashboardContent, dashboardBtn)
   const showUserManagement = () => {
-    showContent(userManagementContent, userManagementBtn);
+    showContent(userManagementContent, userManagementBtn)
     if (!hasLoadedUserData) {
       // Assuming renderPremiumUserManagementView() exists elsewhere
-      // renderPremiumUserManagementView(); 
-      hasLoadedUserData = true;
+      // renderPremiumUserManagementView();
+      hasLoadedUserData = true
     }
-  };
+  }
   const showManageData = () => {
-    showContent(manageDataContent, manageDataBtn);
+    showContent(manageDataContent, manageDataBtn)
     if (!hasLoadedManageData) {
-      renderPremiumManageDataView();
-      hasLoadedManageData = true;
+      renderPremiumManageDataView()
+      hasLoadedManageData = true
     }
-  };
+  }
 
   // --- Attach all event listeners ---
-  dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard(); });
-  manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData(); });
-  userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement(); });
-  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu'); });
-  
+  dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
+  manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData() })
+  userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
+  document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu') })
+
   // Delete button listener
   manageDataContent?.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-    const deleteButton = target.closest('.delete-premium-card-btn');
+    const target = e.target as HTMLElement
+    const deleteButton = target.closest('.delete-premium-card-btn')
 
     if (deleteButton) {
-        const branch = deleteButton.getAttribute('data-branch');
-        const period = deleteButton.getAttribute('data-period');
-        
-        const idsToDelete = {
-            salesDataId: deleteButton.getAttribute('data-sales-id'),
-            salesTargetId: deleteButton.getAttribute('data-sales-target-id'),
-            pnlDataId: deleteButton.getAttribute('data-pnl-id'),
-            pnlTargetId: deleteButton.getAttribute('data-pnl-target-id'),
-        };
+      const branch = deleteButton.getAttribute('data-branch')
+      const period = deleteButton.getAttribute('data-period')
 
-        if (!branch || !period) return;
+      const idsToDelete = {
+        salesDataId: deleteButton.getAttribute('data-sales-id'),
+        salesTargetId: deleteButton.getAttribute('data-sales-target-id'),
+        pnlDataId: deleteButton.getAttribute('data-pnl-id'),
+        pnlTargetId: deleteButton.getAttribute('data-pnl-target-id'),
+      }
 
-        const confirmation = confirm(`Are you sure you want to permanently delete all data for ${branch} for the period ${period}? This action cannot be undone.`);
+      if (!branch || !period) return
 
-        if (confirmation) {
-            showLoading({ message: `Deleting data for ${branch} - ${period}...` });
-            try {
-                const deleteCompiledPeriodData = httpsCallable(functions, 'deleteCompiledPeriodData');
-                await deleteCompiledPeriodData(idsToDelete);
-                
-                // Refresh the view by re-fetching and re-rendering
-                await renderPremiumManageDataView();
-                alert('Data deleted successfully.');
-            } catch (error) {
-                console.error('Error deleting data:', error);
-                alert('Failed to delete data. Please check the console for details.');
-            } finally {
-                hideLoading();
-            }
+      const confirmation = confirm(`Are you sure you want to permanently delete all data for ${branch} for the period ${period}? This action cannot be undone.`)
+
+      if (confirmation) {
+        showLoading({ message: `Deleting data for ${branch} - ${period}...` })
+        try {
+          const deleteCompiledPeriodData = httpsCallable(functions, 'deleteCompiledPeriodData')
+          await deleteCompiledPeriodData(idsToDelete)
+
+          // Refresh the view by re-fetching and re-rendering
+          await renderPremiumManageDataView()
+        } catch (error) {
+          console.error('Error deleting data:', error)
+          alert('Failed to delete data. Please check the console for details.')
+        } finally {
+          hideLoading()
         }
+      }
     }
-  });
+  })
 
   const analysisMenu = document.getElementById('premium-analysis-menu')
   analysisMenu?.addEventListener('click', async (e) => {
