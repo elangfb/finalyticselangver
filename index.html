@@ -583,10 +583,10 @@
             <p class="text-sm text-gray-500 mt-1">User</p>
         </div>
         <div class="flex items-center gap-4 mt-4 sm:mt-0">
-            <button class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-                Add User
-            </button>
+            <button id="premium-add-user-btn" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+    Add User
+</button>
             <div class="relative">
                 <input type="text" placeholder="Search..." class="w-full pl-8 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -3248,6 +3248,40 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+<div id="add-user-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Create New User</h3>
+            <button id="add-user-modal-close" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+        <form id="add-user-form-premium">
+            <div id="create-user-feedback-premium" class="text-sm mb-4 text-center hidden"></div>
+            <div class="mb-4">
+                <label for="new-user-email-premium" class="block text-sm font-medium text-gray-700">Email Address</label>
+                <input type="email" id="new-user-email-premium" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required />
+            </div>
+            <div class="mb-4">
+                <label for="new-user-password-premium" class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="new-user-password-premium" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required />
+            </div>
+            <div class="mb-4">
+                <label for="new-user-role-premium" class="block text-sm font-medium text-gray-700">Role</label>
+                <select id="new-user-role-premium" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="flex items-center justify-end mt-6">
+                <button type="button" id="cancel-add-user-btn-premium" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300 mr-2">
+                    Cancel
+                </button>
+                <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    Create User
+                </button>
+            </div>
+        </form>
     </div>
 </div>
         <script type="module" src="./src/main.ts"></script>

@@ -79,6 +79,12 @@ import { handleSalesDataUpload } from '@/uploads/sales'
 import { handleTargetUpload, downloadPnlTargetTemplate, downloadSalesTargetTemplate } from '@/uploads/targets'
 import { uploadAndProcessPnlFile, downloadPnlTemplate } from '@/uploads/pnl'
 
+import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { deleteDoc, setDoc } from 'firebase/firestore'
+import { auth } from '@/core/firebase'
+import { setAdminCredentials } from '@/core/state'
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
+
 import { deepmerge } from 'deepmerge-ts'
 import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string'
 
@@ -401,24 +407,51 @@ export function setupPremiumAnalysisView() {
     nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderFilteredCards() } }
   }
 
-  async function renderPremiumUserManagementView() {
-    if (!currentUser) return;
-    const tbody = document.getElementById('premium-user-list-tbody');
-    if (!tbody) return;
+  async function ensureUserDocument(uid: string, email: string | null, role = 'user'): Promise<void> {
+    const userRef = doc(db, 'users', uid)
+    const userSnap = await getDoc(userRef)
+    if (!userSnap.exists()) {
+      try {
+        await setDoc(userRef, { uid, email, createdAt: new Date(), role })
+      } catch (error) {
+        console.error('Error creating user document:', error)
+      }
+    }
+  }
 
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Loading users...</td></tr>';
+  async function deleteUserRecordPremium(userId: string): Promise<void> {
+    if (userId === currentUser?.uid) {
+      alert('For safety, you cannot delete your own user record from this interface.')
+      return
+    }
+    try {
+      await deleteDoc(doc(db, 'users', userId))
+      alert('User Firestore record deleted.')
+      await renderPremiumUserManagementView() // Refresh the premium view's list
+    } catch (error: any) {
+      console.error('Error deleting user record:', error)
+      alert(`Error deleting user record: ${error.message}`)
+    }
+  }
+
+  async function renderPremiumUserManagementView() {
+    if (!currentUser) return
+    const tbody = document.getElementById('premium-user-list-tbody')
+    if (!tbody) return
+
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Loading users...</td></tr>'
 
     try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      tbody.innerHTML = '';
+      const querySnapshot = await getDocs(collection(db, 'users'))
+      tbody.innerHTML = ''
       if (querySnapshot.empty) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">No users found.</td></tr>';
-        return;
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">No users found.</td></tr>'
+        return
       }
 
       querySnapshot.forEach((docSnap) => {
-        const user = docSnap.data();
-        const tr = document.createElement('tr');
+        const user = docSnap.data()
+        const tr = document.createElement('tr')
         tr.innerHTML = `
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${user.email}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -428,19 +461,16 @@ export function setupPremiumAnalysisView() {
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">${user.uid}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-4">
-              <button class="text-gray-400 hover:text-indigo-600" title="Edit User">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-              </button>
-              <button class="text-gray-400 hover:text-red-600" title="Delete User">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+              <button class="delete-user-btn-premium text-gray-400 hover:text-red-600" title="Delete User" data-id="${user.uid}">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
               </button>
           </td>
-        `;
-        tbody.appendChild(tr);
-      });
+        `
+        tbody.appendChild(tr)
+      })
     } catch (error) {
-      console.error('Error loading users for premium view:', error);
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Could not load user data.</td></tr>';
+      console.error('Error loading users for premium view:', error)
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Could not load user data.</td></tr>'
     }
   }
 
@@ -468,7 +498,6 @@ export function setupPremiumAnalysisView() {
           if (!period || !/^\d{4}-\d{2}$/.test(period)) return
           const branch = data.branchName || 'Company-Wide'
           const key = `${branch}|${period}`
-
           if (!localAggregatedData[key]) {
             localAggregatedData[key] = { branch: branch, period: period, types: {} }
           }
@@ -486,10 +515,13 @@ export function setupPremiumAnalysisView() {
       const branches = [...new Set(Object.values(aggregatedData).map((item) => item.branch))].sort()
       branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
 
-      renderFilteredCards()
+      renderFilteredCards() // Initial render
 
-      branchSelect.removeEventListener('change', renderFilteredCards)
-      branchSelect.addEventListener('change', () => {
+      // --- FIX: This ensures the listener always has the correct data scope ---
+      // We remove any old listener and add a fresh one.
+      const newBranchSelect = branchSelect.cloneNode(true)
+      branchSelect.parentNode?.replaceChild(newBranchSelect, branchSelect)
+      newBranchSelect.addEventListener('change', () => {
         currentPage = 1 // Reset to first page on filter change
         renderFilteredCards()
       })
@@ -498,8 +530,6 @@ export function setupPremiumAnalysisView() {
       if (gridContainer) gridContainer.innerHTML = '<p class="text-red-500 col-span-4">Failed to load data. Please try again.</p>'
     }
   }
-
-  
 
   // --- View Switching Logic ---
   const showContent = (contentElement: HTMLElement | null, buttonElement: HTMLElement | null) => {
@@ -514,7 +544,7 @@ export function setupPremiumAnalysisView() {
     showContent(userManagementContent, userManagementBtn)
     if (!hasLoadedUserData) {
       // Assuming renderPremiumUserManagementView() exists elsewhere
-      renderPremiumUserManagementView();
+      renderPremiumUserManagementView()
       hasLoadedUserData = true
     }
   }
@@ -529,7 +559,93 @@ export function setupPremiumAnalysisView() {
   // --- Attach all event listeners ---
   dashboardBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
   manageDataBtn?.addEventListener('click', (e) => { e.preventDefault(); showManageData() })
+
   userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
+
+  const addUserModal = document.getElementById('add-user-modal')
+  const addUserBtn = document.getElementById('premium-add-user-btn') // FIX: Select button by its new ID
+  const addUserModalClose = document.getElementById('add-user-modal-close')
+  const cancelAddUserBtn = document.getElementById('cancel-add-user-btn-premium')
+  const addUserForm = document.getElementById('add-user-form-premium')
+
+  // Open modal
+  addUserBtn?.addEventListener('click', () => {
+    addUserModal?.classList.remove('hidden')
+  })
+
+  // Close modal
+  const closeModal = () => addUserModal?.classList.add('hidden')
+  addUserModalClose?.addEventListener('click', closeModal)
+  cancelAddUserBtn?.addEventListener('click', closeModal)
+
+  // Handle form submission
+  addUserForm?.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const feedbackEl = document.getElementById('create-user-feedback-premium')
+    if (!feedbackEl) return
+
+    const email = (document.getElementById('new-user-email-premium') as HTMLInputElement).value
+    const password = (document.getElementById('new-user-password-premium') as HTMLInputElement).value
+    const role = (document.getElementById('new-user-role-premium') as HTMLSelectElement).value
+
+    let adminCreds = { email: '', password: '' }
+
+    if (auth.currentUser?.email) {
+      const adminPassword = prompt('To create a new user, please re-enter your admin password for confirmation:')
+      if (!adminPassword) {
+        feedbackEl.textContent = 'Admin password not provided. User creation cancelled.'
+        feedbackEl.className = 'text-red-500 text-sm mb-4 text-center'
+        feedbackEl.classList.remove('hidden')
+        return
+      }
+      // Store credentials locally for re-login
+      adminCreds = { email: auth.currentUser.email, password: adminPassword }
+    } else {
+      alert('Admin not signed in. Cannot create user.')
+      return
+    }
+
+    feedbackEl.textContent = 'Creating user...'
+    feedbackEl.className = 'text-blue-500 text-sm mb-4 text-center'
+    feedbackEl.classList.remove('hidden')
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      await ensureUserDocument(userCredential.user.uid, userCredential.user.email, role)
+
+      feedbackEl.textContent = 'User created successfully! Re-authenticating admin and refreshing list...'
+      feedbackEl.className = 'text-green-500 text-sm mb-4 text-center'
+    } catch (error: any) {
+      console.error('Error creating user:', error)
+      feedbackEl.textContent = `Error: ${error.message}`
+      feedbackEl.className = 'text-red-500 text-sm mb-4 text-center'
+    } finally {
+      // --- FIX: This block ensures the admin is always logged back in ---
+      try {
+        await signInWithEmailAndPassword(auth, adminCreds.email, adminCreds.password)
+        await renderPremiumUserManagementView() // Refresh the user list
+        setTimeout(closeModal, 2000)
+      } catch (reauthError) {
+        console.error('Admin re-authentication failed:', reauthError)
+        alert('Could not sign you back in as admin. Please log in again.')
+        signOut(auth) // Log out completely to avoid being stuck as the new user
+      }
+    }
+  })
+
+  // Handle delete button clicks on the user list
+  const userTbody = document.getElementById('premium-user-list-tbody')
+  userTbody?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    const deleteButton = target.closest('.delete-user-btn-premium')
+    if (deleteButton) {
+      const userId = (deleteButton as HTMLElement).dataset.id
+      if (userId && confirm('Are you sure you want to delete this user\'s Firestore data? This will NOT delete their login account.')) {
+        deleteUserRecordPremium(userId)
+      }
+    }
+  })
+
   document.getElementById('premium-back-to-main-menu-btn')?.addEventListener('click', (e) => { e.preventDefault(); showView('main-menu') })
 
   // Delete button listener
