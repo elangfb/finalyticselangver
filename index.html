@@ -629,22 +629,107 @@
         </table>
     </div>
                     </main>
-                    <main id="premium-export-pdf-content" class="premium-analysis-content flex-1 space-y-6 hidden">
-    <!-- Header Section -->
+                    <main id="premium-export-pdf-content" class="premium-analysis-content flex-1 space-y-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
-            <div class="flex items-center gap-2">
-                <h2 class="text-2xl font-bold text-gray-800">Export PDF</h2>
-            </div>
-            <p class="text-sm text-gray-500 mt-1">Generate and download PDF reports of your analysis.</p>
+            <h2 class="text-2xl font-bold text-gray-800">Export PDF Report</h2>
+            <p class="text-sm text-gray-500 mt-1">Preview your infographic report below before exporting.</p>
         </div>
+        <div class="flex items-center gap-4 mt-4 sm:mt-0">
+    <div>
+        <label for="export-pdf-branch-select" class="sr-only">Select Branch</label>
+        <select id="export-pdf-branch-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option>All Branches</option>
+            </select>
     </div>
 
-    <!-- Placeholder Content -->
-    <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h3 class="text-xl font-semibold text-gray-700">
-            //THIS IS AN EXPORT PDF VIEW
-        </h3>
+    <div>
+        <label for="export-pdf-range-select" class="sr-only">Select Period Range</label>
+        <select id="export-pdf-range-select" class="w-32 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="monthly" selected>Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="yearly">Yearly</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="export-pdf-period-select" class="sr-only">Select Period</label>
+        <select id="export-pdf-period-select" class="w-40 text-sm border bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option>October 2025</option>
+            </select>
+    </div>
+
+    <button id="export-to-pdf-btn" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" /></svg>
+        Export to PDF
+    </button>
+</div>
+    </div>
+
+    <div id="pdf-preview-content" class="bg-gray-50 p-8 rounded-lg shadow-inner space-y-8">
+        
+        <div class="flex justify-between items-center border-b border-gray-300 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Monthly Business Report</h1>
+                <p class="text-gray-500">All Branches | Sep 1, 2025 - Sep 30, 2025</p>
+            </div>
+            <img src="/icon.svg" alt="Logo" class="h-12 w-12">
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h4 class="text-sm font-medium text-gray-500">Total Omzet</h4>
+                <p class="text-3xl font-bold text-gray-800 mt-2">Rp285jt</p>
+                <p class="text-sm mt-1 font-medium text-green-600">+15.2% vs last month</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h4 class="text-sm font-medium text-gray-500">Net Profit</h4>
+                <p class="text-3xl font-bold text-gray-800 mt-2">Rp42jt</p>
+                <p class="text-sm mt-1 font-medium text-red-600">-8.1% vs last month</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h4 class="text-sm font-medium text-gray-500">Total Transactions</h4>
+                <p class="text-3xl font-bold text-gray-800 mt-2">5,820</p>
+                <p class="text-sm mt-1 font-medium text-green-600">+11.0% vs last month</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h4 class="text-sm font-medium text-gray-500">Average Check</h4>
+                <p class="text-3xl font-bold text-gray-800 mt-2">Rp49,000</p>
+                <p class="text-sm mt-1 font-medium text-green-600">+4.2% vs last month</p>
+            </div>
+        </div>
+
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg">
+            <h4 class="font-semibold text-purple-800">AI-Powered Insights</h4>
+            <p class="text-sm text-purple-700 mt-2">Placeholder text: Overall sales performance showed strong growth in transaction volume, primarily driven by the "Dine In" channel. However, a significant increase in COGS led to a slight decrease in net profit margin compared to the previous period.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h4 class="font-semibold text-gray-700">Monthly Omzet Trend</h4>
+                <div class="chart-container mt-4" style="height: 250px;">
+                    <canvas id="export-omzet-trend-chart"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h4 class="font-semibold text-gray-700">Sales by Channel</h4>
+                <div class="chart-container mt-4" style="height: 250px;">
+                    <canvas id="export-channel-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+         <div class="bg-white p-6 rounded-lg shadow">
+            <h4 class="font-semibold text-gray-700">Top 5 Menu Items by Revenue</h4>
+            <div class="chart-container mt-4" style="height: 300px;">
+                <canvas id="export-top-menu-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="text-center text-xs text-gray-400 pt-4 border-t mt-4">
+            Generated by Finalytics on October 14, 2025
+        </div>
+
     </div>
 </main>
 

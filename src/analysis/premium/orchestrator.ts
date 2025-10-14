@@ -20,6 +20,12 @@ import { functions } from '@/core/firebase'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/core/firebase'
 import { currentUser } from '@/core/state'
+import { formatCurrency, formatNumber } from '@/utils/string'
+import { createChart } from '@/analysis/helpers'
+import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency } from '@/analysis/utils/chart-formatters'
+import { generateOmzetHarianChartFromSummaries, generateOmzetMingguanChartFromSummaries } from '@/analysis/sections/general/sales/charts'
+import { generateChannelDonutChart } from '@/analysis/sections/general/product-channel/index'
+
 import { showLoading, hideLoading } from '@/core/ui'
 import { createAlsoStoreFn } from '@/analysis/utils/store-helpers'
 import { setupPageSummary } from '@/components/PageSummary'
@@ -314,9 +320,9 @@ export function setupPremiumAnalysisView() {
       console.error('Error loading global configuration:', error)
     }
   }
-  const userEmailDisplay = document.getElementById('premium-user-email-display');
+  const userEmailDisplay = document.getElementById('premium-user-email-display')
   if (userEmailDisplay && currentUser?.email) {
-    userEmailDisplay.textContent = `Hello //${currentUser.email}`;
+    userEmailDisplay.textContent = `Hello //${currentUser.email}`
   }
   // --- Get all necessary DOM elements ---
   const premiumView = document.getElementById('premium-analysis-view')
@@ -324,14 +330,14 @@ export function setupPremiumAnalysisView() {
   const manageDataContent = document.getElementById('premium-manage-data-content')
   const userManagementContent = document.getElementById('premium-user-management-content')
   const configurationContent = document.getElementById('premium-configuration-content')
-  const exportPdfContent = document.getElementById('premium-export-pdf-content');
+  const exportPdfContent = document.getElementById('premium-export-pdf-content')
   const allMainContent = document.querySelectorAll('.premium-analysis-content')
   const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
   const dashboardBtn = document.getElementById('premium-goto-dashboard-btn')
   const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
   const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
   const configurationBtn = document.getElementById('premium-goto-configuration-btn')
-  const exportPdfBtn = document.getElementById('premium-goto-export-pdf-btn');
+  const exportPdfBtn = document.getElementById('premium-goto-export-pdf-btn')
   const configBackBtn = document.getElementById('premium-config-back-btn')
   const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
   const uploadModal = document.getElementById('premium-upload-modal')
@@ -349,12 +355,280 @@ export function setupPremiumAnalysisView() {
   let hasLoadedManageData = false
   let hasLoadedUserData = false
   let hasLoadedGlobalTargets = false
-  let hasInitializedExclusions = false // <-- New flag for this feature
+  let hasInitializedExclusions = false
+  let hasInitializedPdfPage = false
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
   const CARDS_PER_PAGE = 8
 
-  // In src/analysis/premium/orchestrator.ts
+  function generateTop5MenuChart(summaries: SalesSummary[], canvasId: string) {
+    const menuRevenues = new Map<string, number>()
+
+    summaries.forEach((summary) => {
+      if (summary.menuItemRevenues) {
+        for (const category in summary.menuItemRevenues) {
+          for (const itemName in summary.menuItemRevenues[category]) {
+            const revenue = summary.menuItemRevenues[category][itemName]
+            menuRevenues.set(itemName, (menuRevenues.get(itemName) || 0) + revenue)
+          }
+        }
+      }
+    })
+
+    const sortedTop5 = Array.from(menuRevenues.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+
+    createChart(canvasId, 'bar', {
+      labels: sortedTop5.map(([name]) => name),
+      datasets: [{
+        label: 'Total Revenue',
+        data: sortedTop5.map(([, revenue]) => revenue),
+        backgroundColor: '#4f46e5',
+      }],
+    }, mergeChartOptions(
+      { indexAxis: 'y' }, // Make it a horizontal bar chart
+      { scales: { x: { ticks: { callback: (n: string | number) => shortenCurrency(Number(n)) } } } },
+      chartTooltip({ label: currencyTooltipCallback }),
+    ))
+  }
+
+  // --- NEW: Main function to gather data and populate the PDF preview ---
+  async function generatePdfReportData() {
+    showLoading({ message: 'Generating report preview...' })
+
+    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
+    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
+    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
+
+    if (!branchSelect || !rangeSelect || !periodSelect || !periodSelect.value) {
+      hideLoading()
+      return
+    }
+
+    const selectedBranch = branchSelect.value
+    const selectedRange = rangeSelect.value
+    const selectedPeriod = periodSelect.value
+
+    let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string
+
+    // --- NEW: Logic to calculate BOTH current and previous date ranges ---
+    try {
+      const [yearStr, partStr] = selectedPeriod.split('-')
+      const year = parseInt(yearStr)
+
+      switch (selectedRange) {
+        case 'yearly':
+          startDate = new Date(year, 0, 1)
+          endDate = new Date(year, 11, 31, 23, 59, 59)
+          const prevYear = year - 1
+          prevStartDate = new Date(prevYear, 0, 1)
+          prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59)
+          comparisonLabel = `vs. Last Year (${prevYear})`
+          break
+        case 'quarterly':
+          const quarter = parseInt(partStr.replace('Q', ''))
+          const startMonth = (quarter - 1) * 3
+          startDate = new Date(year, startMonth, 1)
+          endDate = new Date(year, startMonth + 3, 0, 23, 59, 59)
+
+          let prevQuarter, prevQuarterYear
+          if (quarter === 1) {
+            prevQuarter = 4
+            prevQuarterYear = year - 1
+          } else {
+            prevQuarter = quarter - 1
+            prevQuarterYear = year
+          }
+          const prevStartMonth = (prevQuarter - 1) * 3
+          prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1)
+          prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59)
+          comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`
+          break
+        case 'monthly':
+        default:
+          const month = parseInt(partStr) - 1
+          startDate = new Date(year, month, 1)
+          endDate = new Date(year, month + 1, 0, 23, 59, 59)
+
+          prevStartDate = new Date(startDate)
+          prevStartDate.setMonth(prevStartDate.getMonth() - 1)
+          prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59)
+          comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`
+          break
+      }
+    } catch (e) {
+      console.error('Error parsing date range for PDF report:', e)
+      hideLoading()
+      return
+    }
+
+    // Filter data for both periods
+    let baseData = $store.getAllSalesData()
+    if (selectedBranch !== 'ALL') {
+      baseData = baseData.filter((s) => s.branches.includes(selectedBranch))
+    }
+    const currentData = baseData.filter((s) => s.date >= startDate && s.date <= endDate)
+    const previousData = baseData.filter((s) => s.date >= prevStartDate && s.date <= prevEndDate)
+
+    // Calculate KPIs for both periods
+    const calculateTotals = (data: SalesSummary[]) => data.reduce((acc, s) => {
+      acc.omzet += s.totalOmzet
+      acc.transactions += s.totalTransactions
+      return acc
+    }, { omzet: 0, transactions: 0 })
+
+    const currentTotals = calculateTotals(currentData)
+
+    let currentNetProfit = 0
+    let previousNetProfit = 0
+
+    if (currentUser && selectedBranch !== 'ALL') {
+      try {
+        const safeBranchName = selectedBranch.replace(/\s+/g, '_')
+        const currentPnlId = `${currentPeriodStr}_${safeBranchName}`
+        const prevPnlId = `${prevPeriodStr}_${safeBranchName}`
+
+        const currentPnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)
+        const prevPnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)
+
+        const [currentPnlSnap, prevPnlSnap] = await Promise.all([getDoc(currentPnlRef), getDoc(prevPnlRef)])
+
+        if (currentPnlSnap.exists()) {
+          const metrics = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})
+          currentNetProfit = metrics['Pendapatan Bersih (Net Income)'] || 0
+        }
+        if (prevPnlSnap.exists()) {
+          const metrics = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})
+          previousNetProfit = metrics['Pendapatan Bersih (Net Income)'] || 0
+        }
+      } catch (error) {
+        console.error('Could not fetch P&L data for Net Profit KPI:', error)
+      }
+    }
+
+    const previousTotals = calculateTotals(previousData)
+    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0
+    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
+
+    // --- NEW: Helper function to update KPI cards dynamically ---
+    const updateKpiCard = (cardIndex: number, currentValue: number, previousValue: number, isCurrency: boolean) => {
+      const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`)
+      if (!card) return;
+
+      (card.querySelector('p:nth-of-type(1)') as HTMLElement).textContent = isCurrency ? formatCurrency(currentValue) : formatNumber(currentValue)
+      const growthEl = card.querySelector('p:nth-of-type(2)') as HTMLElement
+
+      if (previousValue > 0) {
+        const growth = ((currentValue - previousValue) / previousValue) * 100
+        growthEl.textContent = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% ${comparisonLabel}`
+        growthEl.className = `text-sm mt-1 font-medium ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`
+      } else {
+        growthEl.textContent = 'vs N/A'
+        growthEl.className = 'text-sm mt-1 font-medium text-gray-500'
+      }
+    }
+
+    // Update the DOM with calculated data
+    const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement
+    if (reportHeaderEl) {
+      reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`
+    }
+
+    updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true)
+    updateKpiCard(2, currentNetProfit, previousNetProfit, true);
+    updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false)
+    updateKpiCard(4, currentAvgCheck, previousAvgCheck, true)
+    // (Note: Net Profit card at index 2 is still a placeholder)
+
+    // Generate the charts with the current period's data
+    if (selectedRange === 'monthly') {
+      generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart')
+    } else {
+      generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line')
+    }
+    generateChannelDonutChart(currentData, 'export-channel-chart')
+    generateTop5MenuChart(currentData, 'export-top-menu-chart')
+
+    hideLoading()
+  }
+
+  async function setupPdfExportPage() {
+    // 1. Get DOM Elements for the filters
+    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
+    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
+    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
+
+    if (!branchSelect || !rangeSelect || !periodSelect) return
+
+    // 2. Populate the Branch Selector with all available branches
+    const allSalesData: SalesSummary[] = $store.getAllSalesData()
+    const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+    branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+    // 3. Define the core logic to dynamically update the Period dropdown
+    const updatePeriodSelector = () => {
+      const range = rangeSelect.value
+      const selectedBranch = branchSelect.value
+
+      let branchData = allSalesData
+      if (selectedBranch !== 'ALL') {
+        branchData = allSalesData.filter((s) => s.branches.includes(selectedBranch))
+      }
+      const allDates = branchData.map((s) => s.date)
+      if (allDates.length === 0) {
+        periodSelect.innerHTML = '<option>No data available</option>'
+        return
+      }
+
+      const periods = new Set<string>()
+
+      if (range === 'yearly') {
+        allDates.forEach((d) => periods.add(String(d.getFullYear())))
+      } else if (range === 'monthly') {
+        allDates.forEach((d) => periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`))
+      } else if (range === 'quarterly') {
+        allDates.forEach((d) => {
+          const quarter = Math.floor(d.getMonth() / 3) + 1
+          periods.add(`${d.getFullYear()}-Q${quarter}`)
+        })
+      }
+
+      const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a))
+      if (sortedPeriods.length === 0) {
+        periodSelect.innerHTML = '<option>No data for this range</option>'
+        return
+      }
+
+      const optionsHtml = sortedPeriods.map((p) => {
+        if (range === 'yearly') return `<option value="${p}">${p}</option>`
+        if (range === 'monthly') {
+          const [year, month] = p.split('-')
+          const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+          return `<option value="${p}">${label}</option>`
+        }
+        if (range === 'quarterly') return `<option value="${p}">${p.replace('-Q', ' Q')}</option>`
+        return ''
+      }).join('')
+
+      periodSelect.innerHTML = optionsHtml
+    }
+
+    // 4. Attach Event Listeners to trigger updates
+    branchSelect.addEventListener('change', () => {
+      updatePeriodSelector()
+      generatePdfReportData() // Refresh the report preview
+    })
+    rangeSelect.addEventListener('change', () => {
+      updatePeriodSelector()
+      generatePdfReportData() // Refresh the report preview
+    })
+    periodSelect.addEventListener('change', generatePdfReportData)
+
+    // 5. Initial Population when the page first loads
+    updatePeriodSelector()
+    await generatePdfReportData()
+  }
 
   async function setupExclusionControls() {
     if (!currentUser) return
@@ -685,6 +959,14 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  const showExportPdf = () => {
+    showContent(exportPdfContent, exportPdfBtn)
+    if (!hasInitializedPdfPage) {
+      setupPdfExportPage()
+      hasInitializedPdfPage = true
+    }
+  }
+
   // --- View Switching Logic ---
   const showContent = (contentElement: HTMLElement | null, buttonElement: HTMLElement | null) => {
     allMainContent.forEach((el) => el.classList.add('hidden'))
@@ -693,7 +975,15 @@ export function setupPremiumAnalysisView() {
     buttonElement?.classList.add('bg-gray-100', 'font-semibold')
   }
 
-  const showDashboard = () => showContent(dashboardContent, dashboardBtn)
+  const showDashboard = () => {
+    showContent(dashboardContent, dashboardBtn)
+    // We only need to generate the main dashboard content if it hasn't been loaded yet.
+    if (!dashboardContent.hasAttribute('data-loaded')) {
+      generatePremiumAnalysis()
+      dashboardContent.setAttribute('data-loaded', 'true')
+    }
+  }
+
   const showUserManagement = () => {
     showContent(userManagementContent, userManagementBtn)
     if (!hasLoadedUserData) {
@@ -716,8 +1006,6 @@ export function setupPremiumAnalysisView() {
     }
   }
 
-  const showExportPdf = () => showContent(exportPdfContent, exportPdfBtn);
-
   const showManageData = () => {
     showContent(manageDataContent, manageDataBtn)
     if (!hasLoadedManageData) {
@@ -732,7 +1020,7 @@ export function setupPremiumAnalysisView() {
 
   userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
   configurationBtn?.addEventListener('click', (e) => { e.preventDefault(); showConfiguration() })
-  exportPdfBtn?.addEventListener('click', (e) => { e.preventDefault(); showExportPdf(); });
+  exportPdfBtn?.addEventListener('click', (e) => { e.preventDefault(); showExportPdf() })
   configBackBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
 
   const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
@@ -1037,9 +1325,7 @@ export function setupPremiumAnalysisView() {
   branchSelect.addEventListener('change', generatePremiumAnalysis)
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
-  loadGlobalConfig().then(() => {
-    generatePremiumAnalysis() // Renders the initial dashboard view
-  })
+  showDashboard()
 }
 
 async function generatePremiumGeneralSales() {
