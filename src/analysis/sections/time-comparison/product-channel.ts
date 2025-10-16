@@ -140,11 +140,20 @@ export function generateCategoryComparisonChart(periodAData: any[], periodBData:
 /**
  * Generates a grouped bar chart comparing channel revenue between two periods.
  */
+// In src/analysis/sections/time-comparison/product-channel.ts
+
 export function generateChannelComparisonChart(periodAData: any[], periodBData: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
-  const allChannels = [...new Set([...periodAData, ...periodBData].flatMap((s) => Object.keys(s.revenueByVisitPurpose || {})))]
-  const getData = (data: any[]) => allChannels.map((chan) => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0))
-  const periodAValues = getData(periodAData)
-  const periodBValues = getData(periodBData)
+  //START MODIFICATION #1
+  const hiddenChannels = $store.getConfigValue('hiddenChannels') || [];
+  let allChannels = [...new Set([...periodAData, ...periodBData].flatMap((s) => Object.keys(s.revenueByVisitPurpose || {})))];
+  
+  // Filter out the hidden channels
+  allChannels = allChannels.filter(channel => !hiddenChannels.includes(channel));
+  //END MODIFICATION #1
+
+  const getData = (data: any[]) => allChannels.map((chan) => data.reduce((sum, s) => sum + (s.revenueByVisitPurpose?.[chan] || 0), 0));
+  const periodAValues = getData(periodAData);
+  const periodBValues = getData(periodBData);
 
   maybeAlsoStore(
     config?.alsoStore,
@@ -159,7 +168,7 @@ export function generateChannelComparisonChart(periodAData: any[], periodBData: 
         }))),
       },
     }),
-  )
+  );
 
   createChart(canvasId, 'bar', {
     labels: allChannels,
@@ -167,7 +176,7 @@ export function generateChannelComparisonChart(periodAData: any[], periodBData: 
       { label: 'Period A', data: periodAValues, backgroundColor: '#9CA3AF' },
       { label: 'Period B', data: periodBValues, backgroundColor: '#4F46E5' },
     ],
-  }, mergeChartOptions(chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })))
+  }, mergeChartOptions(chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })));
 }
 
 /**
