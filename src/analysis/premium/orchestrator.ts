@@ -313,48 +313,44 @@ export function setupPremiumAnalysisView() {
     exportButton.setAttribute('disabled', 'true');
 
     try {
-      // Use html2canvas to capture the content as a canvas
       const canvas = await html2canvas(reportContent, {
-        scale: 2, // Increase scale for better resolution
+        scale: 2,
         useCORS: true,
       });
 
       showLoading({ message: 'Compiling PDF (Step 2 of 2)...' });
 
-      // Get image data from the canvas
       const imgData = canvas.toDataURL('image/png');
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
 
-      // A4 page dimensions in mm [width, height]
       const pdfPageWidth = 210;
       const pdfPageHeight = 297;
       
-      // Calculate image dimensions in PDF
-      const pdfImgWidth = pdfPageWidth - 20; // with 10mm margins
+      // --- FIX: Set margin to 0 for a full-page look ---
+      const pageMargin = 0;
+
+      // --- FIX: Calculate image width to fill the page ---
+      const pdfImgWidth = pdfPageWidth - (pageMargin * 2);
       const pdfImgHeight = (imgHeight * pdfImgWidth) / imgWidth;
 
-      // Create a new PDF document
       const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
       
-      // Calculate how many pages are needed
       let heightLeft = pdfImgHeight;
       let position = 0;
-      const pageMargin = 10;
 
       // Add the first page
       pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
-      heightLeft -= (pdfPageHeight - 2 * pageMargin);
+      heightLeft -= pdfPageHeight;
 
-      // Add new pages if the content is taller than one page
+      // Add new pages if needed
       while (heightLeft > 0) {
-        position = -heightLeft - pageMargin;
+        position = -heightLeft;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
-        heightLeft -= (pdfPageHeight - 2 * pageMargin);
+        heightLeft -= pdfPageHeight;
       }
 
-      // Trigger the download
       pdf.save('Finalytics_Report.pdf');
 
     } catch (error) {
@@ -464,216 +460,213 @@ export function setupPremiumAnalysisView() {
     ))
   }
 
-  // --- NEW: Main function to gather data and populate the PDF preview ---
+  // In src/analysis/premium/orchestrator.ts, inside setupPremiumAnalysisView()
   async function generatePdfReportData() {
-    showLoading({ message: 'Generating report preview...' })
+    showLoading({ message: 'Generating report preview...' });
 
     // 1. Get DOM Elements and Current Filter Values
-    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
-    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
-    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
+    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement;
+    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement;
+    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement;
 
     if (!branchSelect || !rangeSelect || !periodSelect || !periodSelect.value) {
-      hideLoading()
-      return
+      hideLoading();
+      return null;
     }
 
-    const selectedBranch = branchSelect.value
-    const selectedRange = rangeSelect.value
-    const selectedPeriod = periodSelect.value
+    const selectedBranch = branchSelect.value;
+    const selectedRange = rangeSelect.value;
+    const selectedPeriod = periodSelect.value;
 
-    let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string
-    let currentPeriodStr: string, prevPeriodStr: string
+    let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string;
+    let currentPeriodStr: string, prevPeriodStr: string;
 
     // 2. Calculate Date Ranges and Labels for Current and Previous Periods
     try {
-      const [yearStr, partStr] = selectedPeriod.split('-')
-      const year = parseInt(yearStr)
+      const [yearStr, partStr] = selectedPeriod.split('-');
+      const year = parseInt(yearStr);
 
       switch (selectedRange) {
         case 'yearly':
-          startDate = new Date(year, 0, 1)
-          endDate = new Date(year, 11, 31, 23, 59, 59)
-          const prevYear = year - 1
-          prevStartDate = new Date(prevYear, 0, 1)
-          prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59)
-          currentPeriodStr = year.toString()
-          prevPeriodStr = prevYear.toString()
-          comparisonLabel = `vs. Last Year (${prevYear})`
-          break
+          startDate = new Date(year, 0, 1);
+          endDate = new Date(year, 11, 31, 23, 59, 59);
+          const prevYear = year - 1;
+          prevStartDate = new Date(prevYear, 0, 1);
+          prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59);
+          currentPeriodStr = year.toString();
+          prevPeriodStr = prevYear.toString();
+          comparisonLabel = `vs. Last Year (${prevYear})`;
+          break;
         case 'quarterly':
-          const quarter = parseInt(partStr.replace('Q', ''))
-          const startMonth = (quarter - 1) * 3
-          startDate = new Date(year, startMonth, 1)
-          endDate = new Date(year, startMonth + 3, 0, 23, 59, 59)
+          const quarter = parseInt(partStr.replace('Q', ''));
+          const startMonth = (quarter - 1) * 3;
+          startDate = new Date(year, startMonth, 1);
+          endDate = new Date(year, startMonth + 3, 0, 23, 59, 59);
 
-          let prevQuarter, prevQuarterYear
+          let prevQuarter, prevQuarterYear;
           if (quarter === 1) {
-            prevQuarter = 4
-            prevQuarterYear = year - 1
+            prevQuarter = 4;
+            prevQuarterYear = year - 1;
           } else {
-            prevQuarter = quarter - 1
-            prevQuarterYear = year
+            prevQuarter = quarter - 1;
+            prevQuarterYear = year;
           }
-          const prevStartMonth = (prevQuarter - 1) * 3
-          prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1)
-          prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59)
-          currentPeriodStr = `${year}-Q${quarter}`
-          prevPeriodStr = `${prevQuarterYear}-Q${prevQuarter}`
-          comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`
-          break
+          const prevStartMonth = (prevQuarter - 1) * 3;
+          prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1);
+          prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59);
+          currentPeriodStr = `${year}-Q${quarter}`;
+          prevPeriodStr = `${prevQuarterYear}-Q${prevQuarter}`;
+          comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`;
+          break;
         case 'monthly':
         default:
-          const month = parseInt(partStr) - 1
-          startDate = new Date(year, month, 1)
-          endDate = new Date(year, month + 1, 0, 23, 59, 59)
+          const month = parseInt(partStr) - 1;
+          startDate = new Date(year, month, 1);
+          endDate = new Date(year, month + 1, 0, 23, 59, 59);
 
-          prevStartDate = new Date(startDate)
-          prevStartDate.setMonth(prevStartDate.getMonth() - 1)
-          prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59)
-          currentPeriodStr = `${year}-${partStr}`
-          prevPeriodStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}`
-          comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`
-          break
+          prevStartDate = new Date(startDate);
+          prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+          prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59);
+          currentPeriodStr = `${year}-${partStr}`;
+          prevPeriodStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}`;
+          comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
+          break;
       }
     } catch (e) {
-      console.error('Error parsing date range for PDF report:', e)
-      hideLoading()
-      return
+      console.error("Error parsing date range for PDF report:", e);
+      hideLoading();
+      return null;
     }
 
     // 3. Filter Sales Data for Both Periods
-    let baseData = $store.getAllSalesData()
+    let baseData = $store.getAllSalesData();
     if (selectedBranch !== 'ALL') {
-      baseData = baseData.filter((s) => s.branches.includes(selectedBranch))
+      baseData = baseData.filter(s => s.branches.includes(selectedBranch));
     }
-    const currentData = baseData.filter((s) => s.date >= startDate && s.date <= endDate)
-    const previousData = baseData.filter((s) => s.date >= prevStartDate && s.date <= prevEndDate)
+    const currentData = baseData.filter(s => s.date >= startDate && s.date <= endDate);
+    const previousData = baseData.filter(s => s.date >= prevStartDate && s.date <= prevEndDate);
 
     // 4. Calculate Sales KPIs
     const calculateTotals = (data: SalesSummary[]) => data.reduce((acc, s) => {
-      acc.omzet += s.totalOmzet
-      acc.transactions += s.totalTransactions
-      return acc
-    }, { omzet: 0, transactions: 0 })
+      acc.omzet += s.totalOmzet;
+      acc.transactions += s.totalTransactions;
+      return acc;
+    }, { omzet: 0, transactions: 0 });
 
-    const currentTotals = calculateTotals(currentData)
-    const previousTotals = calculateTotals(previousData)
-    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0
-    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
+    const currentTotals = calculateTotals(currentData);
+    const previousTotals = calculateTotals(previousData);
+    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0;
+    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0;
 
     // 5. Fetch P&L Reports and Calculate Net Profit
-    let currentNetProfit = 0
-    let previousNetProfit = 0
+    let currentNetProfit = 0;
+    let previousNetProfit = 0;
     if (currentUser && selectedBranch !== 'ALL') {
       try {
-        const safeBranchName = selectedBranch.replace(/\s+/g, '_')
-        // Note: P&L IDs use YYYY-MM format, so we use the monthly string for all ranges.
-        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
-        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
+        const safeBranchName = selectedBranch.replace(/\s+/g, '_');
+        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`;
+        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`;
 
         const [currentPnlSnap, prevPnlSnap] = await Promise.all([
           getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)),
-          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)),
-        ])
+          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId))
+        ]);
 
         if (currentPnlSnap.exists()) {
-          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
+          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0;
         }
         if (prevPnlSnap.exists()) {
-          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
+          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0;
         }
       } catch (error) {
-        console.error('Could not fetch P&L data for Net Profit KPI:', error)
+        console.error("Could not fetch P&L data for Net Profit KPI:", error);
       }
     }
 
     // 6. Update the DOM
     const updateKpiCard = (cardIndex: number, currentValue: number, previousValue: number, isCurrency: boolean) => {
-      const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`)
+      const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`);
       if (!card) return;
-
-      (card.querySelector('p:nth-of-type(1)') as HTMLElement).textContent = isCurrency ? formatCurrency(currentValue) : formatNumber(currentValue)
-      const growthEl = card.querySelector('p:nth-of-type(2)') as HTMLElement
-
+      (card.querySelector('p:nth-of-type(1)') as HTMLElement).textContent = isCurrency ? formatCurrency(currentValue) : formatNumber(currentValue);
+      const growthEl = card.querySelector('p:nth-of-type(2)') as HTMLElement;
       if (previousValue > 0) {
-        const growth = ((currentValue - previousValue) / previousValue) * 100
-        growthEl.textContent = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% ${comparisonLabel}`
-        growthEl.className = `text-sm mt-1 font-medium ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`
+        const growth = ((currentValue - previousValue) / previousValue) * 100;
+        growthEl.textContent = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% ${comparisonLabel}`;
+        growthEl.className = `text-sm mt-1 font-medium ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`;
       } else {
-        growthEl.textContent = 'vs N/A'
-        growthEl.className = 'text-sm mt-1 font-medium text-gray-500'
+        growthEl.textContent = 'vs N/A';
+        growthEl.className = 'text-sm mt-1 font-medium text-gray-500';
+      }
+    };
+    const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement;
+    if (reportHeaderEl) {
+      reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`;
+    }
+    updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true);
+    updateKpiCard(2, currentNetProfit, previousNetProfit, true);
+    updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false);
+    updateKpiCard(4, currentAvgCheck, previousAvgCheck, true);
+
+    // --- START MODIFICATION ---
+
+    // 7. Generate Charts and Capture Their Data
+    if (selectedRange === 'monthly') {
+        generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart');
+    } else {
+        generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line');
+    }
+    const channelData = generateChannelDonutChart(currentData, 'export-channel-chart');
+    const top5MenuData = generateTop5MenuChart(currentData, 'export-top-menu-chart');
+
+    // 8. Build the Complete Data Object for the AI
+    const reportDataForAI = {
+      context: { branch: selectedBranch, period: selectedPeriod, range: selectedRange, comparisonLabel: comparisonLabel },
+      currentPeriod: { totalOmzet: currentTotals.omzet, totalTransactions: currentTotals.transactions, averageCheck: currentAvgCheck, netProfit: currentNetProfit },
+      previousPeriod: { totalOmzet: previousTotals.omzet, totalTransactions: previousTotals.transactions, averageCheck: previousAvgCheck, netProfit: previousNetProfit },
+      top5MenuItems: top5MenuData,
+      salesByChannel: channelData,
+    };
+    
+    // 9. Automatically check the cache with the complete data object
+    const aiSummaryContainer = document.querySelector('#pdf-preview-content .bg-purple-50');
+    if (aiSummaryContainer) {
+      const aiContentEl = aiSummaryContainer.querySelector('p');
+      if (aiContentEl) {
+        try {
+          const filters = (reportDataForAI as any).context;
+          const filtersHash = await generateSHA256(filters);
+          const dataHash = await generateSHA256(reportDataForAI);
+          const cached = await findLiveCache(filtersHash, dataHash);
+
+          if (cached) {
+            aiContentEl.innerHTML = marked.parse(cached.summary);
+          } else {
+            aiContentEl.innerHTML = `<em>Click 'Generate AI Summary' to get new insights for the selected period.</em>`;
+          }
+        } catch (e) {
+          console.error("Error checking AI cache:", e);
+          aiContentEl.innerHTML = `<span class="text-red-500">Could not check for cached summary.</span>`;
+        }
       }
     }
 
-    const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement
-    if (reportHeaderEl) {
-      reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`
-    }
+    // --- END MODIFICATION ---
 
-    updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true)
-    updateKpiCard(2, currentNetProfit, previousNetProfit, true)
-    updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false)
-    updateKpiCard(4, currentAvgCheck, previousAvgCheck, true)
-
-    // Generate the charts with the current period's data
-    if (selectedRange === 'monthly') {
-      generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart')
-    } else {
-      generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line')
-    }
-    generateChannelDonutChart(currentData, 'export-channel-chart')
-    generateTop5MenuChart(currentData, 'export-top-menu-chart')
-
-    const reportDataForAI = {
-      context: {
-        branch: selectedBranch,
-        period: selectedPeriod,
-        range: selectedRange,
-        comparisonLabel: comparisonLabel,
-      },
-      currentPeriod: {
-        totalOmzet: currentTotals.omzet,
-        totalTransactions: currentTotals.transactions,
-        averageCheck: currentAvgCheck,
-        netProfit: currentNetProfit,
-      },
-      previousPeriod: {
-        totalOmzet: previousTotals.omzet,
-        totalTransactions: previousTotals.transactions,
-        averageCheck: previousAvgCheck,
-        netProfit: previousNetProfit,
-      },
-      top5MenuItems: [],
-      salesByChannel: {},
-    }
-
-    // 2. Generate charts and capture their data for the AI
-    if (selectedRange === 'monthly') {
-      generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart')
-    } else {
-      generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line')
-    }
-
-    // Note: This assumes your chart functions are modified to return their data
-    const channelData = generateChannelDonutChart(currentData, 'export-channel-chart')
-    reportDataForAI.salesByChannel = channelData
-
-    const top5MenuData = generateTop5MenuChart(currentData, 'export-top-menu-chart')
-    reportDataForAI.top5MenuItems = top5MenuData
-
-    hideLoading()
-    return reportDataForAI
+    hideLoading();
+    return reportDataForAI;
   }
 
   async function setupPdfExportPage() {
+
+    const refreshReport = async () => {
+      currentReportDataForAI = await generatePdfReportData()
+    }
+
     // 1. Get DOM Elements for the filters
     const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
     const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
     const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
-    const refreshReport = async () => {
-      currentReportDataForAI = await generatePdfReportData()
-    }
+    
 
     const filters = [
       document.getElementById('export-pdf-branch-select'),
@@ -752,7 +745,7 @@ export function setupPremiumAnalysisView() {
     updatePeriodSelector()
     await generatePdfReportData()
     await refreshReport()
-  }
+}
 
   async function setupExclusionControls() {
     if (!currentUser) return
