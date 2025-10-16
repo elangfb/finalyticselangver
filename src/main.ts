@@ -24,6 +24,7 @@ import { initializeAnalysisNavigation } from './analysis/navigation'
 import { initializeInvestmentForm, setupGeneralInvestment } from './analysis/sections/general/investment'
 import { initializePnlAccordionListener, setupGeneralFinance } from './analysis/sections/general/finance'
 import { renderDynamicSidebar } from './core/sidebar.ts';
+import { viewCompiledAnalysis } from './analysis/actions';
 
 // --- Firestore Imports for top-level actions ---
 import { collectionGroup, getDocs, query, where } from 'firebase/firestore'
@@ -127,33 +128,27 @@ async function viewCompiledAnalysis(targetView: 'analysis' | 'premium-analysis' 
  * This function orchestrates the setup of all modules.
  */
 function initializeApp(): void {
-  console.log('Initializing Finalytics Application...')
+  console.log('Initializing Finalytics Application...');
 
-  // 1. Core application setup (authentication is first)
-  initializeAuth()
+  // 1. Core application setup
+  initializeAuth();
 
-  // 2. Render dynamic UI components like the sidebar
+  // 2. Render dynamic UI components
   renderDynamicSidebar('new-analysis-sidebar');
 
   // 3. Initialize feature modules and their event listeners
-  initializeAdminPanel()
-  initializeUploadListeners()
-  initializeDataHubListeners()
-  initializeModalListeners()
+  initializeAdminPanel();
+  initializeUploadListeners();
+  initializeDataHubListeners();
+  initializeModalListeners();
+  initializeAnalysisNavigation();
 
-  // 4. Initialize the complex analysis view and its sub-components
-  initializeAnalysisNavigation()
-  initializeInvestmentForm()
-  initializePnlAccordionListener()
-
-  // 5. Initialize top-level navigation buttons that don't belong to a specific module
-  document.getElementById('goto-upload-data-btn')?.addEventListener('click', () => showView('sales-dashboard'))
-  
-  document.getElementById('goto-view-data-btn')?.addEventListener('click', () => viewCompiledAnalysis('analysis'))
-  document.getElementById('goto-premium-analysis-btn')?.addEventListener('click', () => viewCompiledAnalysis('premium-analysis'))
-
-  document.getElementById('back-to-main-menu-from-data-hub-btn')?.addEventListener('click', () => showView('main-menu'))
+  // 4. Initialize top-level navigation buttons
+  document.getElementById('goto-upload-data-btn')?.addEventListener('click', () => showView('sales-dashboard'));
+  document.getElementById('goto-view-data-btn')?.addEventListener('click', () => viewCompiledAnalysis('analysis'));
+  document.getElementById('goto-premium-analysis-btn')?.addEventListener('click', () => viewCompiledAnalysis('premium-analysis'));
+  document.getElementById('back-to-main-menu-from-data-hub-btn')?.addEventListener('click', () => showView('main-menu'));
 }
 
 // --- Run the Application ---
-initializeApp()
+initializeApp();

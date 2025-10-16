@@ -8,6 +8,7 @@ import { setCurrentUser, setCurrentUserRole, adminCredentials, setAdminCredentia
 import { populateCompiledDataTable } from '../data-hub/table'
 import { loadGeminiConfig } from '@/config/gemini'
 import { authError, signupError } from '@/core/ui'
+import { viewCompiledAnalysis } from '@/analysis/actions'
 
 /**
  * Ensures a user document exists in Firestore with basic profile information.
@@ -45,12 +46,10 @@ export async function fetchUserRoleAndSetupUI(user: User): Promise<void> {
   document.getElementById('user-management-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
   document.getElementById('konfigurasi-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
 
-  showView('main-menu')
-  await populateCompiledDataTable()
-
   if (currentUserRole === 'admin') {
     loadGeminiConfig()
   }
+  await viewCompiledAnalysis('premium-analysis');
 }
 
 /**
