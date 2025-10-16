@@ -60,4 +60,13 @@ export default defineConfig([
       ],
     },
   },
+
+  // Temporary disable for next iteration
+  // {
+  //   rules: {
+  //     '@typescript-eslint/no-explicit-any': 'off',
+  //     '@typescript-eslint/no-unused-vars': 'off',
+  //     'max-len': 'off',
+  //   },
+  // },
 ])
