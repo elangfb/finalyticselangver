@@ -93,6 +93,14 @@ import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { deepmerge } from 'deepmerge-ts'
 import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string'
 
+import { getGeminiAnalysis } from '@/config/gemini'
+import { viewPromptCreators } from '@/prompt'
+import { generateSHA256 } from '@/utils/hash'
+import { findLiveCache, createLiveCache, deactivateHistoricalCache } from '@/services/analysisCacheService'
+
+declare const marked: any
+declare const jspdf: any
+
 const currentPage = 1
 const CARDS_PER_PAGE = 8
 
@@ -296,6 +304,68 @@ export function setupPremiumAnalysisView() {
     return
   }
 
+  async function handleExportToPdf() {
+    const reportContent = document.getElementById('pdf-preview-content');
+    const exportButton = document.getElementById('export-to-pdf-btn');
+    if (!reportContent || !exportButton) return;
+
+    showLoading({ message: 'Generating PDF (Step 1 of 2)...' });
+    exportButton.setAttribute('disabled', 'true');
+
+    try {
+      // Use html2canvas to capture the content as a canvas
+      const canvas = await html2canvas(reportContent, {
+        scale: 2, // Increase scale for better resolution
+        useCORS: true,
+      });
+
+      showLoading({ message: 'Compiling PDF (Step 2 of 2)...' });
+
+      // Get image data from the canvas
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      // A4 page dimensions in mm [width, height]
+      const pdfPageWidth = 210;
+      const pdfPageHeight = 297;
+      
+      // Calculate image dimensions in PDF
+      const pdfImgWidth = pdfPageWidth - 20; // with 10mm margins
+      const pdfImgHeight = (imgHeight * pdfImgWidth) / imgWidth;
+
+      // Create a new PDF document
+      const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+      
+      // Calculate how many pages are needed
+      let heightLeft = pdfImgHeight;
+      let position = 0;
+      const pageMargin = 10;
+
+      // Add the first page
+      pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
+      heightLeft -= (pdfPageHeight - 2 * pageMargin);
+
+      // Add new pages if the content is taller than one page
+      while (heightLeft > 0) {
+        position = -heightLeft - pageMargin;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
+        heightLeft -= (pdfPageHeight - 2 * pageMargin);
+      }
+
+      // Trigger the download
+      pdf.save('Finalytics_Report.pdf');
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("An error occurred while generating the PDF. Please try again.");
+    } finally {
+      hideLoading();
+      exportButton.removeAttribute('disabled');
+    }
+  }
+
   async function loadGlobalConfig() {
     if (!currentUser) return
     try {
@@ -337,7 +407,7 @@ export function setupPremiumAnalysisView() {
   const manageDataBtn = document.getElementById('premium-goto-manage-data-btn')
   const userManagementBtn = document.getElementById('premium-goto-user-management-btn')
   const configurationBtn = document.getElementById('premium-goto-configuration-btn')
-  const exportPdfBtn = document.getElementById('premium-goto-export-pdf-btn')
+  const exportPdfNavBtn = document.getElementById('premium-goto-export-pdf-btn')
   const configBackBtn = document.getElementById('premium-config-back-btn')
   const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
   const uploadModal = document.getElementById('premium-upload-modal')
@@ -359,6 +429,7 @@ export function setupPremiumAnalysisView() {
   let hasInitializedPdfPage = false
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
+  let currentReportDataForAI: object | null = null
   const CARDS_PER_PAGE = 8
 
   function generateTop5MenuChart(summaries: SalesSummary[], canvasId: string) {
@@ -397,6 +468,7 @@ export function setupPremiumAnalysisView() {
   async function generatePdfReportData() {
     showLoading({ message: 'Generating report preview...' })
 
+    // 1. Get DOM Elements and Current Filter Values
     const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
     const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
     const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
@@ -411,8 +483,9 @@ export function setupPremiumAnalysisView() {
     const selectedPeriod = periodSelect.value
 
     let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string
+    let currentPeriodStr: string, prevPeriodStr: string
 
-    // --- NEW: Logic to calculate BOTH current and previous date ranges ---
+    // 2. Calculate Date Ranges and Labels for Current and Previous Periods
     try {
       const [yearStr, partStr] = selectedPeriod.split('-')
       const year = parseInt(yearStr)
@@ -424,6 +497,8 @@ export function setupPremiumAnalysisView() {
           const prevYear = year - 1
           prevStartDate = new Date(prevYear, 0, 1)
           prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59)
+          currentPeriodStr = year.toString()
+          prevPeriodStr = prevYear.toString()
           comparisonLabel = `vs. Last Year (${prevYear})`
           break
         case 'quarterly':
@@ -443,6 +518,8 @@ export function setupPremiumAnalysisView() {
           const prevStartMonth = (prevQuarter - 1) * 3
           prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1)
           prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59)
+          currentPeriodStr = `${year}-Q${quarter}`
+          prevPeriodStr = `${prevQuarterYear}-Q${prevQuarter}`
           comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`
           break
         case 'monthly':
@@ -454,6 +531,8 @@ export function setupPremiumAnalysisView() {
           prevStartDate = new Date(startDate)
           prevStartDate.setMonth(prevStartDate.getMonth() - 1)
           prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59)
+          currentPeriodStr = `${year}-${partStr}`
+          prevPeriodStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}`
           comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`
           break
       }
@@ -463,7 +542,7 @@ export function setupPremiumAnalysisView() {
       return
     }
 
-    // Filter data for both periods
+    // 3. Filter Sales Data for Both Periods
     let baseData = $store.getAllSalesData()
     if (selectedBranch !== 'ALL') {
       baseData = baseData.filter((s) => s.branches.includes(selectedBranch))
@@ -471,7 +550,7 @@ export function setupPremiumAnalysisView() {
     const currentData = baseData.filter((s) => s.date >= startDate && s.date <= endDate)
     const previousData = baseData.filter((s) => s.date >= prevStartDate && s.date <= prevEndDate)
 
-    // Calculate KPIs for both periods
+    // 4. Calculate Sales KPIs
     const calculateTotals = (data: SalesSummary[]) => data.reduce((acc, s) => {
       acc.omzet += s.totalOmzet
       acc.transactions += s.totalTransactions
@@ -479,39 +558,37 @@ export function setupPremiumAnalysisView() {
     }, { omzet: 0, transactions: 0 })
 
     const currentTotals = calculateTotals(currentData)
+    const previousTotals = calculateTotals(previousData)
+    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0
+    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
 
+    // 5. Fetch P&L Reports and Calculate Net Profit
     let currentNetProfit = 0
     let previousNetProfit = 0
-
     if (currentUser && selectedBranch !== 'ALL') {
       try {
         const safeBranchName = selectedBranch.replace(/\s+/g, '_')
-        const currentPnlId = `${currentPeriodStr}_${safeBranchName}`
-        const prevPnlId = `${prevPeriodStr}_${safeBranchName}`
+        // Note: P&L IDs use YYYY-MM format, so we use the monthly string for all ranges.
+        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
+        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
 
-        const currentPnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)
-        const prevPnlRef = doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)
-
-        const [currentPnlSnap, prevPnlSnap] = await Promise.all([getDoc(currentPnlRef), getDoc(prevPnlRef)])
+        const [currentPnlSnap, prevPnlSnap] = await Promise.all([
+          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)),
+          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)),
+        ])
 
         if (currentPnlSnap.exists()) {
-          const metrics = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})
-          currentNetProfit = metrics['Pendapatan Bersih (Net Income)'] || 0
+          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
         }
         if (prevPnlSnap.exists()) {
-          const metrics = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})
-          previousNetProfit = metrics['Pendapatan Bersih (Net Income)'] || 0
+          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
         }
       } catch (error) {
         console.error('Could not fetch P&L data for Net Profit KPI:', error)
       }
     }
 
-    const previousTotals = calculateTotals(previousData)
-    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0
-    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
-
-    // --- NEW: Helper function to update KPI cards dynamically ---
+    // 6. Update the DOM
     const updateKpiCard = (cardIndex: number, currentValue: number, previousValue: number, isCurrency: boolean) => {
       const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`)
       if (!card) return;
@@ -529,17 +606,15 @@ export function setupPremiumAnalysisView() {
       }
     }
 
-    // Update the DOM with calculated data
     const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement
     if (reportHeaderEl) {
       reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`
     }
 
     updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true)
-    updateKpiCard(2, currentNetProfit, previousNetProfit, true);
+    updateKpiCard(2, currentNetProfit, previousNetProfit, true)
     updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false)
     updateKpiCard(4, currentAvgCheck, previousAvgCheck, true)
-    // (Note: Net Profit card at index 2 is still a placeholder)
 
     // Generate the charts with the current period's data
     if (selectedRange === 'monthly') {
@@ -550,7 +625,45 @@ export function setupPremiumAnalysisView() {
     generateChannelDonutChart(currentData, 'export-channel-chart')
     generateTop5MenuChart(currentData, 'export-top-menu-chart')
 
+    const reportDataForAI = {
+      context: {
+        branch: selectedBranch,
+        period: selectedPeriod,
+        range: selectedRange,
+        comparisonLabel: comparisonLabel,
+      },
+      currentPeriod: {
+        totalOmzet: currentTotals.omzet,
+        totalTransactions: currentTotals.transactions,
+        averageCheck: currentAvgCheck,
+        netProfit: currentNetProfit,
+      },
+      previousPeriod: {
+        totalOmzet: previousTotals.omzet,
+        totalTransactions: previousTotals.transactions,
+        averageCheck: previousAvgCheck,
+        netProfit: previousNetProfit,
+      },
+      top5MenuItems: [],
+      salesByChannel: {},
+    }
+
+    // 2. Generate charts and capture their data for the AI
+    if (selectedRange === 'monthly') {
+      generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart')
+    } else {
+      generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line')
+    }
+
+    // Note: This assumes your chart functions are modified to return their data
+    const channelData = generateChannelDonutChart(currentData, 'export-channel-chart')
+    reportDataForAI.salesByChannel = channelData
+
+    const top5MenuData = generateTop5MenuChart(currentData, 'export-top-menu-chart')
+    reportDataForAI.top5MenuItems = top5MenuData
+
     hideLoading()
+    return reportDataForAI
   }
 
   async function setupPdfExportPage() {
@@ -558,6 +671,16 @@ export function setupPremiumAnalysisView() {
     const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
     const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
     const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
+    const refreshReport = async () => {
+      currentReportDataForAI = await generatePdfReportData()
+    }
+
+    const filters = [
+      document.getElementById('export-pdf-branch-select'),
+      document.getElementById('export-pdf-range-select'),
+      document.getElementById('export-pdf-period-select'),
+    ]
+    filters.forEach((el) => el?.addEventListener('change', refreshReport))
 
     if (!branchSelect || !rangeSelect || !periodSelect) return
 
@@ -628,6 +751,7 @@ export function setupPremiumAnalysisView() {
     // 5. Initial Population when the page first loads
     updatePeriodSelector()
     await generatePdfReportData()
+    await refreshReport()
   }
 
   async function setupExclusionControls() {
@@ -959,8 +1083,11 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  const exportPdfActionBtn = document.getElementById('export-to-pdf-btn');
+  exportPdfActionBtn?.addEventListener('click', handleExportToPdf);
+
   const showExportPdf = () => {
-    showContent(exportPdfContent, exportPdfBtn)
+    showContent(exportPdfContent, exportPdfNavBtn)
     if (!hasInitializedPdfPage) {
       setupPdfExportPage()
       hasInitializedPdfPage = true
@@ -1020,7 +1147,7 @@ export function setupPremiumAnalysisView() {
 
   userManagementBtn?.addEventListener('click', (e) => { e.preventDefault(); showUserManagement() })
   configurationBtn?.addEventListener('click', (e) => { e.preventDefault(); showConfiguration() })
-  exportPdfBtn?.addEventListener('click', (e) => { e.preventDefault(); showExportPdf() })
+  exportPdfNavBtn?.addEventListener('click', (e) => { e.preventDefault(); showExportPdf() })
   configBackBtn?.addEventListener('click', (e) => { e.preventDefault(); showDashboard() })
 
   const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
@@ -1194,6 +1321,44 @@ export function setupPremiumAnalysisView() {
           hideLoading()
         }
       }
+    }
+  })
+
+  const generateAiSummaryBtn = document.getElementById('generate-ai-summary-btn')
+  generateAiSummaryBtn?.addEventListener('click', async () => {
+    const aiSummaryContainer = document.querySelector('#pdf-preview-content .bg-purple-50')
+    if (!aiSummaryContainer || !currentReportDataForAI) {
+      alert('Please select filters and generate a preview first.')
+      return
+    }
+
+    const aiContentEl = aiSummaryContainer.querySelector('p')
+    if (!aiContentEl) return
+
+    aiContentEl.innerHTML = '<em>Generating insights...</em>'
+
+    try {
+      const filters = (currentReportDataForAI as any).context
+      const filtersHash = await generateSHA256(filters)
+      const dataHash = await generateSHA256(currentReportDataForAI)
+
+      const cached = await findLiveCache(filtersHash, dataHash)
+
+      if (cached) {
+        aiContentEl.innerHTML = marked.parse(cached.summary)
+        return
+      }
+
+      await deactivateHistoricalCache(filtersHash)
+
+      const prompt = viewPromptCreators['export-pdf'](currentReportDataForAI)
+      const { summaryText, usageMetadata } = await getGeminiAnalysis(prompt)
+
+      await createLiveCache({ filtersHash, dataHash, summary: summaryText, usageMetadata, filters })
+      aiContentEl.innerHTML = marked.parse(summaryText)
+    } catch (error: any) {
+      console.error('Error generating AI Summary:', error)
+      aiContentEl.innerHTML = `<span class="text-red-600">Error: ${error.message}</span>`
     }
   })
 
