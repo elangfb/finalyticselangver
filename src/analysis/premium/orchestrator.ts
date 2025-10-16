@@ -98,11 +98,11 @@ import { viewPromptCreators } from '@/prompt'
 import { generateSHA256 } from '@/utils/hash'
 import { findLiveCache, createLiveCache, deactivateHistoricalCache } from '@/services/analysisCacheService'
 
-import { signOut } from 'firebase/auth';
-import { auth } from '@/core/firebase';
+import { signOut } from 'firebase/auth'
+import { auth } from '@/core/firebase'
 
-import { ref, uploadBytes } from 'firebase/storage';
-import { storage } from '@/core/firebase';
+import { ref, uploadBytes } from 'firebase/storage'
+import { storage } from '@/core/firebase'
 
 declare const marked: any
 declare const jspdf: any
@@ -311,60 +311,59 @@ export function setupPremiumAnalysisView() {
   }
 
   async function handleExportToPdf() {
-    const reportContent = document.getElementById('pdf-preview-content');
-    const exportButton = document.getElementById('export-to-pdf-btn');
-    if (!reportContent || !exportButton) return;
+    const reportContent = document.getElementById('pdf-preview-content')
+    const exportButton = document.getElementById('export-to-pdf-btn')
+    if (!reportContent || !exportButton) return
 
-    showLoading({ message: 'Generating PDF (Step 1 of 2)...' });
-    exportButton.setAttribute('disabled', 'true');
+    showLoading({ message: 'Generating PDF (Step 1 of 2)...' })
+    exportButton.setAttribute('disabled', 'true')
 
     try {
       const canvas = await html2canvas(reportContent, {
         scale: 2,
         useCORS: true,
-      });
+      })
 
-      showLoading({ message: 'Compiling PDF (Step 2 of 2)...' });
+      showLoading({ message: 'Compiling PDF (Step 2 of 2)...' })
 
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
+      const imgData = canvas.toDataURL('image/png')
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
 
-      const pdfPageWidth = 210;
-      const pdfPageHeight = 297;
-      
+      const pdfPageWidth = 210
+      const pdfPageHeight = 297
+
       // --- FIX: Set margin to 0 for a full-page look ---
-      const pageMargin = 0;
+      const pageMargin = 0
 
       // --- FIX: Calculate image width to fill the page ---
-      const pdfImgWidth = pdfPageWidth - (pageMargin * 2);
-      const pdfImgHeight = (imgHeight * pdfImgWidth) / imgWidth;
+      const pdfImgWidth = pdfPageWidth - (pageMargin * 2)
+      const pdfImgHeight = (imgHeight * pdfImgWidth) / imgWidth
 
-      const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-      
-      let heightLeft = pdfImgHeight;
-      let position = 0;
+      const pdf = new jspdf.jsPDF('p', 'mm', 'a4')
+
+      let heightLeft = pdfImgHeight
+      let position = 0
 
       // Add the first page
-      pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
-      heightLeft -= pdfPageHeight;
+      pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight)
+      heightLeft -= pdfPageHeight
 
       // Add new pages if needed
       while (heightLeft > 0) {
-        position = -heightLeft;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight);
-        heightLeft -= pdfPageHeight;
+        position = -heightLeft
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', pageMargin, position, pdfImgWidth, pdfImgHeight)
+        heightLeft -= pdfPageHeight
       }
 
-      pdf.save('Finalytics_Report.pdf');
-
+      pdf.save('Finalytics_Report.pdf')
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("An error occurred while generating the PDF. Please try again.");
+      console.error('Error generating PDF:', error)
+      alert('An error occurred while generating the PDF. Please try again.')
     } finally {
-      hideLoading();
-      exportButton.removeAttribute('disabled');
+      hideLoading()
+      exportButton.removeAttribute('disabled')
     }
   }
 
@@ -375,10 +374,13 @@ export function setupPremiumAnalysisView() {
       const docSnap = await getDoc(configDocRef)
       if (docSnap.exists()) {
         const data = docSnap.data()
-        // Load exclusions
+
+        // Load all exclusion lists from the database into the store
         $store.setConfigValue('hiddenCategories', data.hiddenCategories || [])
         $store.setConfigValue('hiddenMenus', data.hiddenMenus || [])
-        // Load global sales targets (we can centralize this here)
+        $store.setConfigValue('hiddenChannels', data.hiddenChannels || [])
+
+        // Load global sales targets
         if (data.sales) {
           const mappedTargets = {
             'Omzet Harian': data.sales.totalOmzet > 0 ? data.sales.totalOmzet / 30 : 0,
@@ -468,161 +470,161 @@ export function setupPremiumAnalysisView() {
 
   // In src/analysis/premium/orchestrator.ts, inside setupPremiumAnalysisView()
   async function generatePdfReportData() {
-    showLoading({ message: 'Generating report preview...' });
+    showLoading({ message: 'Generating report preview...' })
 
     // 1. Get DOM Elements and Current Filter Values
-    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement;
-    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement;
-    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement;
+    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
+    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
+    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
 
     if (!branchSelect || !rangeSelect || !periodSelect || !periodSelect.value) {
-      hideLoading();
-      return null;
+      hideLoading()
+      return null
     }
 
-    const selectedBranch = branchSelect.value;
-    const selectedRange = rangeSelect.value;
-    const selectedPeriod = periodSelect.value;
+    const selectedBranch = branchSelect.value
+    const selectedRange = rangeSelect.value
+    const selectedPeriod = periodSelect.value
 
-    let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string;
-    let currentPeriodStr: string, prevPeriodStr: string;
+    let startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date, comparisonLabel: string
+    let currentPeriodStr: string, prevPeriodStr: string
 
     // 2. Calculate Date Ranges and Labels for Current and Previous Periods
     try {
-      const [yearStr, partStr] = selectedPeriod.split('-');
-      const year = parseInt(yearStr);
+      const [yearStr, partStr] = selectedPeriod.split('-')
+      const year = parseInt(yearStr)
 
       switch (selectedRange) {
         case 'yearly':
-          startDate = new Date(year, 0, 1);
-          endDate = new Date(year, 11, 31, 23, 59, 59);
-          const prevYear = year - 1;
-          prevStartDate = new Date(prevYear, 0, 1);
-          prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59);
-          currentPeriodStr = year.toString();
-          prevPeriodStr = prevYear.toString();
-          comparisonLabel = `vs. Last Year (${prevYear})`;
-          break;
+          startDate = new Date(year, 0, 1)
+          endDate = new Date(year, 11, 31, 23, 59, 59)
+          const prevYear = year - 1
+          prevStartDate = new Date(prevYear, 0, 1)
+          prevEndDate = new Date(prevYear, 11, 31, 23, 59, 59)
+          currentPeriodStr = year.toString()
+          prevPeriodStr = prevYear.toString()
+          comparisonLabel = `vs. Last Year (${prevYear})`
+          break
         case 'quarterly':
-          const quarter = parseInt(partStr.replace('Q', ''));
-          const startMonth = (quarter - 1) * 3;
-          startDate = new Date(year, startMonth, 1);
-          endDate = new Date(year, startMonth + 3, 0, 23, 59, 59);
+          const quarter = parseInt(partStr.replace('Q', ''))
+          const startMonth = (quarter - 1) * 3
+          startDate = new Date(year, startMonth, 1)
+          endDate = new Date(year, startMonth + 3, 0, 23, 59, 59)
 
-          let prevQuarter, prevQuarterYear;
+          let prevQuarter, prevQuarterYear
           if (quarter === 1) {
-            prevQuarter = 4;
-            prevQuarterYear = year - 1;
+            prevQuarter = 4
+            prevQuarterYear = year - 1
           } else {
-            prevQuarter = quarter - 1;
-            prevQuarterYear = year;
+            prevQuarter = quarter - 1
+            prevQuarterYear = year
           }
-          const prevStartMonth = (prevQuarter - 1) * 3;
-          prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1);
-          prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59);
-          currentPeriodStr = `${year}-Q${quarter}`;
-          prevPeriodStr = `${prevQuarterYear}-Q${prevQuarter}`;
-          comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`;
-          break;
+          const prevStartMonth = (prevQuarter - 1) * 3
+          prevStartDate = new Date(prevQuarterYear, prevStartMonth, 1)
+          prevEndDate = new Date(prevQuarterYear, prevStartMonth + 3, 0, 23, 59, 59)
+          currentPeriodStr = `${year}-Q${quarter}`
+          prevPeriodStr = `${prevQuarterYear}-Q${prevQuarter}`
+          comparisonLabel = `vs. Last Quarter (Q${prevQuarter} ${prevQuarterYear})`
+          break
         case 'monthly':
         default:
-          const month = parseInt(partStr) - 1;
-          startDate = new Date(year, month, 1);
-          endDate = new Date(year, month + 1, 0, 23, 59, 59);
+          const month = parseInt(partStr) - 1
+          startDate = new Date(year, month, 1)
+          endDate = new Date(year, month + 1, 0, 23, 59, 59)
 
-          prevStartDate = new Date(startDate);
-          prevStartDate.setMonth(prevStartDate.getMonth() - 1);
-          prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59);
-          currentPeriodStr = `${year}-${partStr}`;
-          prevPeriodStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}`;
-          comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
-          break;
+          prevStartDate = new Date(startDate)
+          prevStartDate.setMonth(prevStartDate.getMonth() - 1)
+          prevEndDate = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth() + 1, 0, 23, 59, 59)
+          currentPeriodStr = `${year}-${partStr}`
+          prevPeriodStr = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}`
+          comparisonLabel = `vs. Last Month (${prevStartDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`
+          break
       }
     } catch (e) {
-      console.error("Error parsing date range for PDF report:", e);
-      hideLoading();
-      return null;
+      console.error('Error parsing date range for PDF report:', e)
+      hideLoading()
+      return null
     }
 
     // 3. Filter Sales Data for Both Periods
-    let baseData = $store.getAllSalesData();
+    let baseData = $store.getAllSalesData()
     if (selectedBranch !== 'ALL') {
-      baseData = baseData.filter(s => s.branches.includes(selectedBranch));
+      baseData = baseData.filter((s) => s.branches.includes(selectedBranch))
     }
-    const currentData = baseData.filter(s => s.date >= startDate && s.date <= endDate);
-    const previousData = baseData.filter(s => s.date >= prevStartDate && s.date <= prevEndDate);
+    const currentData = baseData.filter((s) => s.date >= startDate && s.date <= endDate)
+    const previousData = baseData.filter((s) => s.date >= prevStartDate && s.date <= prevEndDate)
 
     // 4. Calculate Sales KPIs
     const calculateTotals = (data: SalesSummary[]) => data.reduce((acc, s) => {
-      acc.omzet += s.totalOmzet;
-      acc.transactions += s.totalTransactions;
-      return acc;
-    }, { omzet: 0, transactions: 0 });
+      acc.omzet += s.totalOmzet
+      acc.transactions += s.totalTransactions
+      return acc
+    }, { omzet: 0, transactions: 0 })
 
-    const currentTotals = calculateTotals(currentData);
-    const previousTotals = calculateTotals(previousData);
-    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0;
-    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0;
+    const currentTotals = calculateTotals(currentData)
+    const previousTotals = calculateTotals(previousData)
+    const currentAvgCheck = currentTotals.transactions > 0 ? currentTotals.omzet / currentTotals.transactions : 0
+    const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
 
     // 5. Fetch P&L Reports and Calculate Net Profit
-    let currentNetProfit = 0;
-    let previousNetProfit = 0;
+    let currentNetProfit = 0
+    let previousNetProfit = 0
     if (currentUser && selectedBranch !== 'ALL') {
       try {
-        const safeBranchName = selectedBranch.replace(/\s+/g, '_');
-        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`;
-        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`;
+        const safeBranchName = selectedBranch.replace(/\s+/g, '_')
+        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
+        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
 
         const [currentPnlSnap, prevPnlSnap] = await Promise.all([
           getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)),
-          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId))
-        ]);
+          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)),
+        ])
 
         if (currentPnlSnap.exists()) {
-          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0;
+          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
         }
         if (prevPnlSnap.exists()) {
-          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0;
+          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
         }
       } catch (error) {
-        console.error("Could not fetch P&L data for Net Profit KPI:", error);
+        console.error('Could not fetch P&L data for Net Profit KPI:', error)
       }
     }
 
     // 6. Update the DOM
     const updateKpiCard = (cardIndex: number, currentValue: number, previousValue: number, isCurrency: boolean) => {
-      const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`);
+      const card = document.querySelector(`#pdf-preview-content .grid > div:nth-child(${cardIndex})`)
       if (!card) return;
-      (card.querySelector('p:nth-of-type(1)') as HTMLElement).textContent = isCurrency ? formatCurrency(currentValue) : formatNumber(currentValue);
-      const growthEl = card.querySelector('p:nth-of-type(2)') as HTMLElement;
+      (card.querySelector('p:nth-of-type(1)') as HTMLElement).textContent = isCurrency ? formatCurrency(currentValue) : formatNumber(currentValue)
+      const growthEl = card.querySelector('p:nth-of-type(2)') as HTMLElement
       if (previousValue > 0) {
-        const growth = ((currentValue - previousValue) / previousValue) * 100;
-        growthEl.textContent = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% ${comparisonLabel}`;
-        growthEl.className = `text-sm mt-1 font-medium ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`;
+        const growth = ((currentValue - previousValue) / previousValue) * 100
+        growthEl.textContent = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% ${comparisonLabel}`
+        growthEl.className = `text-sm mt-1 font-medium ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`
       } else {
-        growthEl.textContent = 'vs N/A';
-        growthEl.className = 'text-sm mt-1 font-medium text-gray-500';
+        growthEl.textContent = 'vs N/A'
+        growthEl.className = 'text-sm mt-1 font-medium text-gray-500'
       }
-    };
-    const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement;
-    if (reportHeaderEl) {
-      reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`;
     }
-    updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true);
-    updateKpiCard(2, currentNetProfit, previousNetProfit, true);
-    updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false);
-    updateKpiCard(4, currentAvgCheck, previousAvgCheck, true);
+    const reportHeaderEl = document.querySelector('#pdf-preview-content .text-gray-500') as HTMLElement
+    if (reportHeaderEl) {
+      reportHeaderEl.textContent = `${selectedBranch} | ${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')}`
+    }
+    updateKpiCard(1, currentTotals.omzet, previousTotals.omzet, true)
+    updateKpiCard(2, currentNetProfit, previousNetProfit, true)
+    updateKpiCard(3, currentTotals.transactions, previousTotals.transactions, false)
+    updateKpiCard(4, currentAvgCheck, previousAvgCheck, true)
 
     // --- START MODIFICATION ---
 
     // 7. Generate Charts and Capture Their Data
     if (selectedRange === 'monthly') {
-        generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart');
+      generateOmzetHarianChartFromSummaries(currentData, 'export-omzet-trend-chart')
     } else {
-        generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line');
+      generateOmzetMingguanChartFromSummaries(currentData, 'export-omzet-trend-chart', 'line')
     }
-    const channelData = generateChannelDonutChart(currentData, 'export-channel-chart');
-    const top5MenuData = generateTop5MenuChart(currentData, 'export-top-menu-chart');
+    const channelData = generateChannelDonutChart(currentData, 'export-channel-chart')
+    const top5MenuData = generateTop5MenuChart(currentData, 'export-top-menu-chart')
 
     // 8. Build the Complete Data Object for the AI
     const reportDataForAI = {
@@ -631,39 +633,38 @@ export function setupPremiumAnalysisView() {
       previousPeriod: { totalOmzet: previousTotals.omzet, totalTransactions: previousTotals.transactions, averageCheck: previousAvgCheck, netProfit: previousNetProfit },
       top5MenuItems: top5MenuData,
       salesByChannel: channelData,
-    };
-    
+    }
+
     // 9. Automatically check the cache with the complete data object
-    const aiSummaryContainer = document.querySelector('#pdf-preview-content .bg-purple-50');
+    const aiSummaryContainer = document.querySelector('#pdf-preview-content .bg-purple-50')
     if (aiSummaryContainer) {
-      const aiContentEl = aiSummaryContainer.querySelector('p');
+      const aiContentEl = aiSummaryContainer.querySelector('p')
       if (aiContentEl) {
         try {
-          const filters = (reportDataForAI as any).context;
-          const filtersHash = await generateSHA256(filters);
-          const dataHash = await generateSHA256(reportDataForAI);
-          const cached = await findLiveCache(filtersHash, dataHash);
+          const filters = (reportDataForAI as any).context
+          const filtersHash = await generateSHA256(filters)
+          const dataHash = await generateSHA256(reportDataForAI)
+          const cached = await findLiveCache(filtersHash, dataHash)
 
           if (cached) {
-            aiContentEl.innerHTML = marked.parse(cached.summary);
+            aiContentEl.innerHTML = marked.parse(cached.summary)
           } else {
-            aiContentEl.innerHTML = `<em>Click 'Generate AI Summary' to get new insights for the selected period.</em>`;
+            aiContentEl.innerHTML = `<em>Click 'Generate AI Summary' to get new insights for the selected period.</em>`
           }
         } catch (e) {
-          console.error("Error checking AI cache:", e);
-          aiContentEl.innerHTML = `<span class="text-red-500">Could not check for cached summary.</span>`;
+          console.error('Error checking AI cache:', e)
+          aiContentEl.innerHTML = `<span class="text-red-500">Could not check for cached summary.</span>`
         }
       }
     }
 
     // --- END MODIFICATION ---
 
-    hideLoading();
-    return reportDataForAI;
+    hideLoading()
+    return reportDataForAI
   }
 
   async function setupPdfExportPage() {
-
     const refreshReport = async () => {
       currentReportDataForAI = await generatePdfReportData()
     }
@@ -672,7 +673,6 @@ export function setupPremiumAnalysisView() {
     const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
     const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
     const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
-    
 
     const filters = [
       document.getElementById('export-pdf-branch-select'),
@@ -751,17 +751,21 @@ export function setupPremiumAnalysisView() {
     updatePeriodSelector()
     await generatePdfReportData()
     await refreshReport()
-}
+  }
+
+  // In src/analysis/premium/orchestrator.ts, inside setupPremiumAnalysisView()
 
   async function setupExclusionControls() {
     if (!currentUser) return
 
-    // 1. Get all unique categories and menus from the store
+    // 1. Get all unique categories, menus, AND channels from the store
     const allSalesData: SalesSummary[] = $store.getAllSalesData()
     const uniqueCategories = new Set<string>()
     const uniqueMenus = new Set<string>()
+    const uniqueChannels = new Set<string>() // <-- NEW
 
     allSalesData.forEach((summary) => {
+      // Get categories and menus
       if (summary.menuItemQuantities) {
         for (const category in summary.menuItemQuantities) {
           if (category !== 'Uncategorized') uniqueCategories.add(category)
@@ -770,33 +774,39 @@ export function setupPremiumAnalysisView() {
           }
         }
       }
+      // NEW: Get channels
+      if (summary.revenueByVisitPurpose) {
+        for (const channel in summary.revenueByVisitPurpose) {
+          uniqueChannels.add(channel)
+        }
+      }
     })
 
-    // 2. Initialize the SlimSelect dropdowns
+    // 2. Initialize all three SlimSelect dropdowns
     const categorySelectEl = document.getElementById('hide-menu-category-select') as HTMLSelectElement
     const menuSelectEl = document.getElementById('hide-menu-select') as HTMLSelectElement
+    const channelSelectEl = document.getElementById('hide-sales-channel-select') as HTMLSelectElement // <-- NEW
 
     const categorySelect = new SlimSelect({
       select: categorySelectEl,
       data: Array.from(uniqueCategories).sort().map((name) => ({ text: name, value: name })),
-      settings: {
-        placeholderText: 'Select categories to hide',
-        closeOnSelect: false,
-        allowDeselect: true,
-      },
+      settings: { placeholderText: 'Select categories...', closeOnSelect: false, allowDeselect: true },
     })
 
     const menuSelect = new SlimSelect({
       select: menuSelectEl,
       data: Array.from(uniqueMenus).sort().map((name) => ({ text: name, value: name })),
-      settings: {
-        placeholderText: 'Select menu items to hide',
-        closeOnSelect: false,
-        allowDeselect: true,
-      },
+      settings: { placeholderText: 'Select menu items...', closeOnSelect: false, allowDeselect: true },
     })
 
-    // 3. Load saved settings from Firestore and apply them
+    // NEW: Initialize channel dropdown
+    const channelSelect = new SlimSelect({
+      select: channelSelectEl,
+      data: Array.from(uniqueChannels).sort().map((name) => ({ text: name, value: name })),
+      settings: { placeholderText: 'Select channels...', closeOnSelect: false, allowDeselect: true },
+    })
+
+    // 3. Load ALL saved settings from Firestore and apply them
     try {
       const configDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
       const docSnap = await getDoc(configDocRef)
@@ -808,12 +818,16 @@ export function setupPremiumAnalysisView() {
         if (data.hiddenMenus) {
           menuSelect.setSelected(data.hiddenMenus)
         }
+        // NEW: Load hidden channels
+        if (data.hiddenChannels) {
+          channelSelect.setSelected(data.hiddenChannels)
+        }
       }
     } catch (error) {
       console.error('Error loading exclusion settings:', error)
     }
 
-    // 4. Attach the save listener
+    // 4. Update the save listener to include channels
     const saveBtn = document.getElementById('save-exclusions-btn')
     const feedbackEl = document.getElementById('global-targets-feedback')
 
@@ -822,13 +836,18 @@ export function setupPremiumAnalysisView() {
 
       const selectedCategories = categorySelect.getSelected()
       const selectedMenus = menuSelect.getSelected()
+      const selectedChannels = channelSelect.getSelected() // <-- NEW
 
       try {
         const configDocRef = doc(db, `users/${currentUser.uid}/globalConfig`, 'targets')
+        // NEW: Add hiddenChannels to the saved data
         await setDoc(configDocRef, {
           hiddenCategories: selectedCategories,
           hiddenMenus: selectedMenus,
+          hiddenChannels: selectedChannels,
         }, { merge: true })
+
+        await loadGlobalConfig();
 
         feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800'
         feedbackEl.textContent = 'Exclusion settings saved successfully!'
@@ -1082,8 +1101,8 @@ export function setupPremiumAnalysisView() {
     }
   }
 
-  const exportPdfActionBtn = document.getElementById('export-to-pdf-btn');
-  exportPdfActionBtn?.addEventListener('click', handleExportToPdf);
+  const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
+  exportPdfActionBtn?.addEventListener('click', handleExportToPdf)
 
   const showExportPdf = () => {
     showContent(exportPdfContent, exportPdfNavBtn)
@@ -1152,47 +1171,47 @@ export function setupPremiumAnalysisView() {
   const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
   const savePnlBtn = document.getElementById('save-global-pnl-target-btn')
   const feedbackEl = document.getElementById('global-targets-feedback')
-  
-const uploadDemoBtn = document.getElementById('upload-demo-data-btn');
+
+  const uploadDemoBtn = document.getElementById('upload-demo-data-btn')
   uploadDemoBtn?.addEventListener('click', async () => {
-    const fileInput = document.getElementById('demo-data-file-input') as HTMLInputElement;
-    const feedbackEl = document.getElementById('demo-upload-feedback');
-    const file = fileInput.files?.[0];
+    const fileInput = document.getElementById('demo-data-file-input') as HTMLInputElement
+    const feedbackEl = document.getElementById('demo-upload-feedback')
+    const file = fileInput.files?.[0]
 
     if (!file || !currentUser || !feedbackEl) {
-      alert('Please select a file first.');
-      return;
+      alert('Please select a file first.')
+      return
     }
 
-    (uploadDemoBtn as HTMLButtonElement).disabled = true;
-    feedbackEl.className = 'p-3 text-sm rounded-md bg-blue-100 text-blue-800';
-    feedbackEl.textContent = 'Uploading file... Please wait. This may take a moment.';
-    feedbackEl.classList.remove('hidden');
+    (uploadDemoBtn as HTMLButtonElement).disabled = true
+    feedbackEl.className = 'p-3 text-sm rounded-md bg-blue-100 text-blue-800'
+    feedbackEl.textContent = 'Uploading file... Please wait. This may take a moment.'
+    feedbackEl.classList.remove('hidden')
 
     try {
-      const storagePath = `demo_uploads/${currentUser.uid}/${file.name}`;
-      const storageRef = ref(storage, storagePath);
+      const storagePath = `demo_uploads/${currentUser.uid}/${file.name}`
+      const storageRef = ref(storage, storagePath)
 
       // Upload the file to the secure path. The backend function will trigger automatically.
-      await uploadBytes(storageRef, file);
+      await uploadBytes(storageRef, file)
 
-      feedbackEl.className = 'p-3 text-sm rounded-md bg-green-100 text-green-800';
-      feedbackEl.textContent = 'Upload complete! The backend is now processing the file to update the demo data. This can take up to a minute.';
+      feedbackEl.className = 'p-3 text-sm rounded-md bg-green-100 text-green-800'
+      feedbackEl.textContent = 'Upload complete! The backend is now processing the file to update the demo data. This can take up to a minute.'
     } catch (error: any) {
-      console.error('Demo data upload failed:', error);
-      feedbackEl.className = 'p-3 text-sm rounded-md bg-red-100 text-red-800';
-      feedbackEl.textContent = `Upload failed: ${error.message}`;
+      console.error('Demo data upload failed:', error)
+      feedbackEl.className = 'p-3 text-sm rounded-md bg-red-100 text-red-800'
+      feedbackEl.textContent = `Upload failed: ${error.message}`
     } finally {
-      (uploadDemoBtn as HTMLButtonElement).disabled = false;
-      fileInput.value = ''; // Reset the file input
+      (uploadDemoBtn as HTMLButtonElement).disabled = false
+      fileInput.value = '' // Reset the file input
     }
-  });
+  })
 
-  const premiumLogoutBtn = document.getElementById('premium-logout-btn');
+  const premiumLogoutBtn = document.getElementById('premium-logout-btn')
   premiumLogoutBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    signOut(auth);
-  });
+    e.preventDefault()
+    signOut(auth)
+  })
 
   saveSalesBtn?.addEventListener('click', async () => {
     if (!currentUser || !feedbackEl) return
@@ -1530,7 +1549,9 @@ const uploadDemoBtn = document.getElementById('upload-demo-data-btn');
   branchSelect.addEventListener('change', generatePremiumAnalysis)
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
-  showDashboard()
+  loadGlobalConfig().then(() => {
+    showDashboard()
+  })
 }
 
 async function generatePremiumGeneralSales() {

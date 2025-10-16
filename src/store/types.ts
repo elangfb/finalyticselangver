@@ -47,6 +47,7 @@ export interface AnalysisState {
     activeSalesTarget: Record<string, any>
     hiddenCategories: string[]
     hiddenMenus: string[]
+    hiddenChannels: string[]
   }
 }
 

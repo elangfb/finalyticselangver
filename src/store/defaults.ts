@@ -43,6 +43,7 @@ export function createDefaultAnalysisState(): AnalysisState {
       activeSalesTarget: {},
       hiddenCategories: [],
       hiddenMenus: [],
+      hiddenChannels: [],
     },
   }
 }

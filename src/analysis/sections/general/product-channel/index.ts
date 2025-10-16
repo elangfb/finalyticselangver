@@ -7,21 +7,23 @@ import { AlsoStoreFn, createAlsoStoreFn } from '../../../utils/store-helpers'
 import { formatNumber, formatNumberUtil, formatCurrencyUtil, formatMachineYearMonthDay } from '../../../utils/string-formatters'
 import { deepmerge } from 'deepmerge-ts'
 
-
 declare const SlimSelect: any
 
-/**
- * Generates the "Penjualan per Channel" doughnut chart.
- */
+// In src/analysis/sections/general/product-channel/index.ts
+
 export function generateChannelDonutChart(summaries: any[], canvasId: string, config?: { alsoStore?: AlsoStoreFn }) {
+  const hiddenChannels = $store.getConfigValue('hiddenChannels') || [];
+
   const channelSales = summaries.reduce((acc, s) => {
     if (s.revenueByVisitPurpose) {
       for (const channel in s.revenueByVisitPurpose) {
-        acc[channel] = (acc[channel] || 0) + s.revenueByVisitPurpose[channel]
+        if (!hiddenChannels.includes(channel)) {
+          acc[channel] = (acc[channel] || 0) + s.revenueByVisitPurpose[channel];
+        }
       }
     }
-    return acc
-  }, {})
+    return acc;
+  }, {});
 
   config?.alsoStore?.(channelSales, (v) => ({
     channelSales: Object.fromEntries(Object.entries(v).map(([channel, sales]) => (
@@ -35,7 +37,9 @@ export function generateChannelDonutChart(summaries: any[], canvasId: string, co
       data: Object.values(channelSales),
       backgroundColor: ['#3B82F6', '#10B981', '#F97316', '#8B5CF6', '#EC4444', '#F59E0B'],
     }],
-  }, chartTooltip({ label: currencyTooltipCallback }))
+  }, chartTooltip({ label: currencyTooltipCallback }));
+
+  return channelSales;
 }
 
 /**
@@ -48,13 +52,12 @@ export function generateOrderByCategoryDonutChart(summaries: any[], canvasId: st
       for (const category in s.menuCategories) {
         // FIX: Add a check to skip hidden categories
         if (!hiddenCategories.includes(category)) {
-          acc[category] = (acc[category] || 0) + s.menuCategories[category].quantity;
+          acc[category] = (acc[category] || 0) + s.menuCategories[category].quantity
         }
       }
     }
-    return acc;
-  }, {});
-
+    return acc
+  }, {})
 
   config?.alsoStore?.(byMenuCategory, (v) => ({
     totalOrderByMenuCategory: Object.fromEntries(Object.entries(v).map(([category, totalOrder]) => (
