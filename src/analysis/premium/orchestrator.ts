@@ -98,6 +98,9 @@ import { viewPromptCreators } from '@/prompt'
 import { generateSHA256 } from '@/utils/hash'
 import { findLiveCache, createLiveCache, deactivateHistoricalCache } from '@/services/analysisCacheService'
 
+import { signOut } from 'firebase/auth';
+import { auth } from '@/core/firebase';
+
 declare const marked: any
 declare const jspdf: any
 
@@ -1146,6 +1149,12 @@ export function setupPremiumAnalysisView() {
   const saveSalesBtn = document.getElementById('save-global-sales-target-btn')
   const savePnlBtn = document.getElementById('save-global-pnl-target-btn')
   const feedbackEl = document.getElementById('global-targets-feedback')
+  
+  const premiumLogoutBtn = document.getElementById('premium-logout-btn');
+  premiumLogoutBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    signOut(auth);
+  });
 
   saveSalesBtn?.addEventListener('click', async () => {
     if (!currentUser || !feedbackEl) return

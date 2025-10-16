@@ -9,6 +9,7 @@ import { populateCompiledDataTable } from '../data-hub/table'
 import { loadGeminiConfig } from '@/config/gemini'
 import { authError, signupError } from '@/core/ui'
 import { viewCompiledAnalysis } from '@/analysis/actions'
+import { clearSummariesCache } from '@/services/localCacheService';
 
 /**
  * Ensures a user document exists in Firestore with basic profile information.
@@ -78,11 +79,18 @@ export function initializeAuth(): void {
             showView('auth')
           })
       } else {
-        // No user is signed in.
-        setCurrentUser(null)
-        setCurrentUserRole('user')
-        showView('auth')
-        document.getElementById('user-management-btn')?.classList.add('hidden')
+        try {
+          await clearSummariesCache();
+          console.log('Local cache cleared on logout.');
+        } catch (error) {
+          console.error('Failed to clear cache on logout:', error);
+        }
+        // --- END MODIFICATION ---
+
+        setCurrentUser(null);
+        setCurrentUserRole('user');
+        showView('auth');
+        document.getElementById('user-management-btn')?.classList.add('hidden');
       }
     }
   })
