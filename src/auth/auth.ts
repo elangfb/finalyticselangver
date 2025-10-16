@@ -18,13 +18,21 @@ import { clearSummariesCache } from '@/services/localCacheService';
  * @param role The user's role (defaults to 'user').
  */
 async function ensureUserDocument(uid: string, email: string | null, role = 'user'): Promise<void> {
-  const userRef = doc(db, 'users', uid)
-  const userSnap = await getDoc(userRef)
+  const userRef = doc(db, 'users', uid);
+  const userSnap = await getDoc(userRef);
   if (!userSnap.exists()) {
     try {
-      await setDoc(userRef, { uid, email, createdAt: new Date(), role })
+      // START MODIFICATION
+      await setDoc(userRef, { 
+        uid, 
+        email, 
+        createdAt: new Date(), 
+        role,
+        hasUploadedData: false // Add this flag for new users
+      });
+      // END MODIFICATION
     } catch (error) {
-      console.error('Error creating user document:', error)
+      console.error('Error creating user document:', error);
     }
   }
 }

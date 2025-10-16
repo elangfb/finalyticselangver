@@ -101,6 +101,9 @@ import { findLiveCache, createLiveCache, deactivateHistoricalCache } from '@/ser
 import { signOut } from 'firebase/auth';
 import { auth } from '@/core/firebase';
 
+import { ref, uploadBytes } from 'firebase/storage';
+import { storage } from '@/core/firebase';
+
 declare const marked: any
 declare const jspdf: any
 
@@ -1150,6 +1153,41 @@ export function setupPremiumAnalysisView() {
   const savePnlBtn = document.getElementById('save-global-pnl-target-btn')
   const feedbackEl = document.getElementById('global-targets-feedback')
   
+const uploadDemoBtn = document.getElementById('upload-demo-data-btn');
+  uploadDemoBtn?.addEventListener('click', async () => {
+    const fileInput = document.getElementById('demo-data-file-input') as HTMLInputElement;
+    const feedbackEl = document.getElementById('demo-upload-feedback');
+    const file = fileInput.files?.[0];
+
+    if (!file || !currentUser || !feedbackEl) {
+      alert('Please select a file first.');
+      return;
+    }
+
+    (uploadDemoBtn as HTMLButtonElement).disabled = true;
+    feedbackEl.className = 'p-3 text-sm rounded-md bg-blue-100 text-blue-800';
+    feedbackEl.textContent = 'Uploading file... Please wait. This may take a moment.';
+    feedbackEl.classList.remove('hidden');
+
+    try {
+      const storagePath = `demo_uploads/${currentUser.uid}/${file.name}`;
+      const storageRef = ref(storage, storagePath);
+
+      // Upload the file to the secure path. The backend function will trigger automatically.
+      await uploadBytes(storageRef, file);
+
+      feedbackEl.className = 'p-3 text-sm rounded-md bg-green-100 text-green-800';
+      feedbackEl.textContent = 'Upload complete! The backend is now processing the file to update the demo data. This can take up to a minute.';
+    } catch (error: any) {
+      console.error('Demo data upload failed:', error);
+      feedbackEl.className = 'p-3 text-sm rounded-md bg-red-100 text-red-800';
+      feedbackEl.textContent = `Upload failed: ${error.message}`;
+    } finally {
+      (uploadDemoBtn as HTMLButtonElement).disabled = false;
+      fileInput.value = ''; // Reset the file input
+    }
+  });
+
   const premiumLogoutBtn = document.getElementById('premium-logout-btn');
   premiumLogoutBtn?.addEventListener('click', (e) => {
     e.preventDefault();
