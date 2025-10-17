@@ -1319,6 +1319,23 @@ export function setupPremiumAnalysisView() {
     buttonElement?.classList.add('bg-gray-100', 'font-semibold')
   }
 
+  // --- Sales Data format chooser logic ---
+  const esbBtn = document.getElementById('premium-upload-esb-btn')
+  const mokaBtn = document.getElementById('premium-upload-moka-btn')
+  const formatButtons = [esbBtn, mokaBtn]
+
+  esbBtn?.addEventListener('click', () => {
+    selectedSalesFormat = 'ESB'
+    formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
+    esbBtn.classList.add('bg-indigo-100', 'border-indigo-500')
+  })
+
+  mokaBtn?.addEventListener('click', () => {
+    selectedSalesFormat = 'MOKA'
+    formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
+    mokaBtn.classList.add('bg-indigo-100', 'border-indigo-500')
+  })
+
   const showDashboard = () => {
     showContent(dashboardContent, dashboardBtn)
     if (!dashboardContent.hasAttribute('data-loaded')) {
@@ -1673,53 +1690,14 @@ export function setupPremiumAnalysisView() {
 
   const openUploadModal = () => {
     if (uploadModal && uploadModalContent) {
+      // Reset button highlights every time the modal opens
+      document.querySelectorAll('.upload-format-btn').forEach((btn) => btn.classList.remove('bg-indigo-100', 'border-indigo-500'))
+
       uploadModal.classList.remove('hidden')
       setTimeout(() => { // Allow the display property to apply before starting animation
         uploadModal.classList.remove('opacity-0')
         uploadModalContent.classList.remove('scale-95', 'opacity-0')
       }, 10)
-
-      const salesDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-sales-data-input"]') as HTMLLabelElement
-      const pnlDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-pnl-data-input"]') as HTMLLabelElement
-      const esbBtn = document.getElementById('premium-upload-esb-btn')
-      const mokaBtn = document.getElementById('premium-upload-moka-btn')
-      const formatButtons = [esbBtn, mokaBtn];
-      
-      // Reset UI state every time modal is opened
-      salesDataUploadZone?.classList.add('hidden');
-      pnlDataUploadZone?.classList.remove('hidden');
-      pnlDataUploadZone?.classList.add('flex');
-      formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
-      
-      const esbBtnClickHandler = () => {
-        selectedSalesFormat = 'ESB';
-        formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
-        esbBtn?.classList.add('bg-indigo-100', 'border-indigo-500');
-        salesDataUploadZone?.classList.remove('hidden');
-        salesDataUploadZone?.classList.add('flex');
-        // --- FIX: Hide the other upload zone ---
-        pnlDataUploadZone?.classList.add('hidden');
-        pnlDataUploadZone?.classList.remove('flex');
-      };
-
-      const mokaBtnClickHandler = () => {
-        selectedSalesFormat = 'MOKA';
-        formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
-        mokaBtn?.classList.add('bg-indigo-100', 'border-indigo-500');
-        salesDataUploadZone?.classList.remove('hidden');
-        salesDataUploadZone?.classList.add('flex');
-        // --- FIX: Hide the other upload zone ---
-        pnlDataUploadZone?.classList.add('hidden');
-        pnlDataUploadZone?.classList.remove('flex');
-      };
-      
-      // We must remove old listeners before adding new ones to prevent memory leaks
-      esbBtn?.removeEventListener('click', esbBtnClickHandler);
-      mokaBtn?.removeEventListener('click', mokaBtnClickHandler);
-
-      // Add fresh listeners
-      esbBtn?.addEventListener('click', esbBtnClickHandler);
-      mokaBtn?.addEventListener('click', mokaBtnClickHandler);
     }
   }
 
