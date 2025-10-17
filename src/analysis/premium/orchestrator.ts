@@ -135,6 +135,12 @@ function generatePremiumAnalysis() {
     const heatmap = document.getElementById('premium-heatmap-container')
     if (heatmap) heatmap.innerHTML = '<div class="h-full bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">No Data Available</span></div>'
     createChart('premium-omzet-by-outlet-chart', 'bar', { labels: [], datasets: [] })
+
+    // Update the period display text for the "no data" case
+    const periodDisplay = document.getElementById('premium-dashboard-period-display')
+    if (periodDisplay) {
+      periodDisplay.textContent = 'No data available for the selected branch.'
+    }
     return
   }
 
@@ -174,6 +180,24 @@ function generatePremiumAnalysis() {
     comparisonSummaries = branchData.filter((summary) =>
       summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
     )
+  }
+
+  const periodDisplay = document.getElementById('premium-dashboard-period-display')
+  if (periodDisplay) {
+    if (primarySummaries.length > 0) {
+      const primaryDate = primarySummaries[0].date
+      const primaryPeriodStr = primaryDate.toLocaleString('default', { month: 'long', year: 'numeric' })
+
+      if (comparisonSummaries.length > 0) {
+        const comparisonDate = comparisonSummaries[0].date
+        const comparisonPeriodStr = comparisonDate.toLocaleString('default', { month: 'long', year: 'numeric' })
+        periodDisplay.textContent = `Showing ${primaryPeriodStr} Data, Comparing to ${comparisonPeriodStr} Data`
+      } else {
+        periodDisplay.textContent = `Showing ${primaryPeriodStr} Data (No comparison data available)`
+      }
+    } else {
+      periodDisplay.textContent = 'No data available for the selected period.'
+    }
   }
 
   // 3. Define element IDs and update the UI with the determined data.
@@ -847,7 +871,7 @@ export function setupPremiumAnalysisView() {
           hiddenChannels: selectedChannels,
         }, { merge: true })
 
-        await loadGlobalConfig();
+        await loadGlobalConfig()
 
         feedbackEl.className = 'p-4 text-sm rounded-md bg-green-100 text-green-800'
         feedbackEl.textContent = 'Exclusion settings saved successfully!'
