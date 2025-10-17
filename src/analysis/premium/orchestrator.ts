@@ -629,6 +629,7 @@ export function setupPremiumAnalysisView() {
   let hasLoadedGlobalTargets = false
   let hasInitializedExclusions = false
   let hasInitializedPdfPage = false
+  let selectedSalesFormat: 'ESB' | 'MOKA' | null = null
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
   let currentReportDataForAI: object | null = null
@@ -1677,6 +1678,48 @@ export function setupPremiumAnalysisView() {
         uploadModal.classList.remove('opacity-0')
         uploadModalContent.classList.remove('scale-95', 'opacity-0')
       }, 10)
+
+      const salesDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-sales-data-input"]') as HTMLLabelElement
+      const pnlDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-pnl-data-input"]') as HTMLLabelElement
+      const esbBtn = document.getElementById('premium-upload-esb-btn')
+      const mokaBtn = document.getElementById('premium-upload-moka-btn')
+      const formatButtons = [esbBtn, mokaBtn];
+      
+      // Reset UI state every time modal is opened
+      salesDataUploadZone?.classList.add('hidden');
+      pnlDataUploadZone?.classList.remove('hidden');
+      pnlDataUploadZone?.classList.add('flex');
+      formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
+      
+      const esbBtnClickHandler = () => {
+        selectedSalesFormat = 'ESB';
+        formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
+        esbBtn?.classList.add('bg-indigo-100', 'border-indigo-500');
+        salesDataUploadZone?.classList.remove('hidden');
+        salesDataUploadZone?.classList.add('flex');
+        // --- FIX: Hide the other upload zone ---
+        pnlDataUploadZone?.classList.add('hidden');
+        pnlDataUploadZone?.classList.remove('flex');
+      };
+
+      const mokaBtnClickHandler = () => {
+        selectedSalesFormat = 'MOKA';
+        formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
+        mokaBtn?.classList.add('bg-indigo-100', 'border-indigo-500');
+        salesDataUploadZone?.classList.remove('hidden');
+        salesDataUploadZone?.classList.add('flex');
+        // --- FIX: Hide the other upload zone ---
+        pnlDataUploadZone?.classList.add('hidden');
+        pnlDataUploadZone?.classList.remove('flex');
+      };
+      
+      // We must remove old listeners before adding new ones to prevent memory leaks
+      esbBtn?.removeEventListener('click', esbBtnClickHandler);
+      mokaBtn?.removeEventListener('click', mokaBtnClickHandler);
+
+      // Add fresh listeners
+      esbBtn?.addEventListener('click', esbBtnClickHandler);
+      mokaBtn?.addEventListener('click', mokaBtnClickHandler);
     }
   }
 
@@ -1698,23 +1741,6 @@ export function setupPremiumAnalysisView() {
   downloadSalesTargetBtn?.addEventListener('click', downloadSalesTargetTemplate)
   downloadPnlDataBtn?.addEventListener('click', downloadPnlTemplate)
   downloadPnlTargetBtn?.addEventListener('click', downloadPnlTargetTemplate)
-
-  // Sales Data format chooser logic
-  const salesDataUploadZone = uploadModal?.querySelector('label[for="premium-upload-sales-data-input"]') as HTMLLabelElement
-  const esbBtn = document.getElementById('premium-upload-esb-btn')
-  const mokaBtn = document.getElementById('premium-upload-moka-btn')
-  const formatButtons = [esbBtn, mokaBtn]
-  let selectedSalesFormat: 'ESB' | 'MOKA' | null = null
-
-  formatButtons.forEach((button) => {
-    button?.addEventListener('click', () => {
-      selectedSalesFormat = button.getAttribute('data-format') as 'ESB' | 'MOKA'
-      formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
-      button.classList.add('bg-indigo-100', 'border-indigo-500')
-      salesDataUploadZone?.classList.remove('hidden')
-      salesDataUploadZone?.classList.add('flex')
-    })
-  })
 
   // Helper to handle all file uploads
   const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'pnlData') => {
