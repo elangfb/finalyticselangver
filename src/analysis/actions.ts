@@ -71,10 +71,28 @@ export async function viewCompiledAnalysis(targetView: 'analysis' | 'premium-ana
     const validSummaries = allSummaries.filter((s) => s.date instanceof Date && !isNaN(s.date.getTime()))
 
     if (validSummaries.length === 0) {
-      alert('No summarized data found. Please upload a file first.')
-      hideLoading()
-      return
+    // --- FIX STARTS HERE ---
+    // If the user has the 'hasUploadedData' flag but no summaries were found (i.e., they deleted them),
+    // fall back to loading the demo data instead of showing an empty screen.
+    console.warn("User has uploaded data before but none was found. Falling back to demo data.");
+    showLoading({ message: 'Loading Demo Data...', value: 30 });
+    try {
+        const demoQuery = query(collection(db, 'demoTemplate/salesData/dailySummaries'));
+        const querySnapshot = await getDocs(demoQuery);
+        const demoSummaries = querySnapshot.docs.map((doc) => ({ ...doc.data(), date: new Date(doc.data().date) }));
+
+        $store.setAllSalesData(demoSummaries);
+        hideLoading();
+        showView(targetView);
+        return; // Exit here after successfully loading demo data
+    } catch (error) {
+        console.error('Failed to load demo data as a fallback:', error);
+        alert('No user data is available, and the demo data could not be loaded. Please contact support.');
+        hideLoading();
+        return;
     }
+    // --- FIX ENDS HERE ---
+}
 
     validSummaries.sort((a, b) => a.date.getTime() - b.date.getTime())
 
