@@ -20,7 +20,7 @@ import { functions } from '@/core/firebase'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/core/firebase'
 import { currentUser } from '@/core/state'
-import { formatCurrency, formatNumber } from '@/utils/string'
+import { formatCurrency, formatNumber, shortenNumber } from '@/utils/string'
 import { createChart } from '@/analysis/helpers'
 import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency } from '@/analysis/utils/chart-formatters'
 import { generateOmzetHarianChartFromSummaries, generateOmzetMingguanChartFromSummaries } from '@/analysis/sections/general/sales/charts'
@@ -115,115 +115,289 @@ declare const SlimSelect: any
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
  */
-function generatePremiumAnalysis() {
-  const allSalesData: SalesSummary[] = $store.getAllSalesData()
-  const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
+// function generatePremiumAnalysis() {
+//   const allSalesData: SalesSummary[] = $store.getAllSalesData()
+//   const branchSelect = document.getElementById('premium-analysis-branch-select') as HTMLSelectElement
+//   const selectedBranch = branchSelect.value
+
+//   if (!selectedBranch) return
+
+//   const branchData = selectedBranch === 'ALL'
+//     ? allSalesData
+//     : allSalesData.filter((s) => s.branches.includes(selectedBranch))
+
+//   if (branchData.length === 0) {
+//     // If there is no data at all for this branch, clear the view and exit.
+//     // Calling the generators with empty arrays will reset the view.
+//     generateRingkasanFromSummaries([], [], { omzet: 'premium-total-omzet', check: 'premium-total-check', avgCheck: 'premium-avg-check', omzetGrowth: 'premium-omzet-growth', checkGrowth: 'premium-check-growth', avgCheckGrowth: 'premium-avg-check-growth' })
+//     createChart('premium-tc-apc-chart', 'line', { labels: [], datasets: [] })
+//     createChart('premium-omzet-chart', 'line', { labels: [], datasets: [] })
+//     const heatmap = document.getElementById('premium-heatmap-container')
+//     if (heatmap) heatmap.innerHTML = '<div class="h-full bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">No Data Available</span></div>'
+//     createChart('premium-omzet-by-outlet-chart', 'bar', { labels: [], datasets: [] })
+
+//     // Update the period display text for the "no data" case
+//     const periodDisplay = document.getElementById('premium-dashboard-period-display')
+//     if (periodDisplay) {
+//       periodDisplay.textContent = 'No data available for the selected branch.'
+//     }
+//     return
+//   }
+
+//   let primarySummaries: SalesSummary[] = []
+//   let comparisonSummaries: SalesSummary[] = []
+
+//   // 1. First, try to get data for the previous full month.
+//   const now = new Date()
+//   const prevMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+//   const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+
+//   primarySummaries = branchData.filter((summary) =>
+//     summary.date.getFullYear() === prevMonthYear && summary.date.getMonth() === prevMonth,
+//   )
+
+//   // 2. If no data exists for the previous month, fall back to the latest month with data.
+//   if (primarySummaries.length > 0) {
+//     // Data found for last month. The comparison period is the month before that.
+//     const comparisonMonthYear = prevMonth === 0 ? prevMonthYear - 1 : prevMonthYear
+//     const comparisonMonth = prevMonth === 0 ? 11 : prevMonth - 1
+//     comparisonSummaries = branchData.filter((summary) =>
+//       summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
+//     )
+//   } else {
+//     // Fallback logic: Find the most recent month that has data.
+//     const latestDate = branchData.reduce((max, s) => s.date > max ? s.date : max, branchData[0].date)
+//     const latestMonthYear = latestDate.getFullYear()
+//     const latestMonth = latestDate.getMonth()
+
+//     primarySummaries = branchData.filter((summary) =>
+//       summary.date.getFullYear() === latestMonthYear && summary.date.getMonth() === latestMonth,
+//     )
+
+//     // The comparison for the latest month is the month immediately preceding it.
+//     const comparisonMonthYear = latestMonth === 0 ? latestMonthYear - 1 : latestMonthYear
+//     const comparisonMonth = latestMonth === 0 ? 11 : latestMonth - 1
+//     comparisonSummaries = branchData.filter((summary) =>
+//       summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
+//     )
+//   }
+
+//   const periodDisplay = document.getElementById('premium-dashboard-period-display')
+//   if (periodDisplay) {
+//     if (primarySummaries.length > 0) {
+//       const primaryDate = primarySummaries[0].date
+//       const primaryPeriodStr = primaryDate.toLocaleString('default', { month: 'long', year: 'numeric' })
+
+//       if (comparisonSummaries.length > 0) {
+//         const comparisonDate = comparisonSummaries[0].date
+//         const comparisonPeriodStr = comparisonDate.toLocaleString('default', { month: 'long', year: 'numeric' })
+//         periodDisplay.textContent = `Showing ${primaryPeriodStr} Data, Comparing to ${comparisonPeriodStr} Data`
+//       } else {
+//         periodDisplay.textContent = `Showing ${primaryPeriodStr} Data (No comparison data available)`
+//       }
+//     } else {
+//       periodDisplay.textContent = 'No data available for the selected period.'
+//     }
+//   }
+
+//   // 3. Define element IDs and update the UI with the determined data.
+//   const premiumKpiIds = {
+//     omzet: 'premium-total-omzet',
+//     check: 'premium-total-check',
+//     avgCheck: 'premium-avg-check',
+//     omzetGrowth: 'premium-omzet-growth',
+//     checkGrowth: 'premium-check-growth',
+//     avgCheckGrowth: 'premium-avg-check-growth',
+//   }
+
+//   generateRingkasanFromSummaries(primarySummaries, comparisonSummaries, premiumKpiIds)
+
+//   if (primarySummaries.length > 0) {
+//     generateTcApcHarianChartFromSummaries(primarySummaries, 'premium-tc-apc-chart')
+//     generateOmzetHarianChartFromSummaries(primarySummaries, 'premium-omzet-chart')
+//     generateOmzetHeatmapFromSummaries(primarySummaries, 'premium-heatmap-container')
+
+//     if (selectedBranch === 'ALL') {
+//       document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.remove('hidden')
+//       generateOmzetByOutletChart(primarySummaries, 'premium-omzet-by-outlet-chart')
+//     } else {
+//       document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.add('hidden')
+//     }
+//   }
+// }
+
+/**
+ * Renders the overview dashboard KPIs, table, and chart based on the selected branch.
+ */
+function renderOverviewDashboard() {
+  console.log('Rendering the new Premium Overview Dashboard...')
+  const branchSelect = document.getElementById('overview-dashboard-branch-select') as HTMLSelectElement
   const selectedBranch = branchSelect.value
+  const allSalesData: SalesSummary[] = $store.getAllSalesData()
 
-  if (!selectedBranch) return
-
-  const branchData = selectedBranch === 'ALL'
+  // 1. Filter data based on selection
+  const filteredData = selectedBranch === 'ALL'
     ? allSalesData
     : allSalesData.filter((s) => s.branches.includes(selectedBranch))
 
-  if (branchData.length === 0) {
-    // If there is no data at all for this branch, clear the view and exit.
-    // Calling the generators with empty arrays will reset the view.
-    generateRingkasanFromSummaries([], [], { omzet: 'premium-total-omzet', check: 'premium-total-check', avgCheck: 'premium-avg-check', omzetGrowth: 'premium-omzet-growth', checkGrowth: 'premium-check-growth', avgCheckGrowth: 'premium-avg-check-growth' })
-    createChart('premium-tc-apc-chart', 'line', { labels: [], datasets: [] })
-    createChart('premium-omzet-chart', 'line', { labels: [], datasets: [] })
-    const heatmap = document.getElementById('premium-heatmap-container')
-    if (heatmap) heatmap.innerHTML = '<div class="h-full bg-gray-100 rounded flex items-center justify-center"><span class="text-gray-400">No Data Available</span></div>'
-    createChart('premium-omzet-by-outlet-chart', 'bar', { labels: [], datasets: [] })
+  // 2. Calculate and render KPI Cards
+  const allTimeTotals = filteredData.reduce((acc, summary) => {
+    acc.omzet += summary.totalOmzet
+    acc.checks += summary.totalTransactions
+    return acc
+  }, { omzet: 0, checks: 0 })
 
-    // Update the period display text for the "no data" case
-    const periodDisplay = document.getElementById('premium-dashboard-period-display')
-    if (periodDisplay) {
-      periodDisplay.textContent = 'No data available for the selected branch.'
-    }
-    return
-  }
+  const allTimeAvgCheck = allTimeTotals.checks > 0 ? allTimeTotals.omzet / allTimeTotals.checks : 0;
 
-  let primarySummaries: SalesSummary[] = []
-  let comparisonSummaries: SalesSummary[] = []
+  (document.getElementById('all-time-omzet') as HTMLElement).textContent = formatCurrency(allTimeTotals.omzet);
+  (document.getElementById('all-time-check') as HTMLElement).textContent = formatNumber(allTimeTotals.checks);
+  (document.getElementById('all-time-avg-check') as HTMLElement).textContent = formatCurrency(allTimeAvgCheck)
 
-  // 1. First, try to get data for the previous full month.
-  const now = new Date()
-  const prevMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
-  const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+  // 3. Aggregate data and render the Period Table
+  const dataByPeriod: Record<string, { omzet: number, checks: number, branch: string }> = {}
+  for (const summary of filteredData) {
+    const period = summary.date.toISOString().slice(0, 7) // YYYY-MM
+    for (const branch of summary.branches) {
+      // If a specific branch is selected, only aggregate for that branch
+      if (selectedBranch !== 'ALL' && branch !== selectedBranch) continue
 
-  primarySummaries = branchData.filter((summary) =>
-    summary.date.getFullYear() === prevMonthYear && summary.date.getMonth() === prevMonth,
-  )
-
-  // 2. If no data exists for the previous month, fall back to the latest month with data.
-  if (primarySummaries.length > 0) {
-    // Data found for last month. The comparison period is the month before that.
-    const comparisonMonthYear = prevMonth === 0 ? prevMonthYear - 1 : prevMonthYear
-    const comparisonMonth = prevMonth === 0 ? 11 : prevMonth - 1
-    comparisonSummaries = branchData.filter((summary) =>
-      summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
-    )
-  } else {
-    // Fallback logic: Find the most recent month that has data.
-    const latestDate = branchData.reduce((max, s) => s.date > max ? s.date : max, branchData[0].date)
-    const latestMonthYear = latestDate.getFullYear()
-    const latestMonth = latestDate.getMonth()
-
-    primarySummaries = branchData.filter((summary) =>
-      summary.date.getFullYear() === latestMonthYear && summary.date.getMonth() === latestMonth,
-    )
-
-    // The comparison for the latest month is the month immediately preceding it.
-    const comparisonMonthYear = latestMonth === 0 ? latestMonthYear - 1 : latestMonthYear
-    const comparisonMonth = latestMonth === 0 ? 11 : latestMonth - 1
-    comparisonSummaries = branchData.filter((summary) =>
-      summary.date.getFullYear() === comparisonMonthYear && summary.date.getMonth() === comparisonMonth,
-    )
-  }
-
-  const periodDisplay = document.getElementById('premium-dashboard-period-display')
-  if (periodDisplay) {
-    if (primarySummaries.length > 0) {
-      const primaryDate = primarySummaries[0].date
-      const primaryPeriodStr = primaryDate.toLocaleString('default', { month: 'long', year: 'numeric' })
-
-      if (comparisonSummaries.length > 0) {
-        const comparisonDate = comparisonSummaries[0].date
-        const comparisonPeriodStr = comparisonDate.toLocaleString('default', { month: 'long', year: 'numeric' })
-        periodDisplay.textContent = `Showing ${primaryPeriodStr} Data, Comparing to ${comparisonPeriodStr} Data`
-      } else {
-        periodDisplay.textContent = `Showing ${primaryPeriodStr} Data (No comparison data available)`
+      const key = `${branch}|${period}`
+      if (!dataByPeriod[key]) {
+        dataByPeriod[key] = { omzet: 0, checks: 0, branch: branch }
       }
-    } else {
-      periodDisplay.textContent = 'No data available for the selected period.'
+      dataByPeriod[key].omzet += summary.totalOmzet
+      dataByPeriod[key].checks += summary.totalTransactions
     }
   }
 
-  // 3. Define element IDs and update the UI with the determined data.
-  const premiumKpiIds = {
-    omzet: 'premium-total-omzet',
-    check: 'premium-total-check',
-    avgCheck: 'premium-avg-check',
-    omzetGrowth: 'premium-omzet-growth',
-    checkGrowth: 'premium-check-growth',
-    avgCheckGrowth: 'premium-avg-check-growth',
+  const tableBody = document.getElementById('all-time-period-table-body')
+  if (tableBody) {
+    const sortedKeys = Object.keys(dataByPeriod).sort((a, b) => b.localeCompare(a)) // Sort descending by key (period)
+    tableBody.innerHTML = sortedKeys.map((key) => {
+      const item = dataByPeriod[key]
+      const periodDate = new Date(key.split('|')[1] + '-02')
+      const formattedPeriod = periodDate.toLocaleString('default', { month: 'long', year: 'numeric' })
+      const avgCheck = item.checks > 0 ? item.omzet / item.checks : 0
+      return `
+                <tr class="border-t">
+                    <td class="p-2 font-medium text-gray-800">${item.branch}</td>
+                    <td class="p-2 text-gray-600">${formattedPeriod}</td>
+                    <td class="p-2 text-right font-mono">${formatCurrency(item.omzet)}</td>
+                    <td class="p-2 text-right font-mono">${formatNumber(item.checks)}</td>
+                    <td class="p-2 text-right font-mono">${formatCurrency(avgCheck)}</td>
+                </tr>
+            `
+    }).join('')
   }
 
-  generateRingkasanFromSummaries(primarySummaries, comparisonSummaries, premiumKpiIds)
-
-  if (primarySummaries.length > 0) {
-    generateTcApcHarianChartFromSummaries(primarySummaries, 'premium-tc-apc-chart')
-    generateOmzetHarianChartFromSummaries(primarySummaries, 'premium-omzet-chart')
-    generateOmzetHeatmapFromSummaries(primarySummaries, 'premium-heatmap-container')
-
-    if (selectedBranch === 'ALL') {
-      document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.remove('hidden')
-      generateOmzetByOutletChart(primarySummaries, 'premium-omzet-by-outlet-chart')
-    } else {
-      document.getElementById('premium-omzet-by-outlet-chart')?.parentElement?.parentElement?.classList.add('hidden')
+  // 4. Aggregate data and render the Monthly Omzet Trend Chart
+  const monthlyData = filteredData.reduce((acc, summary) => {
+    const month = summary.date.toISOString().slice(0, 7) // YYYY-MM
+    if (!acc[month]) {
+      acc[month] = { omzet: 0, checks: 0 }
     }
-  }
+    acc[month].omzet += summary.totalOmzet
+    acc[month].checks += summary.totalTransactions
+    return acc
+  }, {} as Record<string, { omzet: number, checks: number }>)
+
+  const sortedMonths = Object.keys(monthlyData).sort()
+  const chartLabels = sortedMonths.map((m) => new Date(m + '-02').toLocaleString('default', { month: 'short', year: 'numeric' }))
+
+  const omzetData = sortedMonths.map((m) => monthlyData[m].omzet)
+  const checkData = sortedMonths.map((m) => monthlyData[m].checks)
+  const avgCheckData = sortedMonths.map((m) => {
+    const monthStats = monthlyData[m]
+    return monthStats.checks > 0 ? monthStats.omzet / monthStats.checks : 0
+  })
+
+  createChart('all-time-monthly-omzet-chart', 'bar', {
+    labels: chartLabels,
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Total Omzet',
+        data: omzetData,
+        backgroundColor: '#4f46e5',
+        yAxisID: 'y-omzet',
+        order: 3,
+      },
+      {
+        type: 'line',
+        label: 'Total Check',
+        data: checkData,
+        borderColor: '#F97316', // Orange
+        backgroundColor: '#F97316',
+        yAxisID: 'y-secondary',
+        order: 2,
+        tension: 0.1,
+      },
+      {
+        type: 'line',
+        label: 'Average Check',
+        data: avgCheckData,
+        borderColor: '#10B981', // Green
+        backgroundColor: '#10B981',
+        yAxisID: 'y-secondary',
+        order: 1,
+        tension: 0.1,
+      },
+    ],
+  }, mergeChartOptions(
+    {
+      scales: {
+        'y-omzet': {
+          type: 'linear',
+          position: 'left',
+          title: { display: true, text: 'Total Omzet (Rp)' },
+          ticks: { callback: (n: any) => shortenCurrency(n) },
+        },
+        'y-secondary': {
+          type: 'linear',
+          position: 'right',
+          title: { display: true, text: 'Count / Average (Rp)' },
+          grid: { drawOnChartArea: false }, // Hide grid lines for this axis
+          ticks: { callback: (n: any) => shortenNumber(n) },
+        },
+      },
+    },
+    chartTooltip({
+      label: (context: any) => {
+        let label = context.dataset.label || ''
+        if (label) {
+          label += ': '
+        }
+        const value = context.parsed.y
+        // Format as currency for Omzet and Average Check, as a number for Total Check
+        if (context.dataset.label === 'Total Check') {
+          label += formatNumber(value)
+        } else {
+          label += formatCurrency(value)
+        }
+        return label
+      },
+    }),
+  ))
+}
+
+/**
+ * Sets up the branch selector and initial rendering for the new overview dashboard.
+ */
+function setupPremiumOverviewDashboard() {
+  const branchSelect = document.getElementById('overview-dashboard-branch-select') as HTMLSelectElement
+  if (!branchSelect) return
+
+  const allSalesData: SalesSummary[] = $store.getAllSalesData()
+  const branches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
+
+  // Populate the selector
+  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + branches.map((b) => `<option value="${b}">${b}</option>`).join('')
+
+  // Add listener to re-render on change
+  branchSelect.addEventListener('change', renderOverviewDashboard)
+
+  // Initial render
+  renderOverviewDashboard()
 }
 
 async function generatePremiumGeneralFinance() {
@@ -1146,9 +1320,8 @@ export function setupPremiumAnalysisView() {
 
   const showDashboard = () => {
     showContent(dashboardContent, dashboardBtn)
-    // We only need to generate the main dashboard content if it hasn't been loaded yet.
     if (!dashboardContent.hasAttribute('data-loaded')) {
-      generatePremiumAnalysis()
+      setupPremiumOverviewDashboard() // Call the new dashboard setup function
       dashboardContent.setAttribute('data-loaded', 'true')
     }
   }
@@ -1566,11 +1739,6 @@ export function setupPremiumAnalysisView() {
 
   salesDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
   pnlDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
-
-  const allSalesData: SalesSummary[] = $store.getAllSalesData()
-  const dashboardBranches = [...new Set(allSalesData.flatMap((s) => s.branches))].sort()
-  branchSelect.innerHTML = `<option value="ALL">All Branches</option>` + dashboardBranches.map((b) => `<option value="${b}">${b}</option>`).join('')
-  branchSelect.addEventListener('change', generatePremiumAnalysis)
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
   loadGlobalConfig().then(() => {
