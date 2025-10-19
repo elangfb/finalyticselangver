@@ -611,12 +611,6 @@ export function setupPremiumAnalysisView() {
   const configurationBtn = document.getElementById('premium-goto-configuration-btn')
   const exportPdfNavBtn = document.getElementById('premium-goto-export-pdf-btn')
   const configBackBtn = document.getElementById('premium-config-back-btn')
-  const uploadBtn = document.getElementById('premium-manage-data-upload-btn')
-  const uploadModal = document.getElementById('premium-upload-modal')
-  const uploadModalCloseBtn = document.getElementById('premium-upload-modal-close')
-  const uploadModalContent = uploadModal?.querySelector('.bg-white')
-  const salesDataInput = document.getElementById('premium-upload-sales-data-input') as HTMLInputElement
-  const pnlDataInput = document.getElementById('premium-upload-pnl-data-input') as HTMLInputElement
   const downloadSalesTargetBtn = document.getElementById('premium-download-sales-target-btn')
   const downloadPnlDataBtn = document.getElementById('premium-download-pnl-data-btn')
   const downloadPnlTargetBtn = document.getElementById('premium-download-pnl-target-btn')
@@ -951,8 +945,6 @@ export function setupPremiumAnalysisView() {
     await generatePdfReportData()
     await refreshReport()
   }
-
-  // In src/analysis/premium/orchestrator.ts, inside setupPremiumAnalysisView()
 
   async function setupExclusionControls() {
     if (!currentUser) return
@@ -1300,6 +1292,30 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  // --- New Upload Section Logic ---
+  const esbBtnNew = document.getElementById('premium-upload-esb-btn-new');
+  const mokaBtnNew = document.getElementById('premium-upload-moka-btn-new');
+  const formatButtonsNew = [esbBtnNew, mokaBtnNew];
+
+  esbBtnNew?.addEventListener('click', () => {
+      selectedSalesFormat = 'ESB';
+      formatButtonsNew.forEach(btn => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
+      esbBtnNew.classList.add('bg-indigo-100', 'border-indigo-500');
+  });
+
+  mokaBtnNew?.addEventListener('click', () => {
+      selectedSalesFormat = 'MOKA';
+      formatButtonsNew.forEach(btn => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
+      mokaBtnNew.classList.add('bg-indigo-100', 'border-indigo-500');
+  });
+
+  // --- New File Input Listeners ---
+  const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement;
+  const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement;
+
+  salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'));
+  pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'));
+
   const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
   exportPdfActionBtn?.addEventListener('click', handleExportToPdf)
 
@@ -1318,23 +1334,6 @@ export function setupPremiumAnalysisView() {
     document.querySelectorAll('aside nav a').forEach((el) => el.classList.remove('bg-gray-100', 'font-semibold'))
     buttonElement?.classList.add('bg-gray-100', 'font-semibold')
   }
-
-  // --- Sales Data format chooser logic ---
-  const esbBtn = document.getElementById('premium-upload-esb-btn')
-  const mokaBtn = document.getElementById('premium-upload-moka-btn')
-  const formatButtons = [esbBtn, mokaBtn]
-
-  esbBtn?.addEventListener('click', () => {
-    selectedSalesFormat = 'ESB'
-    formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
-    esbBtn.classList.add('bg-indigo-100', 'border-indigo-500')
-  })
-
-  mokaBtn?.addEventListener('click', () => {
-    selectedSalesFormat = 'MOKA'
-    formatButtons.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
-    mokaBtn.classList.add('bg-indigo-100', 'border-indigo-500')
-  })
 
   const showDashboard = () => {
     showContent(dashboardContent, dashboardBtn)
@@ -1688,33 +1687,6 @@ export function setupPremiumAnalysisView() {
     }
   })
 
-  const openUploadModal = () => {
-    if (uploadModal && uploadModalContent) {
-      // Reset button highlights every time the modal opens
-      document.querySelectorAll('.upload-format-btn').forEach((btn) => btn.classList.remove('bg-indigo-100', 'border-indigo-500'))
-
-      uploadModal.classList.remove('hidden')
-      setTimeout(() => { // Allow the display property to apply before starting animation
-        uploadModal.classList.remove('opacity-0')
-        uploadModalContent.classList.remove('scale-95', 'opacity-0')
-      }, 10)
-    }
-  }
-
-  const closeUploadModal = () => {
-    if (uploadModal && uploadModalContent) {
-      uploadModal.classList.add('opacity-0')
-      uploadModalContent.classList.add('scale-95', 'opacity-0')
-      setTimeout(() => { // Wait for animation to finish before hiding
-        uploadModal.classList.add('hidden')
-      }, 300)
-    }
-  }
-
-  uploadBtn?.addEventListener('click', (e) => { e.preventDefault(); openUploadModal() })
-  uploadModalCloseBtn?.addEventListener('click', closeUploadModal)
-  uploadModal?.addEventListener('click', (e) => { if (e.target === uploadModal) closeUploadModal() })
-
   // Link download buttons to their respective functions
   downloadSalesTargetBtn?.addEventListener('click', downloadSalesTargetTemplate)
   downloadPnlDataBtn?.addEventListener('click', downloadPnlTemplate)
@@ -1723,7 +1695,6 @@ export function setupPremiumAnalysisView() {
   // Helper to handle all file uploads
   const handleFileUpload = async (file: File | undefined, type: 'salesData' | 'pnlData') => {
     if (!file) { alert('Please select a file.'); return }
-    closeUploadModal()
     try {
       switch (type) {
         case 'salesData':
@@ -1740,9 +1711,6 @@ export function setupPremiumAnalysisView() {
       console.error(`Error during ${type} upload:`, error)
     }
   }
-
-  salesDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
-  pnlDataInput?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
 
   $store.setInitFlag('premiumAnalysisInitialized', true)
   loadGlobalConfig().then(() => {
