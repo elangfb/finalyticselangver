@@ -1,8 +1,8 @@
-import * as z from 'zod';
-import { PositivePercentageRangeSchema, TimestampMetadataSchema, transformUndefinedToNull } from '../_common';
-import { FREE_PLAN, PaidPlanSchema } from '../_plan';
-import { DateTimeSchema } from '../datetime';
-import { createId } from '@paralleldrive/cuid2';
+import * as z from 'zod'
+import { PositivePercentageRangeSchema, TimestampMetadataSchema, transformUndefinedToNull } from '../_common'
+import { FREE_PLAN, PaidPlanSchema } from '../_plan'
+import { DateTimeSchema } from '../datetime'
+import { createId } from '@paralleldrive/cuid2'
 
 const BranchInvestmentSchema = z.object({
   investmentAmount: z.number()
@@ -21,34 +21,34 @@ const BranchInvestmentSchema = z.object({
 const CommonBaseBranchSchema = z.object({
   id: z.string().nonempty(),
   accountId: z.string().nonempty(),
-  
+
   branchName: z.string().nonempty(),
 
   investment: BranchInvestmentSchema
     .nullish()
-    .transform(v => v || BranchInvestmentSchema.parse({})),
-  
+    .transform((v) => v || BranchInvestmentSchema.parse({})),
+
   ...TimestampMetadataSchema.shape,
-});
+})
 
 /**
  * [@]: `/branches/{branchId}`
  */
 export const BranchSchema = z.discriminatedUnion('planType', [
-    z.object({
-        planType: z.literal(FREE_PLAN),
-        currentSubscriptionId: z.null().catch(null),
-        ...CommonBaseBranchSchema.shape,
-    }),
-    z.object({
-        planType: PaidPlanSchema,
-        currentSubscriptionId: z.string().nonempty(),
-        ...CommonBaseBranchSchema.shape,
-    }),
+  z.object({
+    planType: z.literal(FREE_PLAN),
+    currentSubscriptionId: z.null().catch(null),
+    ...CommonBaseBranchSchema.shape,
+  }),
+  z.object({
+    planType: PaidPlanSchema,
+    currentSubscriptionId: z.string().nonempty(),
+    ...CommonBaseBranchSchema.shape,
+  }),
 ])
 
-export type LooseBranch = z.input<typeof BranchSchema>;
-export type Branch = z.output<typeof BranchSchema>;
+export type LooseBranch = z.input<typeof BranchSchema>
+export type Branch = z.output<typeof BranchSchema>
 
 /**
  * [@]: `/memberships/{membershipId}`
@@ -58,10 +58,10 @@ export const BranchMembershipSchema = z.object({
   branchId: z.string().nonempty(),
 
   ...TimestampMetadataSchema.shape,
-});
+})
 
-export type LooseBranchMembership = z.input<typeof BranchMembershipSchema>;
-export type BranchMembership = z.output<typeof BranchMembershipSchema>;
+export type LooseBranchMembership = z.input<typeof BranchMembershipSchema>
+export type BranchMembership = z.output<typeof BranchMembershipSchema>
 
 export const MemberInvitationParamsSchema = z.object({
   branchId: z.string().nonempty(),
@@ -69,7 +69,7 @@ export const MemberInvitationParamsSchema = z.object({
 
 /**
  * Generate invitation ID and code.
- * 
+ *
  * Invitation code format: `<branchId>.<invitationId>`.
  * Invitation ID format: `<cuid2>`.
  * We generate invitation ID because its get included in code itself.
@@ -95,14 +95,14 @@ export const BranchMembershipInvitationSchema = z.object({
 
   email: z.email(),
   code: z.string().nonempty(),
-  
+
   expiresAt: DateTimeSchema,
   acceptedAt: DateTimeSchema.optional(),
   canceledAt: DateTimeSchema.optional(),
   canceledBy: z.string().optional(),
 
   ...TimestampMetadataSchema.shape,
-});
+})
 
-export type LooseBranchMembershipInvitation = z.input<typeof BranchMembershipInvitationSchema>;
-export type BranchMembershipInvitation = z.output<typeof BranchMembershipInvitationSchema>;
+export type LooseBranchMembershipInvitation = z.input<typeof BranchMembershipInvitationSchema>
+export type BranchMembershipInvitation = z.output<typeof BranchMembershipInvitationSchema>

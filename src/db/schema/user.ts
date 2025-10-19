@@ -1,5 +1,5 @@
-import * as z from 'zod';
-import { TimestampMetadataSchema } from './_common';
+import * as z from 'zod'
+import { TimestampMetadataSchema } from './_common'
 
 const UserRoleSchema = z.enum(['user', 'admin'])
 
@@ -17,10 +17,10 @@ export const UserSchema = z.object({
   role: UserRoleSchema.nullish(),
   roles: z.array(UserRoleSchema).nullish(),
 
-  hasUploadedData: z.boolean().nullish().transform(v => v || false),
+  hasUploadedData: z.boolean().nullish().transform((v) => v || false),
 
   ...TimestampMetadataSchema.shape,
-}).transform(user => {
+}).transform((user) => {
   const { id, roles, ...remaining } = user
 
   return {
@@ -29,7 +29,7 @@ export const UserSchema = z.object({
     role: user.role || roles?.[0] || 'user',
     fullName: user.fullName || user.email.split('@')[0],
   }
-});
+})
 
-export type LooseUser = z.input<typeof UserSchema>;
-export type User = z.output<typeof UserSchema>;
+export type LooseUser = z.input<typeof UserSchema>
+export type User = z.output<typeof UserSchema>

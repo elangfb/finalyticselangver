@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import * as z from 'zod'
 
 export const FREE_PLAN = 'free' as const
 export const STANDARD_PLAN = 'standard' as const

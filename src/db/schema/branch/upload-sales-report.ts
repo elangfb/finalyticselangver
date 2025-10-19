@@ -1,8 +1,8 @@
-import * as z from 'zod';
-import { bigintToUint8Array, TimestampMetadataSchema, YearMonthSchema } from '../_common';
-import { DateTimeSchema } from '../datetime';
-import { xxh3 } from '@node-rs/xxhash';
-import { Base64 } from 'js-base64';
+import * as z from 'zod'
+import { bigintToUint8Array, TimestampMetadataSchema, YearMonthSchema } from '../_common'
+import { DateTimeSchema } from '../datetime'
+import { xxh3 } from '@node-rs/xxhash'
+import { Base64 } from 'js-base64'
 
 const UploadSalesSourceFormatSchema = z.enum(['ESB', 'MOKA'])
 const UploadRawJsonFilePathSchema = z.string().startsWith('raw_json/')
@@ -27,11 +27,11 @@ export const BranchUploadSalesReportSchema = z.object({
     sizeInBytes: z.number().positive().nullish().default(null),
     format: UploadSalesSourceFormatSchema,
   }),
-  
+
   rawJsonFilePath: UploadRawJsonFilePathSchema.nullable(),
   status: UploadStatusSchema,
 
-  duplicateCount: z.int().positive().nullish().transform(v => v || 0),
+  duplicateCount: z.int().positive().nullish().transform((v) => v || 0),
   newRowsAdded: z.int().positive().nullish(),
   newRowsCount: z.int().positive().nullish(),
 
@@ -81,10 +81,10 @@ export const BranchUploadSalesReportSchema = z.object({
     createdAt: report.createdAt || uploadedAt || new Date(),
     createdBy: report.createdBy || uploadedBy || null,
   }
-});
+})
 
-export type LooseBranchUploadSalesReport = z.input<typeof BranchUploadSalesReportSchema>;
-export type BranchUploadSalesReport = z.output<typeof BranchUploadSalesReportSchema>;
+export type LooseBranchUploadSalesReport = z.input<typeof BranchUploadSalesReportSchema>
+export type BranchUploadSalesReport = z.output<typeof BranchUploadSalesReportSchema>
 
 export const BranchSalesDailySummaryIdSchema = z.iso.date()
 
@@ -136,14 +136,14 @@ export const BranchSalesDailySummarySchema = z.object({
   })),
 
   processedRowIds: z.array(z.string()).nullish(),
-}).transform(summary => {
+}).transform((summary) => {
   const { processedRowIds, ...remaining } = summary
 
   return remaining
-});
+})
 
-export type LooseBranchSalesDailySummary = z.input<typeof BranchSalesDailySummarySchema>;
-export type BranchSalesDailySummary = z.output<typeof BranchSalesDailySummarySchema>;
+export type LooseBranchSalesDailySummary = z.input<typeof BranchSalesDailySummarySchema>
+export type BranchSalesDailySummary = z.output<typeof BranchSalesDailySummarySchema>
 
 export const BranchSalesProcessedRowIdParamsSchema = z.object({
   BranchName: z.string().nonempty(),
@@ -155,7 +155,7 @@ export const BranchSalesProcessedRowIdParamsSchema = z.object({
 /**
  * Generate deterministic row ID based on given params.
  * Same params will generate same row ID for deduplication.
- * 
+ *
  * Params will be joined into a string,
  * hashed using XXH3 128-bit,
  * and returned in hex string.
@@ -180,7 +180,7 @@ export const BranchSalesProcessedRowSchema = z.object({
   date: z.iso.date(),
 
   ...TimestampMetadataSchema.shape,
-});
+})
 
-export type LooseBranchSalesProcessedRow = z.input<typeof BranchSalesProcessedRowSchema>;
-export type BranchSalesProcessedRow = z.output<typeof BranchSalesProcessedRowSchema>;
+export type LooseBranchSalesProcessedRow = z.input<typeof BranchSalesProcessedRowSchema>
+export type BranchSalesProcessedRow = z.output<typeof BranchSalesProcessedRowSchema>

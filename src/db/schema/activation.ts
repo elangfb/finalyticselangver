@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import { DateTimeSchema } from "./datetime"
+import { DateTimeSchema } from './datetime'
 import { FREE_PLAN, PLANS } from './_plan'
 import { transformNullToUndefined } from './_common'
 
@@ -46,7 +46,7 @@ export type CompatibleActivationMetadataInput = LooseActivationMetadata
 
 /**
  * Activation Document Schema
- * 
+ *
  * [@]: `/activations/{activationId}`
  */
 export const ActivationDocumentSchema = z.object({

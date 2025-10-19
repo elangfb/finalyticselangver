@@ -5,8 +5,8 @@ import {
   SnapshotOptions,
   WithFieldValue,
   PartialWithFieldValue,
-} from 'firebase/firestore';
-import * as z from 'zod';
+} from 'firebase/firestore'
+import * as z from 'zod'
 
 export type DataConverter<T> = FirestoreDataConverter<T>
 
@@ -17,21 +17,21 @@ export interface ZodConverterOptions {
   /**
    * Whether to validate data before writing to Firestore (default: true)
    */
-  validateOnWrite?: boolean;
-  
+  validateOnWrite?: boolean
+
   /**
    * Custom error handler for parsing errors
    */
-  onError?: (error: z.ZodError) => void;
+  onError?: (error: z.ZodError) => void
 }
 
 /**
  * Creates a Firestore converter from a Zod schema
- * 
+ *
  * @param schema - Zod schema to use for validation and type inference
  * @param options - Optional configuration for the converter
  * @returns A Firestore data converter
- * 
+ *
  * @example
  * ```typescript
  * const userSchema = z.object({
@@ -40,9 +40,9 @@ export interface ZodConverterOptions {
  *   age: z.number().positive(),
  *   createdAt: z.date(),
  * });
- * 
+ *
  * const userConverter = createZodFirestoreConverter(userSchema);
- * 
+ *
  * // Use with Firestore
  * const userRef = doc(db, 'users', 'user123').withConverter(userConverter);
  * const userData = await getDoc(userRef);
@@ -50,12 +50,12 @@ export interface ZodConverterOptions {
  */
 export function createZodFirestoreConverter<T extends z.ZodTypeAny>(
   schema: T,
-  options: ZodConverterOptions = {}
+  options: ZodConverterOptions = {},
 ): FirestoreDataConverter<z.infer<T>> {
   const {
     validateOnWrite = true,
     onError,
-  } = options;
+  } = options
 
   return {
     /**
@@ -63,29 +63,29 @@ export function createZodFirestoreConverter<T extends z.ZodTypeAny>(
      */
     toFirestore(
       modelObject: WithFieldValue<z.infer<T>> | PartialWithFieldValue<z.infer<T>>,
-      options?: { merge?: boolean }
+      options?: { merge?: boolean },
     ): DocumentData {
       // Validate before writing if enabled
       if (validateOnWrite) {
         try {
           // For partial updates, we skip validation
           if (!options?.merge) {
-            schema.parse(modelObject);
+            schema.parse(modelObject)
           }
         } catch (error) {
           if (error instanceof z.ZodError) {
             if (onError) {
-              onError(error);
+              onError(error)
             }
             throw new Error(
-              `Validation failed before writing to Firestore: ${error.message}`
-            );
+              `Validation failed before writing to Firestore: ${error.message}`,
+            )
           }
-          throw error;
+          throw error
         }
       }
 
-      return modelObject;
+      return modelObject
     },
 
     /**
@@ -93,24 +93,24 @@ export function createZodFirestoreConverter<T extends z.ZodTypeAny>(
      */
     fromFirestore(
       snapshot: QueryDocumentSnapshot,
-      options?: SnapshotOptions
+      options?: SnapshotOptions,
     ): z.infer<T> {
-      const data = snapshot.data(options);
+      const data = snapshot.data(options)
 
       try {
         // Parse and validate the data
-        return schema.parse(data);
+        return schema.parse(data)
       } catch (error) {
         if (error instanceof z.ZodError) {
           if (onError) {
-            onError(error);
+            onError(error)
           }
           throw new Error(
-            `Validation failed when reading from Firestore (doc: ${snapshot.id}): ${error.message}`
-          );
+            `Validation failed when reading from Firestore (doc: ${snapshot.id}): ${error.message}`,
+          )
         }
-        throw error;
+        throw error
       }
     },
-  };
+  }
 }
