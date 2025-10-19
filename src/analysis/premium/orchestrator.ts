@@ -1327,6 +1327,21 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  // --- Make "Browse File" Buttons Clickable ---
+  const salesBrowseBtn = document.getElementById('sales-data-browse-btn');
+  const salesUploadInput = document.getElementById('premium-upload-sales-data-input-new');
+
+  salesBrowseBtn?.addEventListener('click', () => {
+    (salesUploadInput as HTMLInputElement)?.click();
+  });
+
+  const pnlBrowseBtn = document.getElementById('pnl-data-browse-btn');
+  const pnlUploadInput = document.getElementById('premium-upload-pnl-data-input-new');
+
+  pnlBrowseBtn?.addEventListener('click', () => {
+    (pnlUploadInput as HTMLInputElement)?.click();
+  });
+
   // --- View Switching Logic ---
   const showContent = (contentElement: HTMLElement | null, buttonElement: HTMLElement | null) => {
     allMainContent.forEach((el) => el.classList.add('hidden'))
