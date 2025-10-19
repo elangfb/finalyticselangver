@@ -1,4 +1,4 @@
-import { collectionPath, createPaths, staticDocumentPath } from './_path_builder'
+import { collectionPath, createPaths, staticDocumentPath } from './_path-builder'
 
 import {
   AccountSchema,
@@ -24,13 +24,13 @@ import {
  * `paths.admin.config().path`
  *
  * Example 2: Get path for Account collections
- * `paths.accounts.collectionsPath`
+ * `paths.accounts.collectionPath`
  *
  * Example 3: Get path for Account document with ID 1
  * `paths.accounts(1).path`
  *
  * Example 4: Get path for Account Subscription collections
- * `paths.accounts(1).subscriptions.collectionsPath`
+ * `paths.accounts(1).subscriptions.collectionPath`
  *
  * Example 5: Get path for Account Subscription document with ID 2
  * `paths.accounts(1).subscriptions(2).path`
