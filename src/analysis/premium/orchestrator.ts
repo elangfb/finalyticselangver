@@ -43,7 +43,7 @@ import {
 // Add these imports at the top of src/analysis/premium/orchestrator.ts
 import { generateRingkasanFromSummaries } from '@/analysis/sections/general/sales/ringkasan'
 import { generateTcApcHarianChartFromSummaries } from '@/analysis/sections/general/sales/charts'
-import { generateOmzetHeatmapFromSummaries, generateSalesTrendHourlyDailyChartFromSummaries } from '@/analysis/sections/general/sales/heatmaps'
+import { generateOmzetHeatmapFromSummaries, generateSalesTrendHourlyDailyChartFromSummaries, generateDailyOmzetHeatmapFromSummaries } from '@/analysis/sections/general/sales/heatmaps'
 
 // Add this import to the top of src/analysis/premium/orchestrator.ts
 import { generateOmzetYearlyChart, generateOmzetQuarterlyChart, generateOmzetWeeklyChart } from './sales-charts'
@@ -1851,7 +1851,55 @@ async function generatePremiumGeneralSales() {
 
   // 3. Other Charts & Heatmaps
   generateTcApcHarianChartFromSummaries(filteredData, 'premium-sales-tc-apc-chart')
-  generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container')
+  
+  // --- START: DYNAMIC HEATMAP LOGIC ---
+  const heatmapContainer = document.getElementById('premium-sales-heatmap-container');
+  if (heatmapContainer) {
+    heatmapContainer.innerHTML = ''; // Clear previous content
+
+    switch (selectedRange) {
+      case 'weekly':
+        // For weekly view, show the detailed hour-by-day heatmap
+        generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
+        break;
+
+      case 'monthly':
+        // For monthly view, show a single calendar heatmap
+        generateDailyOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
+        break;
+      
+      case 'quarterly':
+      case 'yearly':
+        // For quarterly and yearly, group data by month and show multiple calendars
+        const dataByMonth = filteredData.reduce((acc, summary) => {
+          const monthKey = summary.date.toISOString().slice(0, 7); // YYYY-MM
+          if (!acc[monthKey]) {
+            acc[monthKey] = [];
+          }
+          acc[monthKey].push(summary);
+          return acc;
+        }, {} as Record<string, SalesSummary[]>);
+
+        // Add a grid wrapper to display calendars side-by-side
+        heatmapContainer.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4"></div>';
+        const gridWrapper = heatmapContainer.querySelector('div');
+
+        Object.keys(dataByMonth).sort().forEach((month, index) => {
+          const monthData = dataByMonth[month];
+          const monthContainerId = `heatmap-month-${index}`;
+          
+          const monthContainer = document.createElement('div');
+          monthContainer.id = monthContainerId;
+          gridWrapper?.appendChild(monthContainer);
+
+          // Render a calendar for each month into its own container
+          generateDailyOmzetHeatmapFromSummaries(monthData, monthContainerId);
+        });
+        break;
+    }
+  }
+  // --- END: DYNAMIC HEATMAP LOGIC ---
+  
   generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-hourly-heatmap-container')
   generateSalesTrendHourlyDailyChartFromSummaries(filteredData, 'premium-sales-trend-chart')
 }
