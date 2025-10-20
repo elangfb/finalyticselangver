@@ -54,6 +54,7 @@ export async function fetchUserRoleAndSetupUI(user: User): Promise<void> {
 
   document.getElementById('user-management-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
   document.getElementById('konfigurasi-btn')?.classList.toggle('hidden', currentUserRole !== 'admin')
+  document.getElementById('premium-goto-user-management-btn')?.parentElement?.classList.toggle('hidden', currentUserRole !== 'admin')
 
   if (currentUserRole === 'admin') {
     loadGeminiConfig()
