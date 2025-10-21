@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-export type CompatibleDateTimeInput
+export type CrossCompatibleDateTimeInput
   = | Date
     | string
     | number // seconds or milliseconds Unix timestamps
@@ -23,7 +23,7 @@ const coerceNumberToMillis = (n: number) => {
   return Math.trunc(n / 1000) // µs/ns → ms (best-effort)
 }
 
-const FirestoreTimestampSchema = z.object({
+const FirestoreAdminTimestampSchema = z.object({
   seconds: z.number(),
   nanoseconds: z.number(),
 })
@@ -36,12 +36,12 @@ const FirestoreClientTimestampSchema = z.object({
 /**
  * Schema: accepts multiple timestamp shapes and outputs a JS Date.
  */
-export const DateTimeSchema = z
+export const CrossDateTimeSchema = z
   .union([
     z.date(),
     z.string(), // ISO string or numeric string
     z.number(), // seconds or milliseconds
-    FirestoreTimestampSchema,
+    FirestoreAdminTimestampSchema,
     FirestoreClientTimestampSchema,
   ])
   .transform<Date>((value) => {
@@ -90,8 +90,8 @@ export const DateTimeSchema = z
   )
 
 // Convenient helper if you prefer a function wrapper.
-export const parseDateTime = (input: CompatibleDateTimeInput) =>
-  DateTimeSchema.parse(input)
+export const parseCrossDateTime = (input: CrossCompatibleDateTimeInput) =>
+  CrossDateTimeSchema.parse(input)
 
 // Example usage:
 // const d1 = parseDateTime("2025-10-16T10:00:00Z");
