@@ -1293,28 +1293,28 @@ export function setupPremiumAnalysisView() {
   }
 
   // --- New Upload Section Logic ---
-  const esbBtnNew = document.getElementById('premium-upload-esb-btn-new');
-  const mokaBtnNew = document.getElementById('premium-upload-moka-btn-new');
-  const formatButtonsNew = [esbBtnNew, mokaBtnNew];
+  const esbBtnNew = document.getElementById('premium-upload-esb-btn-new')
+  const mokaBtnNew = document.getElementById('premium-upload-moka-btn-new')
+  const formatButtonsNew = [esbBtnNew, mokaBtnNew]
 
   esbBtnNew?.addEventListener('click', () => {
-      selectedSalesFormat = 'ESB';
-      formatButtonsNew.forEach(btn => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
-      esbBtnNew.classList.add('bg-indigo-100', 'border-indigo-500');
-  });
+    selectedSalesFormat = 'ESB'
+    formatButtonsNew.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
+    esbBtnNew.classList.add('bg-indigo-100', 'border-indigo-500')
+  })
 
   mokaBtnNew?.addEventListener('click', () => {
-      selectedSalesFormat = 'MOKA';
-      formatButtonsNew.forEach(btn => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'));
-      mokaBtnNew.classList.add('bg-indigo-100', 'border-indigo-500');
-  });
+    selectedSalesFormat = 'MOKA'
+    formatButtonsNew.forEach((btn) => btn?.classList.remove('bg-indigo-100', 'border-indigo-500'))
+    mokaBtnNew.classList.add('bg-indigo-100', 'border-indigo-500')
+  })
 
   // --- New File Input Listeners ---
-  const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement;
-  const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement;
+  const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement
+  const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement
 
-  salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'));
-  pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'));
+  salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
+  pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
 
   const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
   exportPdfActionBtn?.addEventListener('click', handleExportToPdf)
@@ -1328,19 +1328,19 @@ export function setupPremiumAnalysisView() {
   }
 
   // --- Make "Browse File" Buttons Clickable ---
-  const salesBrowseBtn = document.getElementById('sales-data-browse-btn');
-  const salesUploadInput = document.getElementById('premium-upload-sales-data-input-new');
+  const salesBrowseBtn = document.getElementById('sales-data-browse-btn')
+  const salesUploadInput = document.getElementById('premium-upload-sales-data-input-new')
 
   salesBrowseBtn?.addEventListener('click', () => {
-    (salesUploadInput as HTMLInputElement)?.click();
-  });
+    (salesUploadInput as HTMLInputElement)?.click()
+  })
 
-  const pnlBrowseBtn = document.getElementById('pnl-data-browse-btn');
-  const pnlUploadInput = document.getElementById('premium-upload-pnl-data-input-new');
+  const pnlBrowseBtn = document.getElementById('pnl-data-browse-btn')
+  const pnlUploadInput = document.getElementById('premium-upload-pnl-data-input-new')
 
   pnlBrowseBtn?.addEventListener('click', () => {
-    (pnlUploadInput as HTMLInputElement)?.click();
-  });
+    (pnlUploadInput as HTMLInputElement)?.click()
+  })
 
   // --- View Switching Logic ---
   const showContent = (contentElement: HTMLElement | null, buttonElement: HTMLElement | null) => {
@@ -1731,6 +1731,132 @@ export function setupPremiumAnalysisView() {
   loadGlobalConfig().then(() => {
     showDashboard()
   })
+
+  // --- [JOB_9c] AI P&L UPLOAD WORKFLOW ---
+
+  const pnlUploadAiBtn = document.getElementById('pnl-upload-ai-btn')
+  const pnlFileInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement
+  const pnlMappingContent = document.getElementById('premium-pnl-mapping-content')
+
+  // Trigger the hidden file input when the main AI button is clicked
+  pnlUploadAiBtn?.addEventListener('click', () => {
+    pnlFileInputNew?.click()
+  })
+
+  // Main handler for when a file is selected
+  pnlFileInputNew?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+
+    showLoading({ message: 'Analyzing P&L file with AI...', value: 30 })
+
+    try {
+      const fileBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(fileBuffer)
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      if (!worksheet) throw new Error('Could not find any sheets in the Excel file.')
+
+      const csvText = XLSX.utils.sheet_to_csv(worksheet)
+
+      const standardCategories = `
+        - Pendapatan (Revenue)
+        - Harga Pokok Produksi
+        - Beban Operasional (OPEX) (Sub-categories: Wages, Rent, Utilities, etc.)
+        - Beban Non Operasional (Sub-categories: Advertising, etc.)
+        - Depresiasi/ Amortisasi
+        - Bunga
+        - Pajak (PB1)`
+
+      const prompt = `
+        You are an expert financial analyst for F&B businesses in Indonesia. Your task is to analyze the following raw CSV text from a user's Profit & Loss spreadsheet and map each line item to a standard P&L category.
+
+        STANDARD CATEGORIES:
+        You MUST map every relevant financial line item to one of these standard categories:
+        ${standardCategories}
+
+        USER'S SPREADSHEET DATA (in CSV format):
+        """
+        ${csvText}
+        """
+
+        INSTRUCTIONS:
+        1. Read the CSV data. Identify the business/branch name and the financial period (return as YYYY-MM format).
+        2. For each line item with a financial value, extract its exact original name and its numeric value.
+        3. Intelligently map each item to the most appropriate standard category and a logical sub-category name (e.g., "Gaji Karyawan" maps to category "Beban Operasional (OPEX)" and sub-category "Wages").
+        4. Return ONLY a single, valid JSON object.
+
+        The JSON object MUST follow this exact structure:
+        {
+          "branchName": "string",
+          "period": "YYYY-MM",
+          "mappedData": [
+            {
+              "originalItem": "string",
+              "value": number,
+              "mappedCategory": "string",
+              "mappedSubCategory": "string"
+            }
+          ]
+        }
+      `
+
+      const { summaryText } = await getGeminiAnalysis(prompt);
+
+      // --- FIX STARTS HERE ---
+      // The AI often wraps its JSON response in a markdown code block. We need to remove it.
+      const cleanedJsonString = summaryText.replace(/```json\n?|```/g, '').trim();
+      const aiData = JSON.parse(cleanedJsonString);
+      // --- FIX ENDS HERE ---
+
+      // --- Populate the Verification UI ---
+      if (!pnlMappingContent) throw new Error('P&L mapping screen not found.');
+
+      (document.getElementById('pnl-mapping-branch-name') as HTMLInputElement).value = aiData.branchName || 'Unknown';
+      (document.getElementById('pnl-mapping-period') as HTMLInputElement).value = aiData.period || 'Unknown'
+
+      const tableBody = document.getElementById('pnl-mapping-table-body')
+      if (tableBody) {
+        tableBody.innerHTML = '' // Clear placeholder rows
+
+        // Create dropdown options from our standard list
+        const categoryOptions = [
+          'Pendapatan (Revenue)', 'Harga Pokok Produksi', 'Beban Operasional (OPEX)',
+          'Beban Non Operasional', 'Depresiasi/ Amortisasi', 'Bunga', 'Pajak (PB1)',
+        ].map((cat) => `<option value="${cat}">${cat}</option>`).join('')
+
+        aiData.mappedData.forEach((item: any) => {
+          const row = document.createElement('tr')
+          row.innerHTML = `
+            <td class="px-4 py-2 whitespace-nowrap text-gray-700">${item.originalItem}</td>
+            <td class="px-4 py-2">
+              <input type="text" data-original-item="${item.originalItem}" value="${item.value.toLocaleString('id-ID')}" class="w-full text-right p-1 border rounded-md value-input">
+            </td>
+            <td class="px-4 py-2">
+              <select class="w-full p-1 border rounded-md category-select">
+                ${categoryOptions}
+              </select>
+            </td>
+          `
+          // Set the selected option in the dropdown
+          const select = row.querySelector('select') as HTMLSelectElement
+          if (select) {
+            select.value = item.mappedCategory
+          }
+          tableBody.appendChild(row)
+        })
+      }
+
+      // Switch to the verification view
+      manageDataContent?.classList.add('hidden')
+      pnlMappingContent.classList.remove('hidden')
+    } catch (error: any) {
+      console.error('AI P&L Analysis Failed:', error)
+      alert(`An error occurred during AI analysis: ${error.message}`)
+    } finally {
+      hideLoading()
+      pnlFileInputNew.value = '' // Reset file input
+    }
+  })
 }
 
 async function generatePremiumGeneralSales() {
@@ -1851,55 +1977,55 @@ async function generatePremiumGeneralSales() {
 
   // 3. Other Charts & Heatmaps
   generateTcApcHarianChartFromSummaries(filteredData, 'premium-sales-tc-apc-chart')
-  
+
   // --- START: DYNAMIC HEATMAP LOGIC ---
-  const heatmapContainer = document.getElementById('premium-sales-heatmap-container');
+  const heatmapContainer = document.getElementById('premium-sales-heatmap-container')
   if (heatmapContainer) {
-    heatmapContainer.innerHTML = ''; // Clear previous content
+    heatmapContainer.innerHTML = '' // Clear previous content
 
     switch (selectedRange) {
       case 'weekly':
         // For weekly view, show the detailed hour-by-day heatmap
-        generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
-        break;
+        generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container')
+        break
 
       case 'monthly':
         // For monthly view, show a single calendar heatmap
-        generateDailyOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container');
-        break;
-      
+        generateDailyOmzetHeatmapFromSummaries(filteredData, 'premium-sales-heatmap-container')
+        break
+
       case 'quarterly':
       case 'yearly':
         // For quarterly and yearly, group data by month and show multiple calendars
         const dataByMonth = filteredData.reduce((acc, summary) => {
-          const monthKey = summary.date.toISOString().slice(0, 7); // YYYY-MM
+          const monthKey = summary.date.toISOString().slice(0, 7) // YYYY-MM
           if (!acc[monthKey]) {
-            acc[monthKey] = [];
+            acc[monthKey] = []
           }
-          acc[monthKey].push(summary);
-          return acc;
-        }, {} as Record<string, SalesSummary[]>);
+          acc[monthKey].push(summary)
+          return acc
+        }, {} as Record<string, SalesSummary[]>)
 
         // Add a grid wrapper to display calendars side-by-side
-        heatmapContainer.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4"></div>';
-        const gridWrapper = heatmapContainer.querySelector('div');
+        heatmapContainer.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4"></div>'
+        const gridWrapper = heatmapContainer.querySelector('div')
 
         Object.keys(dataByMonth).sort().forEach((month, index) => {
-          const monthData = dataByMonth[month];
-          const monthContainerId = `heatmap-month-${index}`;
-          
-          const monthContainer = document.createElement('div');
-          monthContainer.id = monthContainerId;
-          gridWrapper?.appendChild(monthContainer);
+          const monthData = dataByMonth[month]
+          const monthContainerId = `heatmap-month-${index}`
+
+          const monthContainer = document.createElement('div')
+          monthContainer.id = monthContainerId
+          gridWrapper?.appendChild(monthContainer)
 
           // Render a calendar for each month into its own container
-          generateDailyOmzetHeatmapFromSummaries(monthData, monthContainerId);
-        });
-        break;
+          generateDailyOmzetHeatmapFromSummaries(monthData, monthContainerId)
+        })
+        break
     }
   }
   // --- END: DYNAMIC HEATMAP LOGIC ---
-  
+
   generateOmzetHeatmapFromSummaries(filteredData, 'premium-sales-hourly-heatmap-container')
   generateSalesTrendHourlyDailyChartFromSummaries(filteredData, 'premium-sales-trend-chart')
 }

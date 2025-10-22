@@ -607,10 +607,10 @@
         <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
             <h4 class="font-semibold text-gray-700 mb-4">Profit & Loss Data</h4>
             <div class="space-y-2">
-                <button id="premium-download-pnl-data-btn" class="w-full text-indigo-600 hover:bg-indigo-50 font-semibold py-2 px-3 rounded-md text-xs flex items-center justify-center gap-2 border border-indigo-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Download P&L Template
-                </button>
+                <button id="pnl-upload-ai-btn" class="w-full bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-teal-700 text-sm flex items-center justify-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V16a4 4 0 01-4 4H7z" /></svg>
+    Upload & Analyze with AI
+</button>
     <button id="pnl-data-browse-btn" class="w-full mt-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm">
         Browse File
     </button>
@@ -911,6 +911,84 @@
 </div>
     
 
+    </div>
+</main>
+
+<main id="premium-pnl-mapping-content" class="premium-analysis-content flex-1 space-y-6 hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <div class="flex items-center gap-2">
+                <button id="pnl-mapping-back-btn" class="text-gray-500 hover:text-gray-800">&larr;</button>
+                <h2 class="text-2xl font-bold text-gray-800">Verify Your P&L Data</h2>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Please review the AI's mapping and make any necessary corrections before saving.</p>
+        </div>
+        <div class="flex items-center gap-4 mt-4 sm:mt-0">
+            <button id="pnl-mapping-cancel-btn" class="border bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 text-sm">
+                Cancel
+            </button>
+            <button id="pnl-mapping-confirm-btn" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
+                Confirm & Save
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-white p-4 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="pnl-mapping-branch-name" class="block text-sm font-medium text-gray-700">Branch Name</label>
+                <input type="text" id="pnl-mapping-branch-name" class="mt-1 block w-full p-2 border rounded-md bg-gray-50" readonly value="Bagi Kopi Melong">
+            </div>
+            <div>
+                <label for="pnl-mapping-period" class="block text-sm font-medium text-gray-700">Period</label>
+                <input type="text" id="pnl-mapping-period" class="mt-1 block w-full p-2 border rounded-md bg-gray-50" readonly value="October 2025">
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider w-1/3">Original Item</th>
+                        <th scope="col" class="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wider w-1/4">Value (Rp)</th>
+                        <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider w-1/3">Mapped Category</th>
+                    </tr>
+                </thead>
+                <tbody id="pnl-mapping-table-body" class="bg-white divide-y divide-gray-200">
+                    <tr class="bg-gray-100"><td colspan="3" class="px-4 py-2 font-semibold text-gray-800">Pendapatan (Revenue)</td></tr>
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-gray-700">Penjualan Makanan</td>
+                        <td class="px-4 py-2"><input type="text" value="50,000,000" class="w-full text-right p-1 border rounded-md"></td>
+                        <td class="px-4 py-2">
+                            <select class="w-full p-1 border rounded-md">
+                                <option>Pendapatan (Revenue) > Penjualan Makanan</option>
+                                </select>
+                        </td>
+                    </tr>
+                    <tr class="bg-gray-100"><td colspan="3" class="px-4 py-2 font-semibold text-gray-800">Beban Operasional (OPEX)</td></tr>
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-gray-700">Gaji Karyawan</td>
+                        <td class="px-4 py-2"><input type="text" value="12,000,000" class="w-full text-right p-1 border rounded-md"></td>
+                        <td class="px-4 py-2">
+                            <select class="w-full p-1 border rounded-md">
+                                <option>Beban Operasional (OPEX) > Wages</option>
+                                </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-gray-700">Sewa Gedung</td>
+                        <td class="px-4 py-2"><input type="text" value="8,000,000" class="w-full text-right p-1 border rounded-md"></td>
+                        <td class="px-4 py-2">
+                            <select class="w-full p-1 border rounded-md">
+                                <option>Beban Operasional (OPEX) > Rent</option>
+                                </select>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </main>
 
