@@ -104,6 +104,8 @@ import { auth } from '@/core/firebase'
 import { ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/core/firebase'
 
+import { populateCompiledDataTable } from '@/data-hub/table';
+
 declare const marked: any
 declare const jspdf: any
 
@@ -1310,11 +1312,11 @@ export function setupPremiumAnalysisView() {
   })
 
   // --- New File Input Listeners ---
-  const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement
-  const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement
+  // const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement
+  // const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement
 
-  salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
-  pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
+  // salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
+  // pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
 
   const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
   exportPdfActionBtn?.addEventListener('click', handleExportToPdf)
@@ -1800,12 +1802,12 @@ export function setupPremiumAnalysisView() {
         }
       `
 
-      const { summaryText } = await getGeminiAnalysis(prompt);
+      const { summaryText } = await getGeminiAnalysis(prompt)
 
       // --- FIX STARTS HERE ---
       // The AI often wraps its JSON response in a markdown code block. We need to remove it.
-      const cleanedJsonString = summaryText.replace(/```json\n?|```/g, '').trim();
-      const aiData = JSON.parse(cleanedJsonString);
+      const cleanedJsonString = summaryText.replace(/```json\n?|```/g, '').trim()
+      const aiData = JSON.parse(cleanedJsonString)
       // --- FIX ENDS HERE ---
 
       // --- Populate the Verification UI ---
@@ -1855,6 +1857,64 @@ export function setupPremiumAnalysisView() {
     } finally {
       hideLoading()
       pnlFileInputNew.value = '' // Reset file input
+    }
+  })
+
+  // --- [Job_9e] P&L MAPPING SCREEN BUTTON LISTENERS ---
+
+  const confirmBtn = document.getElementById('pnl-mapping-confirm-btn')
+  const cancelBtn = document.getElementById('pnl-mapping-cancel-btn')
+  const backBtn = document.getElementById('pnl-mapping-back-btn')
+
+  const returnToManageData = () => {
+    pnlMappingContent?.classList.add('hidden')
+    manageDataContent?.classList.remove('hidden')
+    populateCompiledDataTable() // Refresh the table to show the new data
+  }
+
+  cancelBtn?.addEventListener('click', returnToManageData)
+  backBtn?.addEventListener('click', returnToManageData)
+
+  confirmBtn?.addEventListener('click', async () => {
+    if (!pnlMappingContent) return
+
+    showLoading({ message: 'Saving verified P&L data...' })
+
+    try {
+      const branchName = (document.getElementById('pnl-mapping-branch-name') as HTMLInputElement).value
+      const period = (document.getElementById('pnl-mapping-period') as HTMLInputElement).value
+      const tableRows = pnlMappingContent.querySelectorAll('#pnl-mapping-table-body tr')
+
+      const mappedData: any[] = []
+      tableRows.forEach((row) => {
+        const originalItemEl = row.querySelector('td:first-child')
+        const valueInput = row.querySelector('.value-input') as HTMLInputElement
+        const categorySelect = row.querySelector('.category-select') as HTMLSelectElement
+
+        if (originalItemEl && valueInput && categorySelect) {
+          // Parse the value, removing currency symbols and thousand separators
+          const numericValue = parseFloat(valueInput.value.replace(/[^0-9,-]+/g, '').replace(',', '.'))
+
+          mappedData.push({
+            originalItem: originalItemEl.textContent,
+            value: isNaN(numericValue) ? 0 : numericValue,
+            mappedCategory: categorySelect.value,
+            // For now, we use the original item name as the sub-category for simplicity
+            mappedSubCategory: originalItemEl.textContent?.trim() || 'Unknown',
+          })
+        }
+      })
+
+      const saveVerifiedPnlData = httpsCallable(functions, 'saveVerifiedPnlData')
+      await saveVerifiedPnlData({ branchName, period, mappedData })
+
+      alert('P&L Report saved successfully!')
+      returnToManageData()
+    } catch (error: any) {
+      console.error('Failed to save verified P&L data:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      hideLoading()
     }
   })
 }
