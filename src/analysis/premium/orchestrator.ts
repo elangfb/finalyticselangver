@@ -1,6 +1,6 @@
 // [NEW FILE] src/analysis/premium/orchestrator.ts
 
-import SlimSelect from 'slim-select';
+import SlimSelect from 'slim-select'
 
 import * as $store from '@/store'
 import { generateRingkasanFromSummaries } from '@/analysis/sections/general/sales/ringkasan'
@@ -24,7 +24,7 @@ import { db } from '@/core/firebase'
 import { currentUser } from '@/core/state'
 import { formatCurrency, formatNumber, shortenNumber } from '@/utils/string'
 import { createChart } from '@/analysis/helpers'
-import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency } from '@/analysis/utils/chart-formatters'
+import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency, chartYTicks } from '@/analysis/utils/chart-formatters';
 import { generateOmzetHarianChartFromSummaries, generateOmzetMingguanChartFromSummaries } from '@/analysis/sections/general/sales/charts'
 import { generateChannelDonutChart } from '@/analysis/sections/general/product-channel/index'
 
@@ -106,13 +106,12 @@ import { auth } from '@/core/firebase'
 import { ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/core/firebase'
 
-import { populateCompiledDataTable } from '@/data-hub/table';
+import { populateCompiledDataTable } from '@/data-hub/table'
 
-import { clearSummariesCache } from '@/services/localCacheService';
+import { clearSummariesCache } from '@/services/localCacheService'
 
-import { calculateAllPnlMetrics } from '@/analysis/utils/pnl';
-import { collection, query, where, getDocs } from 'firebase/firestore'; // Make sure these are imported
-
+import { calculateAllPnlMetrics } from '@/analysis/utils/pnl'
+import { collection, query, where, getDocs } from 'firebase/firestore' // Make sure these are imported
 
 declare const marked: any
 declare const jspdf: any
@@ -516,6 +515,214 @@ export function setupPremiumAnalysisView() {
     return
   }
 
+  function calculateFinancialProjection(inputs: {
+    startRevenue: number
+    fixedCosts: number
+    cashOnHand: number
+    arpu: number // Currently unused, but kept for potential future use
+    marketingSpend: number
+    growthTarget: number // Percentage, e.g., 5 for 5%
+    variableCostPercent: number // Percentage, e.g., 40 for 40%
+    duration: number // In months
+  }): {
+    monthlyProjections: { month: number, revenue: number, grossProfit: number, ebitda: number, endingCash: number }[]
+    runwayMonths: number | null
+    breakEvenMonth: number | null
+    avgGrossMargin: number
+  } {
+    const monthlyProjections: { month: number, revenue: number, grossProfit: number, ebitda: number, endingCash: number }[] = []
+    let currentRevenue = inputs.startRevenue
+    let currentCash = inputs.cashOnHand
+    let cumulativeEbitda = 0
+    let runwayMonths: number | null = null
+    let breakEvenMonth: number | null = null
+    let totalProjectedRevenue = 0
+    let totalProjectedVariableCosts = 0
+
+    // Month 0 (Starting Point - not added to table, but used for initial cash)
+    // We could potentially add starting values if needed, but the loop starts from month 1
+
+    for (let month = 1; month <= inputs.duration; month++) {
+      // Apply growth for month 1 onwards
+      if (month > 1) {
+        currentRevenue = currentRevenue * (1 + inputs.growthTarget / 100)
+      } else {
+        // For the very first month, use the startRevenue directly
+        currentRevenue = inputs.startRevenue
+      }
+
+      const variableCosts = currentRevenue * (inputs.variableCostPercent / 100)
+      const grossProfit = currentRevenue - variableCosts
+      const ebitda = grossProfit - inputs.fixedCosts - inputs.marketingSpend
+      const endingCash = currentCash + ebitda
+
+      monthlyProjections.push({
+        month,
+        revenue: currentRevenue,
+        grossProfit,
+        ebitda,
+        endingCash,
+      })
+
+      totalProjectedRevenue += currentRevenue
+      totalProjectedVariableCosts += variableCosts
+      cumulativeEbitda += ebitda
+
+      // Check for runway end
+      if (endingCash < 0 && runwayMonths === null) {
+        runwayMonths = month
+      }
+
+      // Check for break-even (cumulative profit turns positive)
+      // Using cumulative EBITDA as proxy for profit before interest/depreciation/tax
+      if (cumulativeEbitda > 0 && breakEvenMonth === null) {
+        breakEvenMonth = month
+      }
+
+      currentCash = endingCash // Update cash for the next month
+
+      // Stop projection if cash runs out completely and runway wasn't already set this month
+      // (Prevents negative cash balances from continuing indefinitely)
+      if (currentCash < 0 && runwayMonths === null) {
+        runwayMonths = month // Mark runway if cash just went negative
+        // break; // Optional: Stop simulation if cash runs out
+      } else if (currentCash < 0 && runwayMonths !== month) {
+        // If cash was already negative, we can stop
+        // break; // Optional: Stop simulation if cash runs out
+      }
+    }
+
+    const avgGrossMargin = totalProjectedRevenue > 0
+      ? ((totalProjectedRevenue - totalProjectedVariableCosts) / totalProjectedRevenue) * 100
+      : 0
+
+    return {
+      monthlyProjections,
+      runwayMonths,
+      breakEvenMonth,
+      avgGrossMargin,
+    }
+  }
+
+  async function setupPremiumProjectionView() {
+    console.log('Setting up Financial Projection View...')
+    const generateBtn = document.getElementById('projection-generate-btn')
+    const outputSection = document.getElementById('projection-output-section')
+
+    const inputElements = {
+      startRevenue: document.getElementById('proj-start-revenue') as HTMLInputElement,
+      fixedCosts: document.getElementById('proj-fixed-costs') as HTMLInputElement,
+      cashOnHand: document.getElementById('proj-cash-on-hand') as HTMLInputElement,
+      arpu: document.getElementById('proj-arpu') as HTMLInputElement,
+      marketingSpend: document.getElementById('proj-marketing-spend') as HTMLInputElement,
+      growthTarget: document.getElementById('proj-growth-target') as HTMLInputElement,
+      variableCostPercent: document.getElementById('proj-variable-cost') as HTMLInputElement,
+      duration: document.getElementById('proj-duration') as HTMLInputElement,
+    }
+
+    const outputElements = {
+      runway: document.getElementById('proj-runway') as HTMLElement,
+      breakEven: document.getElementById('proj-break-even') as HTMLElement,
+      grossMargin: document.getElementById('proj-gross-margin') as HTMLElement,
+      viability: document.getElementById('proj-viability') as HTMLElement,
+      tableBody: document.getElementById('projection-table-body') as HTMLElement,
+    }
+
+    generateBtn?.addEventListener('click', () => {
+      // --- 1. Read and Validate Inputs ---
+      const inputs = {
+        startRevenue: parseFloat(inputElements.startRevenue.value.replace(/[^0-9.-]+/g, '')) || 0,
+        fixedCosts: parseFloat(inputElements.fixedCosts.value.replace(/[^0-9.-]+/g, '')) || 0,
+        cashOnHand: parseFloat(inputElements.cashOnHand.value.replace(/[^0-9.-]+/g, '')) || 0,
+        arpu: parseFloat(inputElements.arpu.value.replace(/[^0-9.-]+/g, '')) || 0,
+        marketingSpend: parseFloat(inputElements.marketingSpend.value.replace(/[^0-9.-]+/g, '')) || 0,
+        growthTarget: parseFloat(inputElements.growthTarget.value) || 0,
+        variableCostPercent: parseFloat(inputElements.variableCostPercent.value) || 0,
+        duration: parseInt(inputElements.duration.value, 10) || 12,
+      }
+
+      // Basic validation
+      if (inputs.startRevenue <= 0 || inputs.duration <= 0) {
+        alert('Please enter a valid Starting Revenue and Projection Duration.')
+        return
+      }
+      if (inputs.variableCostPercent < 0 || inputs.variableCostPercent > 100) {
+        alert('Variable Cost % must be between 0 and 100.')
+        return
+      }
+      if (inputs.growthTarget < -50 || inputs.growthTarget > 100) { // Example reasonable bounds
+        alert('Monthly Growth Target % seems unusual. Please check the value (e.g., enter 5 for 5%).')
+        return
+      }
+
+      // --- 2. Calculate Projection ---
+      const results = calculateFinancialProjection(inputs)
+
+      // --- 3. Populate Output UI ---
+      outputElements.runway.textContent = results.runwayMonths ? `${results.runwayMonths} Months` : 'Cash Positive'
+      outputElements.breakEven.textContent = results.breakEvenMonth ? `${results.breakEvenMonth} Months` : 'Doesn\'t Break Even'
+      outputElements.grossMargin.textContent = `${results.avgGrossMargin.toFixed(1)} %`
+
+      // Simple Viability Logic
+      if (results.runwayMonths === null && results.breakEvenMonth !== null && results.breakEvenMonth <= 12) {
+        outputElements.viability.textContent = '🟢 Healthy Growth'
+        outputElements.viability.className = 'text-xl font-bold text-green-600 mt-1'
+      } else if (results.runwayMonths === null || (results.runwayMonths > inputs.duration)) {
+        outputElements.viability.textContent = '🟡 Growth Required'
+        outputElements.viability.className = 'text-xl font-bold text-yellow-600 mt-1'
+      } else if (results.runwayMonths > 6) {
+        outputElements.viability.textContent = '🟠 High Burn Rate'
+        outputElements.viability.className = 'text-xl font-bold text-orange-600 mt-1'
+      } else {
+        outputElements.viability.textContent = '🔴 Unsustainable'
+        outputElements.viability.className = 'text-xl font-bold text-red-600 mt-1'
+      }
+
+      // Populate Table
+      if (outputElements.tableBody) {
+        outputElements.tableBody.innerHTML = results.monthlyProjections.map((row) => `
+                <tr class="border-t">
+                    <td class="p-2 text-gray-600">Month ${row.month}</td>
+                    <td class="p-2 text-right font-mono">${formatCurrency(row.revenue)}</td>
+                    <td class="p-2 text-right font-mono">${formatCurrency(row.grossProfit)}</td>
+                    <td class="p-2 text-right font-mono">${formatCurrency(row.ebitda)}</td>
+                    <td class="p-2 text-right font-mono ${row.endingCash < 0 ? 'text-red-600' : ''}">${formatCurrency(row.endingCash)}</td>
+                </tr>
+            `).join('')
+      }
+
+      // Populate Charts
+      const chartLabels = results.monthlyProjections.map((p) => `Month ${p.month}`)
+      const revenueData = results.monthlyProjections.map((p) => p.revenue)
+      const totalCostData = results.monthlyProjections.map((p) => inputs.fixedCosts + inputs.marketingSpend + (p.revenue * inputs.variableCostPercent / 100))
+      const cashData = results.monthlyProjections.map((p) => p.endingCash)
+
+      createChart('projection-break-even-chart', 'line', {
+        labels: chartLabels,
+        datasets: [
+          { label: 'Projected Revenue', data: revenueData, borderColor: '#3B82F6', tension: 0.1 },
+          { label: 'Total Costs', data: totalCostData, borderColor: '#EF4444', tension: 0.1 },
+        ],
+      }, mergeChartOptions(chartYTicks(shortenCurrency), chartTooltip({ label: currencyTooltipCallback })))
+
+      createChart('projection-cash-balance-chart', 'line', {
+        labels: chartLabels,
+        datasets: [
+          { label: 'Ending Cash Balance', data: cashData, borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.1 },
+        ],
+      }, mergeChartOptions(
+        { scales: { y: { beginAtZero: false, ticks: { callback: (n: any) => shortenCurrency(n) } } } }, // Allow negative axis
+        chartTooltip({ label: currencyTooltipCallback }),
+      ))
+
+      // Show the output section
+      outputSection?.classList.remove('hidden')
+    })
+
+    // Initialize AI summary for this specific view if needed (can be added later)
+    // setupPageSummary({ pageId: 'premium-placeholder-projection', analyzeUsingAI: getGeminiAnalysis });
+  }
+
   async function handleExportToPdf() {
     const reportContent = document.getElementById('pdf-preview-content')
     const exportButton = document.getElementById('export-to-pdf-btn')
@@ -769,45 +976,45 @@ export function setupPremiumAnalysisView() {
 
     // 5. Fetch P&L Reports and Calculate Net Profit
     // --- [JOB_13a] Calculate Net Profit from Historical P&L Data ---
-    let currentNetProfit = 0;
-    let previousNetProfit = 0;
+    let currentNetProfit = 0
+    let previousNetProfit = 0
 
     // Access historical P&L data (assuming it's available or fetched nearby)
     // We'll simulate fetching it for this example. In a full implementation,
     // you might need to ensure this data is loaded beforehand or passed in.
     const allHistoricalPnlReports = await (async () => {
-        if (!currentUser || selectedBranch === 'ALL') return []; // Cannot get P&L for "All Branches" yet
-        try {
-            const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
-            const q = query(reportsRef, where('branchName', '==', selectedBranch));
-            const reportsSnap = await getDocs(q);
-            return reportsSnap.docs.map(doc => doc.data());
-        } catch (err) {
-            console.error("Error fetching historical P&L for PDF report:", err);
-            return [];
-        }
-    })();
+      if (!currentUser || selectedBranch === 'ALL') return [] // Cannot get P&L for "All Branches" yet
+      try {
+        const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`)
+        const q = query(reportsRef, where('branchName', '==', selectedBranch))
+        const reportsSnap = await getDocs(q)
+        return reportsSnap.docs.map((doc) => doc.data())
+      } catch (err) {
+        console.error('Error fetching historical P&L for PDF report:', err)
+        return []
+      }
+    })()
 
     // Filter historical reports for the current and previous periods
-    const currentPnlReports = allHistoricalPnlReports.filter(report => {
-        const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
-        return reportDate >= startDate && reportDate <= endDate;
-    });
-    const previousPnlReports = allHistoricalPnlReports.filter(report => {
-        const reportDate = new Date(report.period + '-02');
-        return reportDate >= prevStartDate && reportDate <= prevEndDate;
-    });
+    const currentPnlReports = allHistoricalPnlReports.filter((report) => {
+      const reportDate = new Date(report.period + '-02') // Use day 2 to avoid timezone issues
+      return reportDate >= startDate && reportDate <= endDate
+    })
+    const previousPnlReports = allHistoricalPnlReports.filter((report) => {
+      const reportDate = new Date(report.period + '-02')
+      return reportDate >= prevStartDate && reportDate <= prevEndDate
+    })
 
     // Sum Net Income for the filtered periods
     currentNetProfit = currentPnlReports.reduce((sum, report) => {
-        const metrics = calculateAllPnlMetrics(report.pnlData || {});
-        return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0);
-    }, 0);
+      const metrics = calculateAllPnlMetrics(report.pnlData || {})
+      return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0)
+    }, 0)
 
     previousNetProfit = previousPnlReports.reduce((sum, report) => {
-        const metrics = calculateAllPnlMetrics(report.pnlData || {});
-        return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0);
-    }, 0);
+      const metrics = calculateAllPnlMetrics(report.pnlData || {})
+      return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0)
+    }, 0)
     // --- [JOB_13a] End Net Profit Calculation ---
 
     // 6. Update the DOM
@@ -1625,8 +1832,8 @@ export function setupPremiumAnalysisView() {
         try {
           const deleteCompiledPeriodData = httpsCallable(functions, 'deleteCompiledPeriodData')
           await deleteCompiledPeriodData(idsToDelete)
-          await clearSummariesCache(); // <-- ADD THIS LINE
-          console.log('Data deleted. Daily summaries cache (IndexedDB) cleared.');
+          await clearSummariesCache() // <-- ADD THIS LINE
+          console.log('Data deleted. Daily summaries cache (IndexedDB) cleared.')
 
           // Refresh the view by re-fetching and re-rendering
           await renderPremiumManageDataView()
@@ -1726,6 +1933,8 @@ export function setupPremiumAnalysisView() {
         await setupPremiumBranchSales()
       } else if (targetId === 'premium-placeholder-cabang-produk') {
         await setupPremiumBranchProductChannel()
+      } else if (targetId === 'premium-placeholder-projection') {
+        await setupPremiumProjectionView() // We will create this function next
       }
     }
   })
