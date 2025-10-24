@@ -33,11 +33,8 @@ export async function generatePnlTargetComparisonTable(period: string, branch: s
   } else {
     container.innerHTML = `
       <div class="text-center p-4 border rounded-lg bg-gray-50">
-        <p class="text-gray-500 mb-4">No target data found for this branch and period.</p>
-        <button class="upload-compiled-btn bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-indigo-600" data-period="${period}" data-type="pnlTarget" data-branch="${branch}">
-          Upload P&L Target
-        </button>
-      </div>`
+        <p class="text-gray-500 mb-4">No target data found, please add target on configuration page</p>
+        </div>`
   }
 }
 
