@@ -106,6 +106,8 @@ import { storage } from '@/core/firebase'
 
 import { populateCompiledDataTable } from '@/data-hub/table';
 
+import { clearSummariesCache } from '@/services/localCacheService';
+
 declare const marked: any
 declare const jspdf: any
 
@@ -1312,10 +1314,10 @@ export function setupPremiumAnalysisView() {
   })
 
   // --- New File Input Listeners ---
-  // const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement
+  const salesDataInputNew = document.getElementById('premium-upload-sales-data-input-new') as HTMLInputElement
   // const pnlDataInputNew = document.getElementById('premium-upload-pnl-data-input-new') as HTMLInputElement
 
-  // salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
+  salesDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'salesData'))
   // pnlDataInputNew?.addEventListener('change', (e) => handleFileUpload((e.target as HTMLInputElement).files?.[0], 'pnlData'))
 
   const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
@@ -1601,6 +1603,8 @@ export function setupPremiumAnalysisView() {
         try {
           const deleteCompiledPeriodData = httpsCallable(functions, 'deleteCompiledPeriodData')
           await deleteCompiledPeriodData(idsToDelete)
+          await clearSummariesCache(); // <-- ADD THIS LINE
+          console.log('Data deleted. Daily summaries cache (IndexedDB) cleared.');
 
           // Refresh the view by re-fetching and re-rendering
           await renderPremiumManageDataView()
