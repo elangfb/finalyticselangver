@@ -35,6 +35,9 @@ importers:
       marked:
         specifier: ^16.4.0
         version: 16.4.0
+      slim-select:
+        specifier: ^3.0.3
+        version: 3.0.3
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
@@ -1982,6 +1985,20 @@ packages:
   signal-exit@4.1.0:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
+
+  slim-select@3.0.3:
+    resolution: {integrity: sha512-btgFE6VnGyup+IHwVbSWym7ZLCORf+QDQ5TRAF0sP+Sel3BTIVWlwiXDb0x5x0B8MsijjOekqUi9pUsYzHzX8A==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      vue: ^3.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      vue:
+        optional: true
 
   ssf@0.11.2:
     resolution: {integrity: sha512-+idbmIXoYET47hH+d7dfm2epdOMUDjqcB4648sTZ+t2JwoyBFL/insLfB/racrDmsKB3diwsDA696pZMieAC5g==}
@@ -4362,6 +4379,8 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   signal-exit@4.1.0: {}
+
+  slim-select@3.0.3: {}
 
   ssf@0.11.2:
     dependencies:

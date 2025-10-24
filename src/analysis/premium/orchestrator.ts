@@ -1,5 +1,7 @@
 // [NEW FILE] src/analysis/premium/orchestrator.ts
 
+import SlimSelect from 'slim-select';
+
 import * as $store from '@/store'
 import { generateRingkasanFromSummaries } from '@/analysis/sections/general/sales/ringkasan'
 import type { SalesSummary } from '@/analysis/sections/general/sales/types'
@@ -111,13 +113,12 @@ import { clearSummariesCache } from '@/services/localCacheService';
 import { calculateAllPnlMetrics } from '@/analysis/utils/pnl';
 import { collection, query, where, getDocs } from 'firebase/firestore'; // Make sure these are imported
 
+
 declare const marked: any
 declare const jspdf: any
 
 const currentPage = 1
 const CARDS_PER_PAGE = 8
-
-declare const SlimSelect: any
 
 /**
  * This function runs when the branch selection changes. It filters data and updates the KPIs.
