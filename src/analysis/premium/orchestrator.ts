@@ -108,6 +108,9 @@ import { populateCompiledDataTable } from '@/data-hub/table';
 
 import { clearSummariesCache } from '@/services/localCacheService';
 
+import { calculateAllPnlMetrics } from '@/analysis/utils/pnl';
+import { collection, query, where, getDocs } from 'firebase/firestore'; // Make sure these are imported
+
 declare const marked: any
 declare const jspdf: any
 
@@ -764,29 +767,47 @@ export function setupPremiumAnalysisView() {
     const previousAvgCheck = previousTotals.transactions > 0 ? previousTotals.omzet / previousTotals.transactions : 0
 
     // 5. Fetch P&L Reports and Calculate Net Profit
-    let currentNetProfit = 0
-    let previousNetProfit = 0
-    if (currentUser && selectedBranch !== 'ALL') {
-      try {
-        const safeBranchName = selectedBranch.replace(/\s+/g, '_')
-        const currentPnlId = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
-        const prevPnlId = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}_${safeBranchName}`
+    // --- [JOB_13a] Calculate Net Profit from Historical P&L Data ---
+    let currentNetProfit = 0;
+    let previousNetProfit = 0;
 
-        const [currentPnlSnap, prevPnlSnap] = await Promise.all([
-          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, currentPnlId)),
-          getDoc(doc(db, `users/${currentUser.uid}/pnlReports`, prevPnlId)),
-        ])
+    // Access historical P&L data (assuming it's available or fetched nearby)
+    // We'll simulate fetching it for this example. In a full implementation,
+    // you might need to ensure this data is loaded beforehand or passed in.
+    const allHistoricalPnlReports = await (async () => {
+        if (!currentUser || selectedBranch === 'ALL') return []; // Cannot get P&L for "All Branches" yet
+        try {
+            const reportsRef = collection(db, `users/${currentUser.uid}/pnlReports`);
+            const q = query(reportsRef, where('branchName', '==', selectedBranch));
+            const reportsSnap = await getDocs(q);
+            return reportsSnap.docs.map(doc => doc.data());
+        } catch (err) {
+            console.error("Error fetching historical P&L for PDF report:", err);
+            return [];
+        }
+    })();
 
-        if (currentPnlSnap.exists()) {
-          currentNetProfit = calculateAllPnlMetrics(currentPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
-        }
-        if (prevPnlSnap.exists()) {
-          previousNetProfit = calculateAllPnlMetrics(prevPnlSnap.data().pnlData || {})['Pendapatan Bersih (Net Income)'] || 0
-        }
-      } catch (error) {
-        console.error('Could not fetch P&L data for Net Profit KPI:', error)
-      }
-    }
+    // Filter historical reports for the current and previous periods
+    const currentPnlReports = allHistoricalPnlReports.filter(report => {
+        const reportDate = new Date(report.period + '-02'); // Use day 2 to avoid timezone issues
+        return reportDate >= startDate && reportDate <= endDate;
+    });
+    const previousPnlReports = allHistoricalPnlReports.filter(report => {
+        const reportDate = new Date(report.period + '-02');
+        return reportDate >= prevStartDate && reportDate <= prevEndDate;
+    });
+
+    // Sum Net Income for the filtered periods
+    currentNetProfit = currentPnlReports.reduce((sum, report) => {
+        const metrics = calculateAllPnlMetrics(report.pnlData || {});
+        return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0);
+    }, 0);
+
+    previousNetProfit = previousPnlReports.reduce((sum, report) => {
+        const metrics = calculateAllPnlMetrics(report.pnlData || {});
+        return sum + (metrics['Pendapatan Bersih (Net Income)'] || 0);
+    }, 0);
+    // --- [JOB_13a] End Net Profit Calculation ---
 
     // 6. Update the DOM
     const updateKpiCard = (cardIndex: number, currentValue: number, previousValue: number, isCurrency: boolean) => {
