@@ -19,12 +19,12 @@ import { httpsCallable } from 'firebase/functions'
 import { functions } from '@/core/firebase'
 
 // Add these imports at the top of src/analysis/premium/orchestrator.ts
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/core/firebase'
 import { currentUser } from '@/core/state'
 import { formatCurrency, formatNumber, shortenNumber } from '@/utils/string'
 import { createChart } from '@/analysis/helpers'
-import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency, chartYTicks } from '@/analysis/utils/chart-formatters';
+import { mergeChartOptions, chartTooltip, currencyTooltipCallback, shortenCurrency, chartYTicks } from '@/analysis/utils/chart-formatters'
 import { generateOmzetHarianChartFromSummaries, generateOmzetMingguanChartFromSummaries } from '@/analysis/sections/general/sales/charts'
 import { generateChannelDonutChart } from '@/analysis/sections/general/product-channel/index'
 
@@ -93,7 +93,7 @@ import { auth } from '@/core/firebase'
 import { setAdminCredentials } from '@/core/state'
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { deepmerge } from 'deepmerge-ts'
-import { formatMachineYearMonthDay, formatNumberUtil } from '@/utils/string'
+import { formatMachineYearMonthDay } from '@/utils/string'
 
 import { getGeminiAnalysis } from '@/config/gemini'
 import { viewPromptCreators } from '@/prompt'
@@ -515,6 +515,208 @@ export function setupPremiumAnalysisView() {
     return
   }
 
+  async function showFinSlideEditor(deckId: string) {
+    console.log(`[FINSLIDE_EDIT] Loading deck: ${deckId}`)
+    if (!currentUser) return
+
+    const deckListPage = document.getElementById('premium-finslide-page')
+    const editorPage = document.getElementById('finslide-editor-view')
+    const deckTitleEl = document.getElementById('finslide-deck-title')
+
+    if (!deckListPage || !editorPage || !deckTitleEl) {
+      console.error('FinSlide editor UI elements not found!')
+      return
+    }
+
+    showLoading({ message: 'Loading deck...' })
+
+    try {
+      // Fetch the specific deck document
+      const deckDocRef = doc(db, `users/${currentUser.uid}/finSlideDecks`, deckId)
+      const docSnap = await getDoc(deckDocRef)
+
+      if (!docSnap.exists()) {
+        throw new Error(`Deck with ID ${deckId} not found.`)
+      }
+
+      const deckData = docSnap.data()
+      currentEditingDeck = { id: deckId, slides: deckData.slides || [] }
+      currentSlideIndex = 0 // Start at the first slide
+
+      // Update title and switch views
+      deckTitleEl.textContent = `${deckData.branch || 'N/A'} - ${deckData.period || 'N/A'} (${deckData.range || 'N/A'})`
+      deckListPage.classList.add('hidden')
+      editorPage.classList.remove('hidden')
+
+      // Initial render
+      renderSlideThumbnails(currentEditingDeck.slides)
+      renderCurrentSlide(currentEditingDeck.slides[currentSlideIndex], currentSlideIndex)
+    } catch (error) {
+      console.error('[FINSLIDE_EDIT] Error loading deck:', error)
+      alert(`Failed to load deck: ${error instanceof Error ? error.message : String(error)}`)
+      // Optionally switch back to list view on error
+      // editorPage.classList.add('hidden');
+      // deckListPage.classList.remove('hidden');
+    } finally {
+      hideLoading()
+    }
+  }
+
+  /**
+ * Renders the list of slide thumbnails in the sidebar.
+ */
+  function renderSlideThumbnails(slides: any[]) {
+    const thumbnailList = document.getElementById('finslide-thumbnail-list')
+    if (!thumbnailList) return
+
+    thumbnailList.innerHTML = slides.map((slide, index) => `
+        <button data-slide-index="${index}" class="finslide-thumbnail-btn w-full text-left p-2 rounded border border-gray-300 bg-white hover:bg-indigo-50 ${index === currentSlideIndex ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}">
+            <p class="text-xs font-medium truncate">${index + 1}. ${slide.title || slide.slideType || 'Untitled Slide'}</p>
+            <p class="text-xs text-gray-500">${slide.slideType || 'Unknown Type'}</p>
+        </button>
+    `).join('')
+
+    // Add click listeners to thumbnails
+    thumbnailList.querySelectorAll('.finslide-thumbnail-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const index = parseInt((btn as HTMLElement).dataset.slideIndex || '0', 10)
+        if (currentEditingDeck) {
+          currentSlideIndex = index
+          renderCurrentSlide(currentEditingDeck.slides[index], index)
+          // Update active state visuals for thumbnails
+          thumbnailList.querySelectorAll('.finslide-thumbnail-btn').forEach((b) => b.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-1'))
+          btn.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-1')
+        }
+      })
+    })
+  }
+
+  /**
+ * Renders the content of the currently selected slide. (Basic Rendering for now)
+ */
+  function renderCurrentSlide(slideData: any | undefined, slideIndex: number) {
+    const slideContentArea = document.getElementById('finslide-current-slide')
+    if (!slideContentArea) return
+
+    if (!slideData) {
+      slideContentArea.innerHTML = `<p class="text-red-500 text-center">Error: Slide data not found for index ${slideIndex}.</p>`
+      return
+    }
+
+    // Basic rendering based on slideType (expand this later)
+    let contentHtml = `<h3 class="text-2xl font-semibold mb-4">${slideData.title || 'Untitled Slide'}</h3>`
+
+    if (slideData.subtitle) {
+      contentHtml += `<p class="text-lg text-gray-600 mb-6">${slideData.subtitle}</p>`
+    }
+
+    if (slideData.slideType === 'KPI_Overview' && slideData.data) {
+      contentHtml += `<ul class="list-disc pl-5 space-y-2">`
+      for (const key in slideData.data) {
+        const value = slideData.data[key]
+        const formattedValue = typeof value === 'number'
+          ? (key.toLowerCase().includes('omzet') || key.toLowerCase().includes('check') ? formatCurrencyUtil(value) : formatNumberUtil(value))
+          : String(value)
+        contentHtml += `<li><strong>${key}:</strong> ${formattedValue}</li>`
+      }
+      contentHtml += `</ul>`
+    } else if (slideData.data) {
+      // Generic data display for other types
+      contentHtml += `<pre class="bg-gray-100 p-3 rounded text-xs overflow-auto">${JSON.stringify(slideData.data, null, 2)}</pre>`
+    }
+
+    if (slideData.notes) {
+      contentHtml += `<div class="mt-6 pt-4 border-t text-sm text-gray-500 italic"><strong>Notes:</strong> ${slideData.notes}</div>`
+    }
+
+    slideContentArea.innerHTML = contentHtml
+  }
+
+  async function setupPremiumFinSlidePage() {
+    console.log('Setting up FinSlide Page...')
+    const deckListContainer = document.getElementById('finslide-deck-list')
+
+    if (!deckListContainer) {
+      console.error('FinSlide deck list container not found!')
+      return
+    }
+    if (!currentUser) {
+      deckListContainer.innerHTML = '<p class="text-red-500 text-center">Please log in to view decks.</p>'
+      return
+    }
+
+    // Prevent re-initialization if already loaded (optional, but good practice)
+    // if (deckListContainer.hasAttribute('data-loaded')) {
+    //     console.log('FinSlide page already loaded.');
+    //     return; // Keep commented out if you want it to refresh each time
+    // }
+
+    deckListContainer.innerHTML = '<p class="text-gray-500 text-center">Loading your generated decks...</p>'
+
+    try {
+    // --- START: Replace Simulation with Actual Firestore Fetch ---
+      const decksRef = collection(db, `users/${currentUser.uid}/finSlideDecks`)
+      // Assuming you add a 'createdAt' field (Timestamp) when creating the deck in the Firebase Function
+      const q = query(decksRef, orderBy('createdAt', 'desc'))
+      const querySnapshot = await getDocs(q)
+      const decks = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      console.log(`[FINSLIDE_LIST] Fetched ${decks.length} decks from Firestore.`)
+      // --- END: Replace Simulation with Actual Firestore Fetch ---
+
+      if (decks.length === 0) {
+        deckListContainer.innerHTML = '<p class="text-gray-500 text-center">No FinSlide decks generated yet. Use the "Export to FinSlide" button on the analysis pages.</p>'
+      } else {
+      // Render as a list
+        deckListContainer.innerHTML = `
+                <ul class="space-y-4">
+                    ${decks.map((deck) => {
+                      // Safely handle potential missing or incorrect createdAt field
+                      let createdAtDate = new Date() // Default to now if invalid
+                      if (deck.createdAt && typeof deck.createdAt.toDate === 'function') {
+                        createdAtDate = deck.createdAt.toDate()
+                      } else if (deck.createdAt) {
+                        // Attempt to parse if it's stored differently (e.g., ISO string) - adjust if needed
+                        try { createdAtDate = new Date(deck.createdAt) } catch (e) {}
+                      }
+                      const formattedDate = createdAtDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+                      return `
+                        <li class="border border-gray-200 rounded-lg p-4 flex justify-between items-center hover:bg-gray-50">
+                            <div>
+                                <p class="font-semibold text-gray-800">${deck.branch || 'N/A'} - ${deck.period || 'N/A'} (${deck.range || 'N/A'})</p>
+                                <p class="text-sm text-gray-500">Generated: ${formattedDate}</p>
+                            </div>
+                            <div>
+                                <button class="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-2" data-deck-id="${deck.id}">View/Edit (Not Implemented)</button>
+                                <button class="text-red-600 hover:text-red-800 text-sm font-medium" data-deck-id="${deck.id}">Delete (Not Implemented)</button>
+                            </div>
+                        </li>
+                    `
+                    }).join('')}
+                </ul>
+            `
+      // TODO: Add listeners for View/Edit/Delete buttons here if needed later
+      }
+      // START: Add listener for View/Edit buttons
+      deckListContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement
+        const viewButton = target.closest('button[data-deck-id]') // Find the closest button with data-deck-id
+
+        if (viewButton && !viewButton.textContent?.includes('Delete')) { // Check if it's the View/Edit button
+          const deckId = viewButton.getAttribute('data-deck-id')
+          if (deckId) {
+            showFinSlideEditor(deckId) // Call function to load and show editor
+          }
+        }
+      // Add delete listener logic here later if needed
+      })
+    // END: Add listener for View/Edit buttons
+    } catch (error) {
+      console.error('Error fetching FinSlide decks:', error)
+      deckListContainer.innerHTML = `<p class="text-red-500 text-center">Error loading decks. Please try again later.</p>`
+    }
+  }
+
   function calculateFinancialProjection(inputs: {
     startRevenue: number
     fixedCosts: number
@@ -842,6 +1044,8 @@ export function setupPremiumAnalysisView() {
   let aggregatedData: Record<string, any> = {}
   let currentPage = 1
   let currentReportDataForAI: object | null = null
+  let currentEditingDeck: { id: string, slides: any[] } | null = null
+  let currentSlideIndex = 0
   const CARDS_PER_PAGE = 8
 
   function generateTop5MenuChart(summaries: SalesSummary[], canvasId: string) {
@@ -1552,6 +1756,63 @@ export function setupPremiumAnalysisView() {
   const exportPdfActionBtn = document.getElementById('export-to-pdf-btn')
   exportPdfActionBtn?.addEventListener('click', handleExportToPdf)
 
+  const exportFinSlideBtn = document.getElementById('export-to-finslide-btn')
+  exportFinSlideBtn?.addEventListener('click', async () => {
+    // Read filters from the PDF export section controls
+    const branchSelect = document.getElementById('export-pdf-branch-select') as HTMLSelectElement
+    const rangeSelect = document.getElementById('export-pdf-range-select') as HTMLSelectElement
+    const periodSelect = document.getElementById('export-pdf-period-select') as HTMLSelectElement
+
+    if (!branchSelect || !rangeSelect || !periodSelect || !currentUser) {
+      alert('Could not find necessary filters or user is not logged in.')
+      return
+    }
+
+    const selectedBranch = branchSelect.value
+    const selectedRange = rangeSelect.value
+    const selectedPeriod = periodSelect.value
+
+    if (!selectedPeriod) {
+      alert('Please select a valid period.')
+      return
+    }
+
+    // Disable button immediately and show loading
+    exportFinSlideBtn.setAttribute('disabled', 'true')
+    showLoading({ message: 'Initiating FinSlide deck generation...' })
+
+    try {
+      // --- TODO: Replace with actual Firebase Function call ---
+      const generateDeck = httpsCallable(functions, 'generateFinSlideDeck')
+      const result = await generateDeck({ branch: selectedBranch, range: selectedRange, period: selectedPeriod })
+      const deckId = (result.data as any).deckId
+      console.log(`[FINSLIDE_TRIGGER] Deck generation started with ID: ${deckId}`)
+
+      hideLoading()
+      alert(`Deck generation for ${selectedBranch} (${selectedPeriod} - ${selectedRange}) started. Please check the FinSlide Decks section later.`)
+    } catch (error) {
+      hideLoading()
+      console.error('[FINSLIDE_TRIGGER] Error initiating FinSlide generation:', error)
+      alert(`Failed to start deck generation. Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      // Re-enable button regardless of success or failure
+      exportFinSlideBtn.removeAttribute('disabled')
+    }
+  })
+
+  const finSlideBackBtn = document.getElementById('finslide-back-to-list-btn')
+  finSlideBackBtn?.addEventListener('click', () => {
+    const deckListPage = document.getElementById('premium-finslide-page')
+    const editorPage = document.getElementById('finslide-editor-view')
+    editorPage?.classList.add('hidden')
+    deckListPage?.classList.remove('hidden')
+    // Optionally clear the current editing state
+    currentEditingDeck = null
+    currentSlideIndex = 0
+    // Refresh the list in case of changes (though none are saved yet)
+    setupPremiumFinSlidePage()
+  })
+
   const showExportPdf = () => {
     showContent(exportPdfContent, exportPdfNavBtn)
     if (!hasInitializedPdfPage) {
@@ -1934,7 +2195,9 @@ export function setupPremiumAnalysisView() {
       } else if (targetId === 'premium-placeholder-cabang-produk') {
         await setupPremiumBranchProductChannel()
       } else if (targetId === 'premium-placeholder-projection') {
-        await setupPremiumProjectionView() // We will create this function next
+        await setupPremiumProjectionView()
+      } else if (targetId === 'premium-finslide-page') {
+        await setupPremiumFinSlidePage()
       }
     }
   })
