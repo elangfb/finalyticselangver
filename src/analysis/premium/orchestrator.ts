@@ -113,6 +113,9 @@ import { clearSummariesCache } from '@/services/localCacheService'
 import { calculateAllPnlMetrics } from '@/analysis/utils/pnl'
 import { collection, query, where, getDocs } from 'firebase/firestore' // Make sure these are imported
 
+import Chart from 'chart.js/auto'; // Import Chart type
+import type { Chart as ChartTypeInstance } from 'chart.js';
+
 declare const marked: any
 declare const jspdf: any
 
@@ -522,6 +525,7 @@ export function setupPremiumAnalysisView() {
     const deckListPage = document.getElementById('premium-finslide-page')
     const editorPage = document.getElementById('finslide-editor-view')
     const deckTitleEl = document.getElementById('finslide-deck-title')
+    const saveBtn = document.getElementById('finslide-save-btn') as HTMLButtonElement | null;
 
     if (!deckListPage || !editorPage || !deckTitleEl) {
       console.error('FinSlide editor UI elements not found!')
@@ -542,6 +546,12 @@ export function setupPremiumAnalysisView() {
       const deckData = docSnap.data()
       currentEditingDeck = { id: deckId, slides: deckData.slides || [] }
       currentSlideIndex = 0 // Start at the first slide
+
+      deckHasChanges = false;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.classList.add('disabled:opacity-50');
+        } 
 
       // Update title and switch views
       deckTitleEl.textContent = `${deckData.branch || 'N/A'} - ${deckData.period || 'N/A'} (${deckData.range || 'N/A'})`
@@ -592,45 +602,135 @@ export function setupPremiumAnalysisView() {
   }
 
   /**
- * Renders the content of the currently selected slide. (Basic Rendering for now)
+ * Renders the content of the currently selected slide, including charts and editable fields.
  */
-  function renderCurrentSlide(slideData: any | undefined, slideIndex: number) {
-    const slideContentArea = document.getElementById('finslide-current-slide')
-    if (!slideContentArea) return
+function renderCurrentSlide(slideData: any | undefined, slideIndex: number) {
+    const slideContentArea = document.getElementById('finslide-current-slide');
+    const saveBtn = document.getElementById('finslide-save-btn') as HTMLButtonElement | null;
+    if (!slideContentArea) return;
+
+    // --- Destroy previous chart instance ---
+    if (currentSlideChartInstance) {
+        currentSlideChartInstance.destroy();
+        currentSlideChartInstance = null;
+    }
 
     if (!slideData) {
-      slideContentArea.innerHTML = `<p class="text-red-500 text-center">Error: Slide data not found for index ${slideIndex}.</p>`
-      return
+        slideContentArea.innerHTML = `<p class="text-red-500 text-center">Error: Slide data not found for index ${slideIndex}.</p>`;
+        return;
     }
 
-    // Basic rendering based on slideType (expand this later)
-    let contentHtml = `<h3 class="text-2xl font-semibold mb-4">${slideData.title || 'Untitled Slide'}</h3>`
+    // --- Render Editable Fields ---
+    let contentHtml = `
+        <div class="mb-4">
+            <label for="finslide-title-input" class="block text-sm font-medium text-gray-700">Slide Title</label>
+            <input type="text" id="finslide-title-input" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-2xl font-semibold" value="${slideData.title || ''}">
+        </div>
+    `;
 
-    if (slideData.subtitle) {
-      contentHtml += `<p class="text-lg text-gray-600 mb-6">${slideData.subtitle}</p>`
+    if (slideData.subtitle !== undefined) {
+        contentHtml += `
+            <div class="mb-6">
+                <label for="finslide-subtitle-input" class="block text-sm font-medium text-gray-700">Subtitle</label>
+                <input type="text" id="finslide-subtitle-input" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg text-gray-600" value="${slideData.subtitle || ''}">
+            </div>
+        `;
     }
 
-    if (slideData.slideType === 'KPI_Overview' && slideData.data) {
-      contentHtml += `<ul class="list-disc pl-5 space-y-2">`
-      for (const key in slideData.data) {
-        const value = slideData.data[key]
-        const formattedValue = typeof value === 'number'
-          ? (key.toLowerCase().includes('omzet') || key.toLowerCase().includes('check') ? formatCurrencyUtil(value) : formatNumberUtil(value))
-          : String(value)
-        contentHtml += `<li><strong>${key}:</strong> ${formattedValue}</li>`
-      }
-      contentHtml += `</ul>`
+    // --- START: CORRECTED RENDER LOGIC ---
+    const isChartSlide = slideData.chartType && slideData.data && slideData.data.labels && slideData.data.datasets;
+
+    if (slideData.slideType === 'AI_Summary' && slideData.content) {
+        // RENDER AI SUMMARY
+        contentHtml += `
+            <div class="prose prose-sm max-w-none mt-6 p-4 border rounded bg-purple-50 border-purple-200 text-purple-800">
+                ${marked.parse(slideData.content)}
+            </div>
+        `;
+    } else if (isChartSlide) {
+        // RENDER CHART
+        contentHtml += `
+            <div class="chart-container mx-auto my-6" style="max-width: 600px; height: 350px;">
+                <canvas id="finslide-active-chart-canvas"></canvas>
+            </div>
+        `;
+    } else if (slideData.slideType === 'KPI_Overview' && slideData.data) {
+        // RENDER KPI LIST (READ-ONLY)
+        contentHtml += `<h4 class="text-lg font-medium text-gray-800 mb-2 mt-6">KPI Data (Read-only)</h4>`;
+        contentHtml += `<ul class="list-disc pl-5 space-y-2 max-w-md">`;
+        for (const key in slideData.data) {
+            const value = slideData.data[key];
+            const formattedValue = typeof value === 'number'
+                ? (key.toLowerCase().includes('omzet') || key.toLowerCase().includes('check') ? formatCurrencyUtil(value) : formatNumberUtil(value))
+                : String(value);
+            contentHtml += `<li class="text-sm"><strong>${key}:</strong> ${formattedValue}</li>`;
+        }
+        contentHtml += `</ul>`;
     } else if (slideData.data) {
-      // Generic data display for other types
-      contentHtml += `<pre class="bg-gray-100 p-3 rounded text-xs overflow-auto">${JSON.stringify(slideData.data, null, 2)}</pre>`
+        // RENDER GENERIC DATA (READ-ONLY)
+        contentHtml += `<h4 class="text-lg font-medium text-gray-800 mb-2 mt-6">Raw Data (Read-only)</h4>`;
+        contentHtml += `<pre class="bg-gray-100 p-3 rounded text-xs overflow-auto">${JSON.stringify(slideData.data, null, 2)}</pre>`;
+    }
+    // --- END: CORRECTED RENDER LOGIC ---
+
+    // --- Render Editable Notes ---
+    if (slideData.notes !== undefined) {
+        contentHtml += `
+            <div class="mt-6 pt-4 border-t">
+                <label for="finslide-notes-input" class="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea id="finslide-notes-input" rows="4" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm">${slideData.notes || ''}</textarea>
+            </div>
+        `;
     }
 
-    if (slideData.notes) {
-      contentHtml += `<div class="mt-6 pt-4 border-t text-sm text-gray-500 italic"><strong>Notes:</strong> ${slideData.notes}</div>`
+    slideContentArea.innerHTML = contentHtml; // Set the HTML
+
+    // --- Create Chart After Canvas Exists ---
+    if (isChartSlide) {
+        const canvasElement = document.getElementById('finslide-active-chart-canvas') as HTMLCanvasElement | null;
+        if (canvasElement) {
+            try {
+                const baseChartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: slideData.data.datasets.length > 1 } } };
+                const finalChartOptions = mergeChartOptions(
+                    baseChartOptions,
+                    slideData.options || {},
+                    chartTooltip({ label: currencyTooltipCallback })
+                );
+
+                currentSlideChartInstance = createChart(
+                    'finslide-active-chart-canvas',
+                    slideData.chartType,
+                    slideData.data,
+                    finalChartOptions
+                );
+            } catch (error) {
+                 console.error("[FINSLIDE_RENDER] Error creating chart:", error);
+                 // Check if slideContentArea still exists before appending
+                 if (slideContentArea) {
+                     slideContentArea.innerHTML += `<p class="text-red-500 text-center mt-4">Error rendering chart.</p>`;
+                 }
+            }
+        }
     }
 
-    slideContentArea.innerHTML = contentHtml
-  }
+    // --- Add Input Listeners ---
+    const updateSlideData = (field: string, value: string) => {
+        if (currentEditingDeck && currentEditingDeck.slides[slideIndex]) {
+            (currentEditingDeck.slides[slideIndex] as any)[field] = value;
+            if (!deckHasChanges) {
+                deckHasChanges = true;
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.classList.remove('disabled:opacity-50');
+                }
+            }
+        }
+    };
+
+    slideContentArea.querySelector('#finslide-title-input')?.addEventListener('input', (e) => updateSlideData('title', (e.target as HTMLInputElement).value));
+    slideContentArea.querySelector('#finslide-subtitle-input')?.addEventListener('input', (e) => updateSlideData('subtitle', (e.target as HTMLInputElement).value));
+    slideContentArea.querySelector('#finslide-notes-input')?.addEventListener('input', (e) => updateSlideData('notes', (e.target as HTMLTextAreaElement).value));
+}
 
   async function setupPremiumFinSlidePage() {
     console.log('Setting up FinSlide Page...')
@@ -698,16 +798,52 @@ export function setupPremiumAnalysisView() {
       // TODO: Add listeners for View/Edit/Delete buttons here if needed later
       }
       // START: Add listener for View/Edit buttons
-      deckListContainer.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement
-        const viewButton = target.closest('button[data-deck-id]') // Find the closest button with data-deck-id
+      deckListContainer.addEventListener('click', async (e) => { // <-- Add async here
+            const target = e.target as HTMLElement;
+            // Find the closest button with data-deck-id, whether View or Delete
+            const actionButton = target.closest('button[data-deck-id]');
 
-        if (viewButton && !viewButton.textContent?.includes('Delete')) { // Check if it's the View/Edit button
-          const deckId = viewButton.getAttribute('data-deck-id')
-          if (deckId) {
-            showFinSlideEditor(deckId) // Call function to load and show editor
-          }
-        }
+            if (!actionButton) return; // Exit if the click wasn't on a relevant button
+
+            const deckId = actionButton.getAttribute('data-deck-id');
+            if (!deckId) return; // Exit if deckId is missing
+
+            // --- START: Added Delete Logic ---
+            if (actionButton.textContent?.includes('Delete')) {
+                // It's the Delete button
+                if (confirm(`Are you sure you want to permanently delete this FinSlide deck (${deckId})? This cannot be undone.`)) {
+                    showLoading({ message: 'Deleting deck...' });
+                    actionButton.setAttribute('disabled', 'true'); // Disable button during deletion
+                    try {
+                        // --- TODO: Replace with actual Firebase Function call ---
+                        console.log(`[FINSLIDE_DELETE] Simulating call to deleteFinSlideDeck with deckId: ${deckId}`);
+                        // const deleteDeck = httpsCallable(functions, 'deleteFinSlideDeck');
+                        // await deleteDeck({ deckId: deckId });
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+                        // --- End Simulation ---
+
+                        // Remove the list item from the UI immediately on success
+                        actionButton.closest('li')?.remove();
+                        hideLoading();
+                        alert('Deck deleted successfully.'); // Simple feedback
+
+                        // Optional: Check if the list is now empty
+                        if (!deckListContainer.querySelector('li')) {
+                            deckListContainer.innerHTML = '<p class="text-gray-500 text-center">No FinSlide decks generated yet.</p>';
+                        }
+
+                    } catch (error) {
+                        hideLoading();
+                        actionButton.removeAttribute('disabled'); // Re-enable on error
+                        console.error("[FINSLIDE_DELETE] Error deleting deck:", error);
+                        alert(`Failed to delete deck. Error: ${error instanceof Error ? error.message : String(error)}`);
+                    }
+                }
+            // --- END: Added Delete Logic ---
+
+            } else { // It's the View/Edit button
+                showFinSlideEditor(deckId); // Call function to load and show editor
+            }
       // Add delete listener logic here later if needed
       })
     // END: Add listener for View/Edit buttons
@@ -1046,6 +1182,8 @@ export function setupPremiumAnalysisView() {
   let currentReportDataForAI: object | null = null
   let currentEditingDeck: { id: string, slides: any[] } | null = null
   let currentSlideIndex = 0
+  let currentSlideChartInstance: Chart | null = null;
+  let deckHasChanges = false;
   const CARDS_PER_PAGE = 8
 
   function generateTop5MenuChart(summaries: SalesSummary[], canvasId: string) {
@@ -1729,6 +1867,43 @@ export function setupPremiumAnalysisView() {
     }
   }
 
+  const finSlideSaveBtn = document.getElementById('finslide-save-btn') as HTMLButtonElement | null;
+    finSlideSaveBtn?.addEventListener('click', async () => {
+        if (!currentEditingDeck || !deckHasChanges || !currentUser) {
+            console.warn("[FINSLIDE_SAVE] Save conditions not met.");
+            return;
+        }
+
+        const deckId = currentEditingDeck.id;
+        const updatedSlides = currentEditingDeck.slides;
+
+        if (finSlideSaveBtn) finSlideSaveBtn.disabled = true; // Disable immediately
+        showLoading({ message: 'Saving changes...' });
+
+        try {
+            // --- TODO: Replace with actual Firebase Function call ---
+            console.log(`[FINSLIDE_SAVE] Simulating call to updateFinSlideDeck with deckId: ${deckId}`);
+            console.log("[FINSLIDE_SAVE] Updated Slides Data:", updatedSlides);
+            // const updateDeck = httpsCallable(functions, 'updateFinSlideDeck');
+            // await updateDeck({ deckId: deckId, slides: updatedSlides });
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+            // --- End Simulation ---
+
+            deckHasChanges = false; // Reset flag on successful save
+            if (finSlideSaveBtn) {
+                 finSlideSaveBtn.classList.add('disabled:opacity-50'); // Keep disabled visually
+            }
+            hideLoading();
+            alert('Changes saved successfully!'); // Simple confirmation for now
+
+        } catch (error) {
+            hideLoading();
+            if (finSlideSaveBtn) finSlideSaveBtn.disabled = false; // Re-enable on error
+            console.error("[FINSLIDE_SAVE] Error saving deck:", error);
+            alert(`Failed to save changes. Error: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    });
+
   // --- New Upload Section Logic ---
   const esbBtnNew = document.getElementById('premium-upload-esb-btn-new')
   const mokaBtnNew = document.getElementById('premium-upload-moka-btn-new')
@@ -1806,6 +1981,11 @@ export function setupPremiumAnalysisView() {
     const editorPage = document.getElementById('finslide-editor-view')
     editorPage?.classList.add('hidden')
     deckListPage?.classList.remove('hidden')
+    if (currentSlideChartInstance) {
+        console.log("[FINSLIDE_BACK] Destroying chart instance.");
+        currentSlideChartInstance.destroy();
+        currentSlideChartInstance = null;
+    }
     // Optionally clear the current editing state
     currentEditingDeck = null
     currentSlideIndex = 0
